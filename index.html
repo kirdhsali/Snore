@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Snorewatch</title>
+<meta name="description" content="Record and analyze snoring in your browser. Only snores are kept; everything runs locally.">
+<meta name="theme-color" content="#0e1016">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&display=swap">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<main class="wrap">
+  <header class="brand">
+    <span class="brand-mark" aria-hidden="true"></span>
+    <span class="brand-name">Snorewatch</span>
+    <span class="brand-note">Runs on this device. Only snores are kept.</span>
+  </header>
+
+  <section class="hero" aria-label="Recording">
+    <button id="rec" class="rec" type="button" aria-pressed="false">
+      <span class="rec-ring" aria-hidden="true"></span>
+      <span class="rec-label" id="rec-label">Start</span>
+    </button>
+    <p class="status" id="status" role="status" aria-live="polite">Tap Start and put the device next to your bed.</p>
+
+    <div class="controls" id="controls">
+      <div class="segmented" role="radiogroup" aria-label="Sound source">
+        <label><input type="radio" name="source" id="src-mic" value="mic" checked><span>Microphone</span></label>
+        <label><input type="radio" name="source" id="src-demo" value="demo"><span>Demo night</span></label>
+        <label><input type="radio" name="source" id="src-file" value="file"><span>Audio file</span></label>
+      </div>
+      <div class="control-row">
+        <label class="field" for="sensitivity">Sensitivity
+          <select id="sensitivity">
+            <option value="low">Low (noisy room)</option>
+            <option value="normal" selected>Normal</option>
+            <option value="high">High (quiet snorer)</option>
+          </select>
+        </label>
+        <label class="field check" id="monitor-wrap" for="monitor" hidden>
+          <input type="checkbox" id="monitor" checked> Play sound through speakers
+        </label>
+        <label class="field file" id="file-wrap" for="file" hidden>
+          <span>Choose file</span>
+          <input type="file" id="file" accept="audio/*,video/*">
+          <span class="file-name" id="file-name">No file selected</span>
+        </label>
+      </div>
+      <p class="hint" id="source-hint"></p>
+    </div>
+  </section>
+
+  <section class="intro" id="intro" aria-label="How it works">
+    <div class="intro-item">
+      <h2>Listens all night</h2>
+      <p>Measures your room’s background noise, then reacts to every sound that rises above it.</p>
+    </div>
+    <div class="intro-item is-snore">
+      <h2>Keeps only snores</h2>
+      <p>A snore is one smooth, low-pitched burst of ¼ to 4 seconds. Talking, knocking, traffic and coughs are discarded.</p>
+    </div>
+    <div class="intro-item">
+      <h2>Reports in the morning</h2>
+      <p>Tap Stop to get snores per hour, loudness, snoring episodes and the loudest snores to listen to.</p>
+    </div>
+  </section>
+
+  <section class="live" id="live" hidden aria-label="Live analysis">
+    <div class="state-row">
+      <span class="pill" id="pill" data-state="calibrating"><span class="dot" aria-hidden="true"></span><span id="pill-text">Measuring room noise</span></span>
+      <span class="level" id="level-text"></span>
+    </div>
+
+    <figure class="panel">
+      <figcaption>
+        <span class="panel-title">Last 30 seconds</span>
+        <span class="legend">
+          <span><i class="sw sw-snore"></i>Snore</span>
+          <span><i class="sw sw-ignored"></i>Ignored sound</span>
+          <span><i class="sw sw-line"></i>Trigger level</span>
+        </span>
+      </figcaption>
+      <canvas id="live-canvas" class="chart chart-live" aria-label="Loudness of the last 30 seconds; snores highlighted"></canvas>
+    </figure>
+
+    <div class="tiles" id="live-tiles"></div>
+
+    <figure class="panel">
+      <figcaption>
+        <span class="panel-title">Snores over time</span>
+        <span class="panel-sub" id="live-bucket"></span>
+      </figcaption>
+      <div class="chart-box">
+        <canvas id="live-timeline" class="chart chart-timeline" aria-label="Snores per time slot since recording started"></canvas>
+        <div class="tip" id="live-tip" hidden></div>
+      </div>
+    </figure>
+
+    <div class="panel">
+      <div class="panel-head"><span class="panel-title">Latest snores</span><span class="panel-sub">Extracted audio, newest first</span></div>
+      <div class="clips" id="live-clips"><p class="empty">Snores appear here as soon as they are detected.</p></div>
+    </div>
+  </section>
+
+  <section class="report" id="report" hidden aria-label="Report">
+    <div class="report-head">
+      <div>
+        <p class="eyebrow" id="report-source"></p>
+        <h1 id="report-title">Night report</h1>
+        <p class="report-range" id="report-range"></p>
+      </div>
+      <div class="report-actions" id="report-actions">
+        <button type="button" class="btn" id="dl-wav">Download snores (.wav)</button>
+        <button type="button" class="btn" id="dl-json">Download data (.json)</button>
+        <button type="button" class="btn" id="copy-summary">Copy summary</button>
+      </div>
+    </div>
+
+    <p class="verdict" id="verdict"></p>
+    <div class="tiles" id="report-tiles"></div>
+
+    <figure class="panel">
+      <figcaption>
+        <span class="panel-title">Snores over time</span>
+        <span class="panel-sub" id="report-bucket"></span>
+      </figcaption>
+      <div class="chart-box">
+        <canvas id="report-timeline" class="chart chart-timeline" aria-label="Snores per time slot"></canvas>
+        <div class="tip" id="report-tip" hidden></div>
+      </div>
+    </figure>
+
+    <div class="grid-2">
+      <div class="panel">
+        <div class="panel-head"><span class="panel-title">Loudness</span><span class="panel-sub">Peak above room noise</span></div>
+        <div class="bars" id="intensity"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><span class="panel-title">Ignored sounds</span><span class="panel-sub">Heard, not kept</span></div>
+        <div class="bars" id="ignored"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><span class="panel-title">Snoring episodes</span><span class="panel-sub">3 or more snores, less than a minute apart</span></div>
+      <div class="table-wrap"><table class="table" id="episodes"></table></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><span class="panel-title">Loudest snores</span><span class="panel-sub">Tap to listen</span></div>
+      <div class="clips" id="report-clips"></div>
+    </div>
+
+    <p class="disclaimer">Snorewatch estimates snoring from sound alone. It is not a medical device and cannot detect sleep apnea. If you stop breathing at night, wake up gasping or feel very tired during the day, talk to a doctor.</p>
+  </section>
+
+  <footer class="foot">
+    <p>Privacy: audio is analyzed on this device and never uploaded. Sounds that are not snores are discarded within a few seconds; only snore clips stay in memory until you close the page.</p>
+  </footer>
+</main>
+
+<script src="js/detector.js"></script>
+<script src="js/synth.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

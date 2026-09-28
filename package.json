@@ -1,0 +1,20 @@
+{
+  "name": "snorewatch",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Record and analyze snoring in the browser. Only snores are kept.",
+  "license": "MIT",
+  "scripts": {
+    "start": "node scripts/serve.js",
+    "test": "node --test tests/detector.test.js",
+    "test:e2e": "node tests/e2e.js",
+    "sample": "node scripts/make-sample.js",
+    "build": "node scripts/build-standalone.js && node scripts/build-standalone.js --embed"
+  },
+  "devDependencies": {
+    "playwright": "^1.56.1"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
