@@ -17,7 +17,7 @@ No build step and no runtime dependencies: plain HTML, CSS and JavaScript.
 | --- | --- |
 | Quickest | Open `index.html` in Chrome/Edge/Firefox, choose **Demo night**, tap **Start**. |
 | With your microphone | `npm start`, then open <http://localhost:8080>. Microphones need https or localhost. |
-| On your phone | Enable GitHub Pages (below) and open the Pages URL, or run `npm start` and open it via your computer's IP with an https tunnel. |
+| On your phone | Open <https://kirdhsali.github.io/Snore/> (GitHub Pages, see below). |
 
 ### Three test sources
 
@@ -99,6 +99,6 @@ npm start           # local server on http://localhost:8080 (PORT to change)
 
 ### GitHub Pages
 
-`.github/workflows/pages.yml` deploys on every push to `main`. Enable it once
+`.github/workflows/pages.yml` deploys on every push to the default branch. Enable it once
 under **Settings → Pages → Source: GitHub Actions**. Pages is served over https,
 so the microphone works on phones too.
