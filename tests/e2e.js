@@ -36,7 +36,7 @@ async function main() {
       window.__played = [];
       const play = HTMLMediaElement.prototype.play;
       HTMLMediaElement.prototype.play = function () {
-        const rec = { ok: false, ended: false, duration: 0, peak: 0 };
+        const rec = { ok: false, error: null, ended: false, duration: 0, peak: 0 };
         window.__played.push(rec);
         this.addEventListener('ended', () => {
           rec.ended = true;
@@ -48,7 +48,13 @@ async function main() {
             const v = new DataView(b);
             for (let i = 44; i + 1 < b.byteLength; i += 2) rec.peak = Math.max(rec.peak, Math.abs(v.getInt16(i, true)) / 32768);
           });
-        return play.call(this).then(() => (rec.ok = true));
+        return play.call(this).then(
+          () => (rec.ok = true),
+          (err) => {
+            rec.error = `${err.name}: ${err.message}`;
+            throw err;
+          },
+        );
       };
     });
     page.on('pageerror', (e) => errors.push(e.message));
@@ -73,7 +79,10 @@ async function main() {
 
     console.log('Playback: tapping the loudest snore…');
     await page.click('#report-clips .clip');
-    await page.waitForSelector('#report-clips .clip.is-playing', { timeout: 3000 });
+    // play() resolves asynchronously; wait until it either started or failed.
+    await page.waitForFunction(() => window.__played.length && (window.__played[0].ok || window.__played[0].error), null, {
+      timeout: 5000,
+    });
     const played = await page.evaluate(() => window.__played);
     assert.ok(played.length === 1 && played[0].ok, `clip started playing: ${JSON.stringify(played)}`);
     await page.waitForFunction(() => !document.querySelector('#report-clips .clip.is-playing'), null, { timeout: 8000 });
