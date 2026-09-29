@@ -261,6 +261,13 @@ body {
 .btn:disabled { opacity: 0.45; cursor: default; }
 .verdict { margin: 0; font-size: 17px; max-width: 62ch; color: var(--fg); text-wrap: pretty; }
 
+.share-body { display: grid; grid-template-columns: minmax(0, 220px) minmax(0, 1fr); gap: 18px; align-items: start; }
+.share-preview { width: 100%; height: auto; aspect-ratio: 1080 / 1350; border-radius: 10px; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); display: block; }
+.share-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; min-width: 0; }
+.share-actions .hint { text-wrap: pretty; }
+.btn-primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+.btn-primary:hover { border-color: var(--accent); filter: brightness(1.08); }
+
 .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .bars { display: flex; flex-direction: column; gap: 10px; }
 .bar-row { display: grid; grid-template-columns: minmax(0, 11rem) minmax(0, 1fr) 2.5rem; gap: 10px; align-items: center; font-size: 13.5px; }
@@ -285,6 +292,7 @@ body {
 @media (max-width: 620px) {
   .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .grid-2, .intro { grid-template-columns: minmax(0, 1fr); }
+  .share-body { grid-template-columns: minmax(0, 140px) minmax(0, 1fr); gap: 14px; }
   .intro-item { padding: 10px 2px 0; }
   .brand-note { margin-left: 0; width: 100%; }
   .rec { width: 156px; height: 156px; }

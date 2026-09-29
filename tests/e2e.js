@@ -93,6 +93,31 @@ async function main() {
     assert.doesNotMatch(await page.textContent('#status'), /could not be played/);
     assert.match(await page.textContent('#app-version'), /^Snorewatch \d+\.\d+\.\d+ \(/);
 
+    console.log('Sharing: image and full report…');
+    await page.waitForSelector('#share-image:not([disabled])', { timeout: 10000 });
+    const [img] = await Promise.all([page.waitForEvent('download'), page.click('#share-image')]);
+    const png = fs.readFileSync(await img.path());
+    assert.equal(png.toString('ascii', 1, 4), 'PNG');
+    assert.deepEqual([png.readUInt32BE(16), png.readUInt32BE(20)], [1080, 1350], 'image is 1080 x 1350');
+    const [rep] = await Promise.all([page.waitForEvent('download'), page.click('#share-report')]);
+    assert.match(rep.suggestedFilename(), /^snore-report_.*\.html$/);
+    const reportPath = path.join(os.tmpdir(), 'snorewatch-report.html');
+    fs.copyFileSync(await rep.path(), reportPath);
+    const html = fs.readFileSync(reportPath, 'utf8');
+    assert.doesNotMatch(html, /<script/i);
+    const nAudio = (html.match(/<audio/g) || []).length;
+    const reportPage = await browser.newPage();
+    await reportPage.goto('file://' + reportPath);
+    const clipSeconds = await reportPage.evaluate(async () => {
+      const a = document.querySelector('audio');
+      a.muted = true;
+      await a.play();
+      return a.duration;
+    });
+    await reportPage.close();
+    console.log(`  image ${Math.round(png.length / 1024)} KB, report ${Math.round(html.length / 1024)} KB with ${nAudio} snores; first plays ${clipSeconds.toFixed(2)} s`);
+    assert.ok(nAudio >= 6, 'report embeds the snores');
+
     console.log('Demo mode: playing 12 s of the simulated night…');
     await page.check('#src-demo', { force: true });
     await page.click('#rec');

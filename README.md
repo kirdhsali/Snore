@@ -48,6 +48,11 @@ Report, after Stop:
 - ignored sounds by reason
 - snoring episodes (3+ snores less than a minute apart)
 - the 8 loudest snores to listen to
+- **Share this night**: an image of the night as a star map (1080 × 1350 PNG;
+  each snore a dot by time and loudness) and the **full report** as one HTML
+  file with charts and the 8 loudest + 5 random snores to play. The report has
+  no scripts, works offline in any browser (on iPhone: “Open in Safari”). On
+  phones both open the share sheet; elsewhere they download.
 - downloads: all snores as one `.wav` (volume evened out per clip so quiet
   snores are audible), all data as `.json` (each snore's position in the WAV as
   `wavStartSec`; ignored sounds with their features but no audio); copy a text summary
@@ -104,6 +109,8 @@ npm start           # local server on http://localhost:8080 (PORT to change)
 | `js/detector.js` | FFT, features, snore detector, session statistics, WAV encoder |
 | `js/synth.js` | synthetic snores and distractor sounds for demo mode and tests |
 | `js/charts.js` | canvas drawing for the live strip, timeline and waveforms |
+| `js/share.js` | share image (star map) and the self-contained report file |
+| `js/version.js` | version shown in the footer |
 | `js/app.js` | audio input (microphone / demo / file), live view and report |
 | `tests/` | unit tests (`node --test`) and the browser test |
 

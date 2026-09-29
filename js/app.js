@@ -5,6 +5,7 @@
   const { SnoreDetector, SessionStats, encodeWav, normalizeClip, REASONS } = window.SnoreCore;
   const Synth = window.SnoreSynth;
   const Charts = window.SnoreCharts;
+  const Share = window.SnoreShare;
   const EMBED = !!window.SNOREWATCH_EMBED;
   const LIVE_SECONDS = 30;
   const V = window.SNOREWATCH_VERSION || { version: '?', build: 'dev' };
@@ -48,6 +49,10 @@
     dlWav: $('dl-wav'),
     dlJson: $('dl-json'),
     copy: $('copy-summary'),
+    sharePreview: $('share-preview'),
+    shareImage: $('share-image'),
+    shareReport: $('share-report'),
+    shareHint: $('share-hint'),
     intro: $('intro'),
   };
 
@@ -121,6 +126,8 @@
     HINTS.demo += ' The microphone is not available in this preview; open the app from its own address to record yourself.';
     el.dlWav.hidden = true;
     el.dlJson.hidden = true;
+    el.shareImage.hidden = true;
+    el.shareReport.hidden = true;
   }
 
   function setStatus(text, isError) {
@@ -602,8 +609,84 @@
     else el.reportClips.innerHTML = '<p class="empty">No snores were recorded.</p>';
 
     el.dlWav.disabled = !s.stats.snores.some((x) => x.clip);
+    prepareShare(s);
     el.report.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
   }
+
+  // ---------- sharing ----------
+  let shareFiles = null;
+  let sharePreviewUrl = null;
+
+  /**
+   * Renders the share image and builds the report file as soon as the report
+   * shows, so the share buttons can open the share sheet right away (iPhones
+   * only allow that directly inside the tap).
+   */
+  async function prepareShare(s) {
+    shareFiles = null;
+    el.shareImage.disabled = true;
+    el.shareReport.disabled = true;
+    el.shareHint.textContent = 'Preparing…';
+    try {
+      if (document.fonts && document.fonts.load) {
+        await Promise.race([
+          Promise.all([document.fonts.load('700 100px "Bricolage Grotesque"'), document.fonts.load('500 40px "Bricolage Grotesque"')]),
+          new Promise((r) => setTimeout(r, 1500)),
+        ]);
+      }
+      const data = {
+        startWall: s.startWall,
+        elapsed: s.elapsed,
+        snores: s.stats.snores,
+        summary: s.summary,
+        version: VERSION_TEXT,
+        sensitivity: s.detector.sensitivity,
+        sourceLabel: s.fileName ? `${SOURCE_NAMES.file}: ${s.fileName}` : SOURCE_NAMES[s.source],
+        reasons: REASONS,
+      };
+      const canvas = Share.drawShareCard(document.createElement('canvas'), data);
+      const png = await new Promise((r) => canvas.toBlob(r, 'image/png'));
+      data.heroImage = canvas.toDataURL('image/jpeg', 0.82);
+      data.samples = Share.pickSamples(s.stats.snores, 8, 5);
+      const html = Share.buildReportHtml(data);
+      if (session !== s) return;
+      shareFiles = {
+        image: new File([png], `snore-night_${stamp()}.png`, { type: 'image/png' }),
+        report: new File([html], `snore-report_${stamp()}.html`, { type: 'text/html' }),
+      };
+      if (sharePreviewUrl) URL.revokeObjectURL(sharePreviewUrl);
+      sharePreviewUrl = URL.createObjectURL(png);
+      el.sharePreview.src = sharePreviewUrl;
+      el.shareImage.disabled = false;
+      el.shareReport.disabled = false;
+      const n = data.samples.loud.length + data.samples.random.length;
+      if (EMBED) {
+        el.shareHint.textContent = 'Open the app from its own address to share the image or the full report.';
+        return;
+      }
+      el.shareHint.textContent = `The report is one file (${Math.max(1, Math.round(shareFiles.report.size / 1024))} KB)${
+        n ? ` with ${n} snores to play` : ''
+      }. It opens in any browser; on iPhone choose “Open in Safari” to play the sounds.`;
+    } catch (err) {
+      console.error(err);
+      el.shareHint.textContent = 'Sharing is not available in this browser.';
+    }
+  }
+
+  async function shareFile(file, title) {
+    if (navigator.canShare && navigator.share && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title });
+        return;
+      } catch (err) {
+        if (err.name === 'AbortError') return; // the user closed the share sheet
+      }
+    }
+    download(file.name, file);
+  }
+
+  el.shareImage.addEventListener('click', () => shareFiles && shareFile(shareFiles.image, 'My night with Snorewatch'));
+  el.shareReport.addEventListener('click', () => shareFiles && shareFile(shareFiles.report, 'Snorewatch report'));
 
   function bars(rows, ignored) {
     const max = Math.max(1, ...rows.map((r) => r[1]));
