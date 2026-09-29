@@ -122,6 +122,18 @@
     <p class="verdict" id="verdict"></p>
     <div class="tiles" id="report-tiles"></div>
 
+    <div class="panel share" id="share-panel">
+      <div class="panel-head"><span class="panel-title">Share this night</span><span class="panel-sub">An image for messages, or the full report with sounds</span></div>
+      <div class="share-body">
+        <img class="share-preview" id="share-preview" alt="Share image: this night as a star map, each snore a dot by time and loudness" width="1080" height="1350">
+        <div class="share-actions">
+          <button type="button" class="btn btn-primary" id="share-image" disabled>Share image</button>
+          <button type="button" class="btn" id="share-report" disabled>Share full report</button>
+          <p class="hint" id="share-hint">Preparing…</p>
+        </div>
+      </div>
+    </div>
+
     <figure class="panel">
       <figcaption>
         <span class="panel-title">Snores over time</span>
@@ -167,6 +179,7 @@
 <script src="js/detector.js"></script>
 <script src="js/synth.js"></script>
 <script src="js/charts.js"></script>
+<script src="js/share.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
