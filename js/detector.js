@@ -26,10 +26,13 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
+  // triggerDb/releaseDb: margin above the room's noise floor.
+  // minAbsDb: absolute level (dBFS) a sound must reach at all. Phones record
+  // quiet bedrooms at around -80 dBFS, so this gate matters in practice.
   const SENSITIVITY = {
-    low: { triggerDb: 12, releaseDb: 6 },
-    normal: { triggerDb: 8, releaseDb: 4 },
-    high: { triggerDb: 5, releaseDb: 3 },
+    low: { triggerDb: 12, releaseDb: 6, minAbsDb: -65 },
+    normal: { triggerDb: 8, releaseDb: 4, minAbsDb: -75 },
+    high: { triggerDb: 5, releaseDb: 3, minAbsDb: -85 },
   };
 
   const DEFAULTS = {
@@ -43,7 +46,7 @@
     peakDropDb: 6,
     hangoverSec: 0.2,
     calibrationSec: 1.0,
-    minAbsDb: -70, // ignore anything quieter than this, whatever the floor
+    minAbsDb: null, // overrides the sensitivity's absolute gate when set
     preRollSec: 0.25,
     postRollSec: 0.15,
     clipRate: 8000,
@@ -254,6 +257,7 @@
       this.sensitivity = SENSITIVITY[level] ? level : 'normal';
       this.triggerDb = s.triggerDb;
       this.releaseDb = s.releaseDb;
+      this.minAbsDb = this.opts.minAbsDb != null ? this.opts.minAbsDb : s.minAbsDb;
     }
 
     get elapsed() {
@@ -307,7 +311,7 @@
           this.calib = [];
         }
       } else if (!this.event) {
-        if (f.db > this.floor + this.triggerDb && f.db > o.minAbsDb) {
+        if (f.db > this.floor + this.triggerDb && f.db > this.minAbsDb) {
           this.event = {
             startFrame: index,
             lastLoud: index,
@@ -448,7 +452,7 @@
   /** Aggregates classified events into the live statistics and the report. */
   class SessionStats {
     constructor(options = {}) {
-      this.maxClips = options.maxClips || 400;
+      this.maxClips = options.maxClips || 1500;
       this.episodeGapSec = options.episodeGapSec || 60;
       this.snores = [];
       this.ignored = [];
@@ -461,8 +465,18 @@
         if (ev.clip) this.clipCount++;
         if (this.clipCount > this.maxClips) this._dropQuietestClip();
       } else {
-        // Only the verdict is kept for ignored sounds, never audio.
-        this.ignored.push({ start: ev.start, duration: ev.duration, reason: ev.reason, relDb: ev.relDb });
+        // Only the verdict and sound features are kept for ignored sounds, never audio.
+        this.ignored.push({
+          start: ev.start,
+          duration: ev.duration,
+          reason: ev.reason,
+          relDb: ev.relDb,
+          peakDb: ev.peakDb,
+          lowRatio: ev.lowRatio,
+          highRatio: ev.highRatio,
+          centroid: ev.centroid,
+          peaks: ev.peaks,
+        });
       }
     }
 
@@ -553,6 +567,18 @@
     }
   }
 
+  /**
+   * Evens out clip volume for listening: scales the clip so its peak reaches
+   * `targetPeak` (0..1), boosting by at most `maxGainDb`. Never turns it down.
+   */
+  function normalizeClip(clip, targetPeak = 0.7, maxGainDb = 36) {
+    let peak = 1;
+    for (let i = 0; i < clip.length; i++) peak = Math.max(peak, Math.abs(clip[i]));
+    const gain = Math.min((targetPeak * 32767) / peak, Math.pow(10, maxGainDb / 20));
+    if (gain <= 1) return clip;
+    return Int16Array.from(clip, (x) => Math.max(-32768, Math.min(32767, Math.round(x * gain))));
+  }
+
   /** 16-bit mono WAV from Int16 chunks, with `gapSec` of silence between them. */
   function encodeWav(chunks, sampleRate, gapSec = 0.4) {
     const rate = Math.round(sampleRate);
@@ -593,6 +619,7 @@
     classify,
     countPeaks,
     encodeWav,
+    normalizeClip,
     nextPow2,
     DEFAULTS,
     SENSITIVITY,

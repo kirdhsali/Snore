@@ -108,7 +108,10 @@ test('audio is kept for snores only', () => {
   }
   const stats = new SessionStats();
   events.forEach((e) => stats.add(e));
-  for (const ig of stats.ignored) assert.deepEqual(Object.keys(ig).sort(), ['duration', 'reason', 'relDb', 'start']);
+  assert.ok(stats.ignored.length > 0);
+  for (const ig of stats.ignored) {
+    for (const v of Object.values(ig)) assert.ok(!ArrayBuffer.isView(v), 'ignored sounds must not keep audio');
+  }
 });
 
 test('lower sensitivity ignores faint snores that high sensitivity catches', () => {
@@ -164,4 +167,25 @@ test('WAV encoder writes a valid header', () => {
   assert.equal(v.getUint32(40, true), samples * 2);
   assert.equal(buf.byteLength, 44 + samples * 2);
   assert.equal(v.getInt16(44 + 2 * 11, true), 4);
+});
+
+test('high sensitivity hears snores below the normal absolute gate', () => {
+  // A very quiet bedroom: room noise near -90 dBFS, snores peaking around -79 dBFS.
+  const sr = 16000;
+  const plan = [0, 1, 2, 3].map((i) => ({ type: 'snore', at: 2 + i * 4, amp: 0.0003 }));
+  const scenario = Synth.compose(sr, 20, plan, 4, 0.00003);
+  const normal = run(scenario, { sensitivity: 'normal' }).events.filter((e) => e.isSnore);
+  const high = run(scenario, { sensitivity: 'high' }).events.filter((e) => e.isSnore);
+  assert.equal(normal.length, 0, 'normal ignores sounds under -75 dBFS');
+  assert.equal(high.length, 4);
+  assert.ok(high.every((e) => e.peakDb < -75));
+});
+
+test('normalizeClip boosts quiet clips and caps the gain', () => {
+  const quiet = Core.normalizeClip(new Int16Array([10, -20, 5]));
+  assert.equal(Math.max(...quiet.map(Math.abs)), Math.round(20 * Math.pow(10, 36 / 20)));
+  const loud = new Int16Array([30000, -100]);
+  assert.equal(Core.normalizeClip(loud), loud);
+  const mid = Core.normalizeClip(new Int16Array([1000, -2000]));
+  assert.equal(Math.max(...mid.map(Math.abs)), Math.round(0.7 * 32767));
 });

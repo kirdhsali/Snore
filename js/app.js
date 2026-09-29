@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  const { SnoreDetector, SessionStats, encodeWav, REASONS } = window.SnoreCore;
+  const { SnoreDetector, SessionStats, encodeWav, normalizeClip, REASONS } = window.SnoreCore;
   const Synth = window.SnoreSynth;
   const Charts = window.SnoreCharts;
   const EMBED = !!window.SNOREWATCH_EMBED;
@@ -506,9 +506,10 @@
         playing.src.stop();
       } catch (e) {}
     }
-    const buf = playCtx.createBuffer(1, ev.clip.length, ev.clipRate);
+    const clip = normalizeClip(ev.clip);
+    const buf = playCtx.createBuffer(1, clip.length, ev.clipRate);
     const data = buf.getChannelData(0);
-    for (let i = 0; i < ev.clip.length; i++) data[i] = ev.clip[i] / 32768;
+    for (let i = 0; i < clip.length; i++) data[i] = clip[i] / 32768;
     const src = playCtx.createBufferSource();
     src.buffer = buf;
     src.connect(playCtx.destination);
@@ -641,18 +642,35 @@
     return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
   }
 
+  const WAV_GAP_SEC = 0.4;
+
+  /** Where each kept snore starts in the downloaded WAV, in seconds. */
+  function wavPositions(snores) {
+    const pos = new Map();
+    let t = 0;
+    for (const x of snores) {
+      if (!x.clip) continue;
+      pos.set(x, t);
+      t += x.clip.length / x.clipRate + WAV_GAP_SEC;
+    }
+    return pos;
+  }
+
   el.dlWav.addEventListener('click', () => {
     const snores = session.stats.snores.filter((x) => x.clip);
     if (!snores.length) return;
+    // Volume is evened out per clip so quiet snores are audible; the JSON keeps the real levels.
     const wav = encodeWav(
-      snores.map((x) => x.clip),
+      snores.map((x) => normalizeClip(x.clip)),
       snores[0].clipRate,
+      WAV_GAP_SEC,
     );
     download(`snores_${stamp()}.wav`, new Blob([wav], { type: 'audio/wav' }));
   });
 
   el.dlJson.addEventListener('click', () => {
     const s = session;
+    const wavPos = wavPositions(s.stats.snores);
     const data = {
       app: 'Snorewatch',
       source: s.source,
@@ -669,12 +687,22 @@
         peakDbfs: +x.peakDb.toFixed(1),
         confidence: +x.score.toFixed(2),
         lowFrequencyShare: +x.lowRatio.toFixed(3),
+        highFrequencyShare: +x.highRatio.toFixed(3),
         centroidHz: Math.round(x.centroid),
+        bursts: x.peaks,
+        wavStartSec: wavPos.has(x) ? +wavPos.get(x).toFixed(2) : null,
       })),
       ignored: s.stats.ignored.map((x) => ({
         time: at(x.start).toISOString(),
+        offsetSec: +x.start.toFixed(2),
         durationSec: +x.duration.toFixed(2),
         reason: x.reason,
+        aboveRoomDb: +x.relDb.toFixed(1),
+        peakDbfs: +x.peakDb.toFixed(1),
+        lowFrequencyShare: +x.lowRatio.toFixed(3),
+        highFrequencyShare: +x.highRatio.toFixed(3),
+        centroidHz: Math.round(x.centroid),
+        bursts: x.peaks,
       })),
     };
     download(`snore-report_${stamp()}.json`, new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));

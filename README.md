@@ -48,7 +48,9 @@ Report, after Stop:
 - ignored sounds by reason
 - snoring episodes (3+ snores less than a minute apart)
 - the 8 loudest snores to listen to
-- downloads: all snores as one `.wav`, all data as `.json`; copy a text summary
+- downloads: all snores as one `.wav` (volume evened out per clip so quiet
+  snores are audible), all data as `.json` (each snore's position in the WAV as
+  `wavStartSec`; ignored sounds with their features but no audio); copy a text summary
 
 ## How detection works
 
@@ -58,9 +60,17 @@ Report, after Stop:
    FFT, the share of energy below 800 Hz, the share between 1 and 4 kHz, the
    spectral centroid.
 2. An adaptive noise floor follows the room's background level. A sound event
-   starts when a frame is louder than the floor by the trigger margin
-   (Sensitivity: low 12 dB, normal 8 dB, high 5 dB) and ends after 0.2 s back
-   near the floor.
+   starts when a frame is louder than the floor by the trigger margin and also
+   above an absolute minimum level, and ends after 0.2 s back near the floor:
+
+   | Sensitivity | Margin above room noise | Minimum level |
+   | --- | --- | --- |
+   | Low (noisy room) | 12 dB | −65 dBFS |
+   | Normal | 8 dB | −75 dBFS |
+   | High (quiet snorer or quiet room) | 5 dB | −85 dBFS |
+
+   Phones record a quiet bedroom at about −80 dBFS, so in a quiet room the
+   minimum level is often what decides; use High there.
 3. Each finished event is classified. A **snore** is one smooth burst of
    0.25–4 s with ≥ 55 % of its energy below 800 Hz, ≤ 20 % between 1–4 kHz, and a
    centroid under 1 kHz. Otherwise it is ignored as *too short* (clicks, knocks),
