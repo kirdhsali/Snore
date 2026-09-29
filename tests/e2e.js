@@ -31,6 +31,26 @@ async function main() {
   const errors = [];
   try {
     const page = await browser.newPage();
+    // Record every media element the page plays, and how loud its audio is.
+    await page.addInitScript(() => {
+      window.__played = [];
+      const play = HTMLMediaElement.prototype.play;
+      HTMLMediaElement.prototype.play = function () {
+        const rec = { ok: false, ended: false, duration: 0, peak: 0 };
+        window.__played.push(rec);
+        this.addEventListener('ended', () => {
+          rec.ended = true;
+          rec.duration = this.duration;
+        });
+        fetch(this.src)
+          .then((r) => r.arrayBuffer())
+          .then((b) => {
+            const v = new DataView(b);
+            for (let i = 44; i + 1 < b.byteLength; i += 2) rec.peak = Math.max(rec.peak, Math.abs(v.getInt16(i, true)) / 32768);
+          });
+        return play.call(this).then(() => (rec.ok = true));
+      };
+    });
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(url);
 
@@ -50,6 +70,19 @@ async function main() {
     console.log(`  report: ${verdict}`);
     assert.match(verdict, /snore/);
     assert.ok((await page.$$('#report-clips .clip')).length >= 4, 'report lists snore clips');
+
+    console.log('Playback: tapping the loudest snore…');
+    await page.click('#report-clips .clip');
+    await page.waitForSelector('#report-clips .clip.is-playing', { timeout: 3000 });
+    const played = await page.evaluate(() => window.__played);
+    assert.ok(played.length === 1 && played[0].ok, `clip started playing: ${JSON.stringify(played)}`);
+    await page.waitForFunction(() => !document.querySelector('#report-clips .clip.is-playing'), null, { timeout: 8000 });
+    const ended = await page.evaluate(() => window.__played[0]);
+    console.log(`  played ${ended.duration.toFixed(2)} s, peak ${ended.peak.toFixed(2)} of full scale`);
+    assert.ok(ended.ended, 'clip played to the end');
+    assert.ok(ended.peak > 0.5, 'clip is loud enough to hear');
+    assert.doesNotMatch(await page.textContent('#status'), /could not be played/);
+    assert.match(await page.textContent('#app-version'), /^Snorewatch \d+\.\d+\.\d+ \(/);
 
     console.log('Demo mode: playing 12 s of the simulated night…');
     await page.check('#src-demo', { force: true });

@@ -107,6 +107,13 @@ npm start           # local server on http://localhost:8080 (PORT to change)
 | `js/app.js` | audio input (microphone / demo / file), live view and report |
 | `tests/` | unit tests (`node --test`) and the browser test |
 
+### Versions
+
+The footer shows `Snorewatch <version> (<build>)`. Bump the version in both
+`package.json` and `js/version.js` (a test checks they match). On GitHub Pages
+the build is the short commit hash, and script URLs carry it too, so a phone
+loads the new code right after a deploy; locally it shows `dev`.
+
 ### GitHub Pages
 
 `.github/workflows/pages.yml` deploys on every push to the default branch. Enable it once

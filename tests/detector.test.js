@@ -181,9 +181,15 @@ test('high sensitivity hears snores below the normal absolute gate', () => {
   assert.ok(high.every((e) => e.peakDb < -75));
 });
 
+test('page version matches package.json', () => {
+  const pkg = require('../package.json');
+  const v = require('../js/version.js');
+  assert.equal(v.version, pkg.version);
+});
+
 test('normalizeClip boosts quiet clips and caps the gain', () => {
   const quiet = Core.normalizeClip(new Int16Array([10, -20, 5]));
-  assert.equal(Math.max(...quiet.map(Math.abs)), Math.round(20 * Math.pow(10, 36 / 20)));
+  assert.equal(Math.max(...quiet.map(Math.abs)), Math.round(20 * Math.pow(10, 60 / 20)));
   const loud = new Int16Array([30000, -100]);
   assert.equal(Core.normalizeClip(loud), loud);
   const mid = Core.normalizeClip(new Int16Array([1000, -2000]));

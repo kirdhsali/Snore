@@ -571,7 +571,7 @@
    * Evens out clip volume for listening: scales the clip so its peak reaches
    * `targetPeak` (0..1), boosting by at most `maxGainDb`. Never turns it down.
    */
-  function normalizeClip(clip, targetPeak = 0.7, maxGainDb = 36) {
+  function normalizeClip(clip, targetPeak = 0.7, maxGainDb = 60) {
     let peak = 1;
     for (let i = 0; i < clip.length; i++) peak = Math.max(peak, Math.abs(clip[i]));
     const gain = Math.min((targetPeak * 32767) / peak, Math.pow(10, maxGainDb / 20));

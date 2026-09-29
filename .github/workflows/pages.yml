@@ -21,7 +21,13 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      - run: mkdir -p site && cp -r index.html css js samples site/
+      - name: Assemble site and stamp the build
+        run: |
+          mkdir -p site && cp -r index.html css js samples site/
+          short=${GITHUB_SHA::7}
+          sed -i "s/build: 'dev'/build: '$short'/" site/js/version.js
+          # Cache-busting so phones load the new scripts right after a deploy
+          sed -i -E "s/(src|href)=\"(js|css)\/([^\"]+)\"/\1=\"\2\/\3?v=$short\"/g" site/index.html
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

@@ -7,6 +7,8 @@
   const Charts = window.SnoreCharts;
   const EMBED = !!window.SNOREWATCH_EMBED;
   const LIVE_SECONDS = 30;
+  const V = window.SNOREWATCH_VERSION || { version: '?', build: 'dev' };
+  const VERSION_TEXT = `${V.version} (${V.build})`;
 
   const $ = (id) => document.getElementById(id);
   const el = {
@@ -60,7 +62,6 @@
   let running = false;
   let starting = false;
   let wakeLock = null;
-  let playCtx = null;
   let playing = null;
 
   // ---------- formatting ----------
@@ -207,6 +208,10 @@
   // ---------- session ----------
   async function start() {
     if (starting || running) return;
+    stopClip();
+    try {
+      if (navigator.audioSession) navigator.audioSession.type = 'auto';
+    } catch (e) {}
     const source = currentSource();
     if (source === 'file' && !el.file.files.length) {
       setStatus('Choose an audio file first.', true);
@@ -496,28 +501,45 @@
     return btn;
   }
 
+  function stopClip() {
+    if (!playing) return;
+    const p = playing;
+    playing = null;
+    p.audio.pause();
+    p.done();
+  }
+
+  /**
+   * Plays a snore through an <audio> element rather than Web Audio: on iPhones
+   * Web Audio is muted by the silent switch and, after the microphone was used,
+   * may come out of the earpiece. Media elements play through the speaker.
+   */
   function playClip(ev, btn) {
     if (!ev.clip) return;
-    const AC = window.AudioContext || window.webkitAudioContext;
-    if (!playCtx) playCtx = new AC();
-    if (playCtx.state === 'suspended') playCtx.resume();
-    if (playing) {
-      try {
-        playing.src.stop();
-      } catch (e) {}
-    }
-    const clip = normalizeClip(ev.clip);
-    const buf = playCtx.createBuffer(1, clip.length, ev.clipRate);
-    const data = buf.getChannelData(0);
-    for (let i = 0; i < clip.length; i++) data[i] = clip[i] / 32768;
-    const src = playCtx.createBufferSource();
-    src.buffer = buf;
-    src.connect(playCtx.destination);
-    document.querySelectorAll('.clip.is-playing').forEach((c) => c.classList.remove('is-playing'));
+    const wasThis = playing && playing.btn === btn;
+    stopClip();
+    if (wasThis) return; // second tap stops
+    try {
+      if (!running && navigator.audioSession) navigator.audioSession.type = 'playback';
+    } catch (e) {}
+    const wav = encodeWav([normalizeClip(ev.clip)], ev.clipRate, 0);
+    const url = URL.createObjectURL(new Blob([wav], { type: 'audio/wav' }));
+    const audio = new Audio(url);
+    const done = () => {
+      btn.classList.remove('is-playing');
+      URL.revokeObjectURL(url);
+      if (playing && playing.audio === audio) playing = null;
+    };
+    const fail = () => {
+      done();
+      setStatus('This snore could not be played. Check that the volume is up.', true);
+    };
+    audio.onended = done;
+    audio.onerror = fail;
     btn.classList.add('is-playing');
-    src.onended = () => btn.classList.remove('is-playing');
-    src.start();
-    playing = { src };
+    playing = { audio, btn, done };
+    const p = audio.play();
+    if (p && p.catch) p.catch(fail);
   }
 
   // ---------- report ----------
@@ -673,6 +695,7 @@
     const wavPos = wavPositions(s.stats.snores);
     const data = {
       app: 'Snorewatch',
+      version: VERSION_TEXT,
       source: s.source,
       file: s.fileName,
       startedAt: new Date(s.startWall).toISOString(),
@@ -746,5 +769,6 @@
     stop,
   };
 
+  $('app-version').textContent = `Snorewatch ${VERSION_TEXT}`;
   updateSourceUI();
 })();
