@@ -107,12 +107,23 @@ npm start           # local server on http://localhost:8080 (PORT to change)
 | `js/app.js` | audio input (microphone / demo / file), live view and report |
 | `tests/` | unit tests (`node --test`) and the browser test |
 
+### How changes are made
+
+- `main` is the live version: every push to `main` deploys to GitHub Pages.
+- Changes are made on a separate branch and go to `main` through a pull
+  request. CI (unit tests and the browser test) runs on the pull request; it is
+  merged only when CI is green.
+- To go back, revert the pull request's merge commit on `main`; the older
+  version is redeployed automatically. Every released version is also tagged.
+
 ### Versions
 
 The footer shows `Snorewatch <version> (<build>)`. Bump the version in both
 `package.json` and `js/version.js` (a test checks they match). On GitHub Pages
 the build is the short commit hash, and script URLs carry it too, so a phone
 loads the new code right after a deploy; locally it shows `dev`.
+When a new version reaches `main`, `.github/workflows/release.yml` tags it
+(`v1.2.0`, …) and creates a GitHub release.
 
 ### GitHub Pages
 
