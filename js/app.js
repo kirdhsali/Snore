@@ -34,6 +34,7 @@
     reportSource: $('report-source'),
     reportRange: $('report-range'),
     verdict: $('verdict'),
+    shadowNote: $('shadow-note'),
     reportTiles: $('report-tiles'),
     reportTimeline: $('report-timeline'),
     reportTip: $('report-tip'),
@@ -55,6 +56,7 @@
     nightClock: $('night-clock'),
     nightMeta: $('night-meta'),
     intro: $('intro'),
+    checklist: $('checklist'),
   };
 
   const HINTS = {
@@ -267,7 +269,18 @@
       });
       session.detector = det;
       session.frameCap = Math.ceil(LIVE_SECONDS / det.hopSec);
-      session.tap = await createTap(ctx, input, (samples) => running && det.process(samples));
+      // Shadow test of automatic sensitivity: a second detector on the same audio.
+      // It keeps no audio and changes nothing on screen; its counts go into the data file.
+      const shadowStats = new SessionStats();
+      session.shadow = {
+        stats: shadowStats,
+        detector: new SnoreDetector(ctx.sampleRate, { sensitivity: 'auto', keepClips: false, onEvent: (e) => shadowStats.add(e) }),
+      };
+      session.tap = await createTap(ctx, input, (samples) => {
+        if (!running) return;
+        det.process(samples);
+        session.shadow.detector.process(samples);
+      });
       if (player) player.start();
 
       running = true;
@@ -302,6 +315,7 @@
     running = false;
     const s = session;
     s.detector.flush(); // decides open sounds; they arrive through handleEvent
+    s.shadow.detector.flush();
     s.elapsed = s.detector.elapsed;
     s.endWall = s.startWall + s.elapsed * 1000;
     try {
@@ -348,6 +362,7 @@
   function showLive() {
     el.report.hidden = true;
     el.intro.hidden = true;
+    el.checklist.hidden = true;
     el.live.hidden = false;
     el.rec.classList.add('is-on');
     el.rec.setAttribute('aria-pressed', 'true');
@@ -625,6 +640,12 @@
     const day = start.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' });
     el.reportRange.textContent = `${day}, ${fmtTime(start)} – ${fmtTime(end)} · ${fmtSpan(s.elapsed)}`;
     el.verdict.textContent = verdictText(sum);
+    const shadow = s.shadow.stats.summary(s.elapsed);
+    s.shadowSummary = shadow;
+    el.shadowNote.hidden = false;
+    el.shadowNote.textContent = `Test of automatic sensitivity: it would have counted ${fmtNum(shadow.snoreCount)} snore${
+      shadow.snoreCount === 1 ? '' : 's'
+    } (this recording used ${s.detector.sensitivity}: ${fmtNum(sum.snoreCount)}). Details are in the data file.`;
 
     el.reportTiles.innerHTML = [
       tile('Snores', fmtNum(sum.snoreCount), possibleNote(sum) || (sum.medianInterval ? `typically every ${sum.medianInterval.toFixed(1)} s` : ''), true),
@@ -881,6 +902,32 @@
         subBassShare: x.subBass == null ? null : +x.subBass.toFixed(3),
         loudFill: +x.fill.toFixed(2),
       })),
+      // Automatic sensitivity running in the background on the same audio, for comparison.
+      shadow: {
+        sensitivity: 'auto',
+        summary: {
+          snoreCount: s.shadowSummary.snoreCount,
+          possibleCount: s.shadowSummary.possibleCount,
+          snoresPerHour: +s.shadowSummary.snoresPerHour.toFixed(1),
+          ignoredCount: s.shadowSummary.ignoredCount,
+          ignoredByReason: s.shadowSummary.ignoredByReason,
+          episodes: s.shadowSummary.episodes.length,
+        },
+        levels: s.shadow.detector.levels.map((l) => ({
+          offsetSec: Math.round(l.t),
+          triggerDb: +l.triggerDb.toFixed(1),
+          releaseDb: +l.releaseDb.toFixed(1),
+          spreadDb: +l.spreadDb.toFixed(2),
+          floorDbfs: +l.floorDb.toFixed(1),
+        })),
+        snores: s.shadow.stats.snores.map((x) => ({
+          offsetSec: +x.start.toFixed(2),
+          durationSec: +x.duration.toFixed(2),
+          aboveRoomDb: +x.relDb.toFixed(1),
+          peakDbfs: +x.peakDb.toFixed(1),
+          confirmed: !!x.confirmed,
+        })),
+      },
     };
     download(`snore-report_${stamp()}.json`, new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
   });

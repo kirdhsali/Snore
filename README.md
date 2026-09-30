@@ -39,6 +39,18 @@ To test the real microphone path without snoring, play
 `samples/snore-demo.wav` from another device next to the microphone, or just
 fake a few snores.
 
+### Before you sleep (iPhone)
+
+A web page can only listen while the phone stays unlocked and the page stays in
+front, so the start screen shows this checklist:
+
+1. Plug in the charger (the screen stays on all night).
+2. Turn Low Power Mode off (it locks the screen after 30 s, which stops the recording).
+3. Turn the brightness down; switch on Do Not Disturb or Sleep focus.
+4. Tap Start, put the phone within 1–2 m of your head; don't press the side button or switch apps.
+5. If the phone locks anyway: Settings → Display & Brightness → Auto-Lock → Never for the night.
+6. In the morning, tap the black screen, then Stop.
+
 ## What you get
 
 Live, while recording:
@@ -94,6 +106,15 @@ Report, after Stop:
    nothing above 1 kHz, centroid under 400 Hz, sustained rather than separate
    thuds) and a snore accepted on its own lies 2–12 s before or after it. It
    waits up to 12 s for that snore; rescued snores do not anchor further rescues.
+   **Automatic sensitivity (testing in the background):** a second detector
+   runs on the same audio with `auto` sensitivity. Every 30 s it measures how
+   much the room noise fluctuates while nothing happens (90th minus 50th
+   percentile of quiet frames above the floor) and sets its margins from that:
+   5 dB in a still room, up to 14 dB when it is restless (fan, wind, rain),
+   changing at most 2 dB per step. Its absolute gate only guards against
+   silence (−95 dBFS). It keeps no audio; its counts, margins and snore times go
+   into the JSON under `shadow`, and the report shows one line comparing it with
+   the chosen setting. `npm run evaluate` compares both for a downloaded night.
    **Confirmed snores:** snores come in runs with the breathing. The figures,
    charts and share outputs count a snore only when another snore lies 2–12 s
    before or after it. Isolated snore-like sounds (a footstep, a door, a single

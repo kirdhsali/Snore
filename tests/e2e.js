@@ -90,6 +90,14 @@ async function main() {
     assert.match(verdict, /snore/);
     assert.ok((await page.$$('#report-clips .clip')).length >= 4, 'report lists snore clips');
 
+    assert.match(await page.textContent('#shadow-note'), /automatic sensitivity/);
+    const [jsonDl] = await Promise.all([page.waitForEvent('download'), page.click('#dl-json')]);
+    const report = JSON.parse(fs.readFileSync(await jsonDl.path(), 'utf8'));
+    assert.equal(report.shadow.sensitivity, 'auto');
+    assert.ok(report.shadow.summary.snoreCount >= 4, `shadow counted ${report.shadow.summary.snoreCount}`);
+    assert.ok(report.shadow.snores.every((x) => typeof x.offsetSec === 'number' && !('clip' in x)));
+    console.log(`  shadow (auto): ${report.shadow.summary.snoreCount} snores, ${report.shadow.levels.length} margin updates`);
+
     console.log('Playback: tapping the loudest snore…');
     await page.click('#report-clips .clip');
     // play() resolves asynchronously; wait until it either started or failed.

@@ -276,3 +276,58 @@ test('summary counts snores found through the rhythm', () => {
   stats.add({ isSnore: true, start: 5, end: 6, duration: 1, relDb: 10, clip: null, rhythm: true });
   assert.equal(stats.summary(60).rhythmCount, 1);
 });
+
+function snoreNight(background, noiseLevel, amp, seed) {
+  const r = Synth.rng(seed);
+  const plan = [];
+  for (let t = 60; t < 280; t += 70) plan.push(...Synth.snoreRun(t, 8, r).map((p) => ({ ...p, amp: amp * (0.5 + r()) })));
+  return Synth.compose(16000, 300, plan, seed, noiseLevel, background);
+}
+
+function confirmedSnores(scenario, options) {
+  const det = new SnoreDetector(scenario.sampleRate, options);
+  const stats = new SessionStats();
+  [...det.process(scenario.samples), ...det.flush()].forEach((e) => stats.add(e));
+  const truth = scenario.truth.filter((t) => t.type === 'snore');
+  const hits = stats.confirmed.filter((e) => truth.some((t) => overlaps(e, t))).length;
+  return { hits, falseAlarms: stats.confirmed.length - hits, det };
+}
+
+test('auto sensitivity: small margins in a still room, larger in a restless one', () => {
+  const still = confirmedSnores(snoreNight('still', 0.002, 0.035, 1), { sensitivity: 'auto' }).det;
+  const gusty = confirmedSnores(snoreNight('gusty', 0.004, 0.25, 1), { sensitivity: 'auto' }).det;
+  assert.ok(still.levels.length >= 8, 'margins are re-measured every 30 s');
+  const last = (d) => d.levels[d.levels.length - 1];
+  assert.ok(last(still).triggerDb <= 6, `still room trigger ${last(still).triggerDb}`);
+  assert.ok(last(gusty).triggerDb >= 8, `restless room trigger ${last(gusty).triggerDb}`);
+  for (const d of [still, gusty]) {
+    assert.ok(d.levels.every((l) => l.triggerDb >= 5 && l.triggerDb <= 14 && l.releaseDb >= 3 && l.releaseDb < l.triggerDb));
+  }
+});
+
+test('auto sensitivity finds soft snores in a very quiet bedroom that normal misses', () => {
+  let normal = 0;
+  let auto = 0;
+  for (let seed = 1; seed <= 3; seed++) {
+    const night = snoreNight('still', 0.00006, 0.0004, seed); // room about -86 dBFS, snores about -77 to -73 dBFS
+    normal += confirmedSnores(night, { sensitivity: 'normal' }).hits;
+    const a = confirmedSnores(night, { sensitivity: 'auto' });
+    auto += a.hits;
+    assert.equal(a.falseAlarms, 0);
+  }
+  assert.ok(auto >= 2 * normal, `auto ${auto} vs normal ${normal}`);
+});
+
+test('auto sensitivity keeps up in a restless room', () => {
+  const night = snoreNight('gusty', 0.004, 0.25, 2);
+  const auto = confirmedSnores(night, { sensitivity: 'auto' });
+  const normal = confirmedSnores(night, { sensitivity: 'normal' });
+  assert.ok(auto.hits >= normal.hits - 1, `auto ${auto.hits} vs normal ${normal.hits}`);
+  assert.equal(auto.falseAlarms, 0);
+});
+
+test('a counting-only detector keeps no audio', () => {
+  const { events } = run(Synth.demoScenario(16000), { keepClips: false });
+  assert.ok(events.some((e) => e.isSnore));
+  assert.ok(events.every((e) => e.clip === null));
+});
