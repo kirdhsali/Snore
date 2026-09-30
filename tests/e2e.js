@@ -63,7 +63,20 @@ async function main() {
     console.log('Microphone: recording 30 s of the demo night through a fake mic…');
     await page.click('#rec');
     await page.waitForFunction(() => window.__snorewatch.running, null, { timeout: 10000 });
-    await sleep(30000);
+
+    console.log('Night screen: darkens when left alone, a tap only wakes it…');
+    await page.evaluate(() => window.__snorewatch.setDarkDelay(500));
+    await page.waitForFunction(() => window.__snorewatch.dark, null, { timeout: 5000 });
+    assert.ok(await page.isVisible('#night'), 'black night screen shown');
+    await page.click('#night', { position: { x: 200, y: 180 } }); // right over the Stop button
+    assert.equal(await page.evaluate(() => window.__snorewatch.dark), false, 'tap wakes the screen');
+    assert.ok(await page.evaluate(() => window.__snorewatch.running), 'the tap did not stop the recording');
+    await page.evaluate(() => window.__snorewatch.setDarkDelay(1500));
+    await page.waitForFunction(() => window.__snorewatch.dark, null, { timeout: 5000 });
+    await sleep(26000); // most of the recording happens with the screen dark
+    await page.click('#night');
+    await page.evaluate(() => window.__snorewatch.setDarkDelay(600000));
+    await sleep(2000);
     const live = await page.evaluate(() => window.__snorewatch.summary());
     console.log(`  live: ${live.snoreCount} snores, ${live.ignoredCount} ignored after ${live.elapsed.toFixed(1)} s`);
     // The first 30 s hold 6 snores and one stretch of speech.

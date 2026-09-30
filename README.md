@@ -22,7 +22,12 @@ No build step and no runtime dependencies: plain HTML, CSS and JavaScript.
 ### Microphone and demo
 
 - **Microphone** (default): the real thing. Put the device within 1–2 m of your
-  head and plug it in. The screen is kept awake while recording.
+  head and plug it in. A web page cannot record with the screen off (iOS stops
+  the microphone), so the screen is kept awake but turns black after 20 s
+  without touch (night screen: black pixels are off on OLED displays; a dim
+  clock and snore count drift slightly to avoid burn-in). A tap shows the app
+  again; it never triggers the buttons underneath. Drawing pauses while dark,
+  detection keeps running.
 - **Demo night**: add `#demo` to the address
   (<https://kirdhsali.github.io/Snore/#demo>). It plays a 90-second simulated
   night through the speakers: 16 snores mixed with talking, knocking, a passing

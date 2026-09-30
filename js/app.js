@@ -49,11 +49,16 @@
     shareImage: $('share-image'),
     shareReport: $('share-report'),
     shareHint: $('share-hint'),
+    goDark: $('go-dark'),
+    night: $('night'),
+    nightInfo: $('night-info'),
+    nightClock: $('night-clock'),
+    nightMeta: $('night-meta'),
     intro: $('intro'),
   };
 
   const HINTS = {
-    mic: 'Uses your microphone. Put the device within 1–2 m of your head and plug it in; the screen stays on while recording.',
+    mic: 'Uses your microphone. Put the device within 1–2 m of your head and plug it in. The screen stays on while recording but turns black after 20 s.',
     demo: 'Demo: plays a simulated 90-second night through the speakers (snoring mixed with talking, knocking, a passing car and a cough). Only the snores should be counted.',
   };
   const SOURCE_NAMES = { mic: 'Microphone recording', demo: 'Demo night (simulated sounds)' };
@@ -270,7 +275,7 @@
       showLive();
       setStatus(
         source === 'mic'
-          ? 'Recording. Only snores are kept. Tap Stop in the morning.'
+          ? 'Recording. Only snores are kept. The screen darkens after 20 s; tap it to look. Tap Stop in the morning.'
           : 'Playing the demo night. The report appears when it ends, or tap Stop.',
       );
       loop();
@@ -313,6 +318,7 @@
     s.ctx.close().catch(() => {});
     if (wakeLock) wakeLock.release().catch(() => {});
     wakeLock = null;
+    endNight();
     showReport();
   }
 
@@ -350,11 +356,82 @@
     el.liveClips.innerHTML = '<p class="empty">Snores appear here as soon as they are detected.</p>';
     renderLiveTiles();
     renderTimeline(el.liveTimeline, el.liveBucket, session.detector.elapsed);
+    scheduleDark();
+  }
+
+  // ---------- night screen ----------
+  // The page cannot record with the screen off (iOS stops the microphone), so
+  // while recording it turns the screen black instead. A tap shows the app again.
+  let darkDelay = 20000;
+  let darkTimer = null;
+  let nightTimer = null;
+  let dark = false;
+  const themeMeta = document.querySelector('meta[name="theme-color"]');
+  const themeColor = themeMeta ? themeMeta.content : null;
+
+  function scheduleDark() {
+    clearTimeout(darkTimer);
+    // Only real recordings darken on their own; a demo shown to someone stays visible.
+    if (running && !dark && session.source === 'mic') darkTimer = setTimeout(goDark, darkDelay);
+  }
+
+  function goDark() {
+    if (!running || dark) return;
+    dark = true;
+    el.night.hidden = false;
+    if (themeMeta) themeMeta.content = '#000000';
+    updateNight();
+    nightTimer = setInterval(updateNight, 60000);
+    el.night.focus({ preventScroll: true });
+  }
+
+  function wake() {
+    if (!dark) return;
+    dark = false;
+    el.night.hidden = true;
+    if (themeMeta) themeMeta.content = themeColor;
+    clearInterval(nightTimer);
+    scheduleDark();
+  }
+
+  function endNight() {
+    clearTimeout(darkTimer);
+    wake();
+    clearTimeout(darkTimer);
+  }
+
+  /** Dim clock and count, moved a little each minute so nothing burns into an OLED screen. */
+  function updateNight() {
+    const n = session.stats.summary(session.detector.elapsed).snoreCount;
+    el.nightClock.textContent = fmtTime(new Date());
+    el.nightMeta.textContent = `Recording · ${fmtNum(n)} snore${n === 1 ? '' : 's'}`;
+    el.nightInfo.style.left = `${8 + Math.random() * 40}%`;
+    el.nightInfo.style.top = `${10 + Math.random() * 65}%`;
+  }
+
+  // A tap on the black screen only wakes it; it never reaches the buttons underneath.
+  el.night.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    wake();
+  });
+  el.night.addEventListener('keydown', (e) => {
+    e.preventDefault();
+    wake();
+  });
+  el.goDark.addEventListener('click', goDark);
+  for (const type of ['pointerdown', 'keydown', 'wheel', 'touchmove']) {
+    document.addEventListener(type, () => running && !dark && scheduleDark(), { passive: true });
   }
 
   let lastSlow = 0;
   function loop(now) {
     if (!running) return;
+    if (dark) {
+      // Nothing is visible: skip drawing to save battery. Detection keeps running.
+      requestAnimationFrame(loop);
+      return;
+    }
     const s = session;
     Charts.drawLive(el.liveCanvas, s.frames, s.frameCap, LIVE_SECONDS);
     updatePill();
@@ -844,6 +921,13 @@
     },
     summary: () => (session ? session.stats.summary(running ? session.detector.elapsed : session.elapsed) : null),
     stop,
+    get dark() {
+      return dark;
+    },
+    setDarkDelay(ms) {
+      darkDelay = ms;
+      scheduleDark();
+    },
   };
 
   $('app-version').textContent = `Snorewatch ${VERSION_TEXT}`;
