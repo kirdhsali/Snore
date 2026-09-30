@@ -436,7 +436,7 @@
     const sum = s.stats.summary(s.detector.elapsed);
     el.liveTiles.innerHTML = [
       tile('Recording time', fmtClock(sum.elapsed), s.source === 'mic' ? `since ${fmtTime(at(0))}` : SOURCE_NAMES[s.source]),
-      tile('Snores', fmtNum(sum.snoreCount), sum.medianInterval ? `about every ${sum.medianInterval.toFixed(1)} s` : 'detected so far', true),
+      tile('Snores', fmtNum(sum.snoreCount), possibleNote(sum) || (sum.medianInterval ? `about every ${sum.medianInterval.toFixed(1)} s` : 'in breathing rhythm'), true),
       tile('Snores per hour', sum.elapsed >= 30 ? fmtNum(sum.snoresPerHour) : '–', sum.elapsed < 600 ? 'estimate, still settling' : 'average so far'),
       tile('Snoring time', fmtSpan(sum.snoreSeconds), `${fmtNum(sum.snorePercent, 1)}% of the recording`),
       tile('Loudest snore', sum.snoreCount ? `+${fmtNum(sum.maxRelDb)}<small>dB</small>` : '–', 'above room noise'),
@@ -572,7 +572,7 @@
     el.verdict.textContent = verdictText(sum);
 
     el.reportTiles.innerHTML = [
-      tile('Snores', fmtNum(sum.snoreCount), sum.medianInterval ? `typically every ${sum.medianInterval.toFixed(1)} s` : '', true),
+      tile('Snores', fmtNum(sum.snoreCount), possibleNote(sum) || (sum.medianInterval ? `typically every ${sum.medianInterval.toFixed(1)} s` : ''), true),
       tile('Snores per hour', s.elapsed >= 30 ? fmtNum(sum.snoresPerHour) : '–', s.elapsed < 600 ? 'short recording, rough estimate' : ''),
       tile('Snoring time', fmtSpan(sum.snoreSeconds), `${fmtNum(sum.snorePercent, 1)}% of the recording`),
       tile('Loudest snore', sum.snoreCount ? `+${fmtNum(sum.maxRelDb)}<small>dB</small>` : '–', sum.snoreCount ? `average +${fmtNum(sum.meanRelDb)} dB above room noise` : ''),
@@ -605,7 +605,7 @@
       : '<tbody><tr><td class="empty">No snoring episodes.</td></tr></tbody>';
 
     el.reportClips.innerHTML = '';
-    const loudest = s.stats.snores.filter((x) => x.clip).sort((a, b) => b.relDb - a.relDb).slice(0, 8);
+    const loudest = s.stats.confirmed.filter((x) => x.clip).sort((a, b) => b.relDb - a.relDb).slice(0, 8);
     if (loudest.length) loudest.forEach((ev) => el.reportClips.append(clipCard(ev, false)));
     else el.reportClips.innerHTML = '<p class="empty">No snores were recorded.</p>';
 
@@ -638,7 +638,7 @@
       const data = {
         startWall: s.startWall,
         elapsed: s.elapsed,
-        snores: s.stats.snores,
+        snores: s.stats.confirmed,
         summary: s.summary,
         version: VERSION_TEXT,
         sensitivity: s.detector.sensitivity,
@@ -648,7 +648,7 @@
       const canvas = Share.drawShareCard(document.createElement('canvas'), data);
       const png = await new Promise((r) => canvas.toBlob(r, 'image/png'));
       data.heroImage = canvas.toDataURL('image/jpeg', 0.82);
-      data.samples = Share.pickSamples(s.stats.snores, 8, 5);
+      data.samples = Share.pickSamples(s.stats.confirmed, 8, 5);
       const html = Share.buildReportHtml(data);
       if (session !== s) return;
       shareFiles = {
@@ -701,11 +701,21 @@
       .join('');
   }
 
+  /** "+3 possible": snore-like sounds without a neighbour in breathing rhythm, not counted. */
+  function possibleNote(sum) {
+    return sum.possibleCount ? `+${fmtNum(sum.possibleCount)} possible, not counted` : '';
+  }
+
   function verdictText(sum) {
+    const possible = sum.possibleCount
+      ? ` ${sum.possibleCount} isolated snore-like sound${sum.possibleCount === 1 ? ' was' : 's were'} not counted because no other snore followed in breathing rhythm.`
+      : '';
     if (!sum.snoreCount) {
-      return sum.ignoredCount
-        ? `No snoring detected. ${sum.ignoredCount} other sound${sum.ignoredCount === 1 ? ' was' : 's were'} heard and ignored.`
-        : 'No snoring detected, and the room stayed quiet.';
+      return (
+        (sum.ignoredCount
+          ? `No snoring detected. ${sum.ignoredCount} other sound${sum.ignoredCount === 1 ? ' was' : 's were'} heard and ignored.`
+          : 'No snoring detected, and the room stayed quiet.') + possible
+      );
     }
     let t = `${sum.snoreCount} snore${sum.snoreCount === 1 ? '' : 's'} in ${fmtSpan(sum.elapsed)}`;
     if (sum.elapsed >= 30) t += `, about ${fmtNum(sum.snoresPerHour)} per hour`;
@@ -713,7 +723,7 @@
     if (sum.longestEpisode) t += ` and the longest episode lasted ${fmtSpan(sum.longestEpisode)}`;
     t += '.';
     if (sum.ignoredCount) t += ` ${sum.ignoredCount} other sound${sum.ignoredCount === 1 ? ' was' : 's were'} ignored.`;
-    return t;
+    return t + possible;
   }
 
   function summaryText() {
@@ -723,7 +733,7 @@
       `Snorewatch report – ${el.reportSource.textContent}`,
       el.reportRange.textContent,
       verdictText(sum),
-      `Snores: ${sum.snoreCount} (${fmtNum(sum.snoresPerHour)} per hour)`,
+      `Snores: ${sum.snoreCount} (${fmtNum(sum.snoresPerHour)} per hour)${sum.possibleCount ? `, plus ${sum.possibleCount} possible` : ''}`,
       `Snoring time: ${fmtSpan(sum.snoreSeconds)} (${fmtNum(sum.snorePercent, 1)}%)`,
       `Loudest: +${fmtNum(sum.maxRelDb)} dB, average +${fmtNum(sum.meanRelDb)} dB above room noise`,
       `Episodes: ${sum.episodes.length}${sum.longestEpisode ? `, longest ${fmtSpan(sum.longestEpisode)}` : ''}`,
@@ -800,6 +810,7 @@
         subBassShare: x.subBass == null ? null : +x.subBass.toFixed(3),
         loudFill: +x.fill.toFixed(2),
         rhythmRescued: !!x.rhythm,
+        confirmed: !!x.confirmed,
         wavStartSec: wavPos.has(x) ? +wavPos.get(x).toFixed(2) : null,
       })),
       ignored: s.stats.ignored.map((x) => ({

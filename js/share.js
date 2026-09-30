@@ -316,7 +316,7 @@
 
     // Key figures
     const tiles = [
-      ['Snores', round(sum.snoreCount), ''],
+      ['Snores', round(sum.snoreCount), sum.possibleCount ? `+${round(sum.possibleCount)} possible` : 'in breathing rhythm'],
       ['Snoring time', fmtSpan(sum.snoreSeconds), `${round(sum.snorePercent, 1)}% of the night`],
       ['Loudest', sum.snoreCount ? `+${round(sum.maxRelDb)} dB` : '–', 'above room noise'],
       ['Episodes', round(sum.episodes.length), sum.longestEpisode ? `longest ${fmtSpan(sum.longestEpisode)}` : ''],
@@ -501,6 +501,7 @@ tr:last-child td{border-bottom:0}
           1,
         )}% of the recording${sum.longestEpisode ? ` and the longest episode lasted ${fmtSpan(sum.longestEpisode)}` : ''}.`
       : 'No snoring was detected.';
+    const possible = sum.possibleCount ? `${sum.possibleCount} isolated snore-like sounds without a neighbour in breathing rhythm were not counted.` : '';
     const ignored = Object.keys(d.reasons)
       .filter((k) => sum.ignoredByReason[k])
       .map((k) => `<tr><td>${esc(d.reasons[k])}</td><td>${sum.ignoredByReason[k]}</td></tr>`)
@@ -530,9 +531,10 @@ tr:last-child td{border-bottom:0}
 </header>
 ${nClips ? '<p class="tip">This file contains ' + nClips + ' snore recordings you can play. If they do not play, open the file in a web browser (on iPhone: “Open in Safari”).</p>' : ''}
 <p class="verdict">${esc(verdict)}</p>
+${possible ? `<p class="note">${esc(possible)}</p>` : ''}
 ${d.heroImage ? `<img class="hero" src="${d.heroImage}" alt="The night as a star map: each snore is a dot, placed by time and loudness">` : ''}
 <div class="tiles">
-${tile('Snores', round(sum.snoreCount), sum.medianInterval ? `typically every ${round(sum.medianInterval, 1)} s` : '')}
+${tile('Snores', round(sum.snoreCount), sum.possibleCount ? `+${round(sum.possibleCount)} possible, not counted` : sum.medianInterval ? `typically every ${round(sum.medianInterval, 1)} s` : '')}
 ${tile('Snores per hour', d.elapsed >= 600 ? round(sum.snoresPerHour) : '–', d.elapsed < 600 ? 'recording too short' : '')}
 ${tile('Snoring time', fmtSpan(sum.snoreSeconds), `${round(sum.snorePercent, 1)}% of the recording`)}
 ${tile('Loudest snore', sum.snoreCount ? `+${round(sum.maxRelDb)} dB` : '–', sum.snoreCount ? `average +${round(sum.meanRelDb)} dB above room noise` : '')}
@@ -572,7 +574,7 @@ ${
 <p class="sub">Heard during the night but not snoring. No audio of these was kept.</p>
 ${ignored ? `<table><tbody>${ignored}</tbody></table>` : '<p class="note">No other sounds were heard.</p>'}
 </section>
-<p class="note">How it works: the recording is split into short frames. A sound counts as a snore when it is a burst of 0.25–4 s rising above the room’s background noise, with most of its energy below 800 Hz but not only deep rumble below 60 Hz. A rattling snore made of several bursts counts when it fits the breathing rhythm of the snores around it. Loudness is given in dB above the room noise. Only snores were recorded; all other sounds were discarded on the device.</p>
+<p class="note">How it works: the recording is split into short frames. A sound counts as a snore when it is a burst of 0.25–4 s rising above the room’s background noise, with most of its energy below 800 Hz and a dull sound (spectral centroid under 500 Hz), but not only deep rumble below 60 Hz. A rattling snore made of several bursts counts when it fits the breathing rhythm of the snores around it. Only snores with another snore 2–12 s before or after them are counted; isolated ones are listed as possible. Loudness is given in dB above the room noise. Only snores were recorded; all other sounds were discarded on the device.</p>
 <p class="note">Snorewatch estimates snoring from sound alone. It is not a medical device and cannot detect sleep apnea. If you stop breathing at night, wake up gasping or feel very tired during the day, talk to a doctor.</p>
 </main>
 </body>

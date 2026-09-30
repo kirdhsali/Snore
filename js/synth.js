@@ -50,7 +50,8 @@
 
   /**
    * A snore: soft-palate flutter at 40-80 Hz (a buzzy harmonic series with a
-   * resonance near 250 Hz) plus low turbulence, shaped by a smooth breath envelope.
+   * resonance near 200 Hz) plus low turbulence, shaped by a smooth breath
+   * envelope. Tuned to real bedside recordings: spectral centroid about 100-300 Hz.
    */
   function snore(sr, rand, opts = {}) {
     const dur = opts.duration || 0.8 + rand() * 0.9;
@@ -58,14 +59,15 @@
     const amp = opts.amp || 0.1 + rand() * 0.12;
     const n = Math.round(dur * sr);
     const out = new Float32Array(n);
-    const res = 180 + rand() * 180;
+    const res = 130 + rand() * 140;
     const weights = [];
     for (let k = 1; k <= 16; k++) {
       const f = k * f0;
-      weights.push((1 / Math.pow(k, 0.7)) * (0.3 + Math.exp(-Math.pow((f - res) / 150, 2))));
+      weights.push((1 / Math.pow(k, 1.1)) * (0.2 + Math.exp(-Math.pow((f - res) / 120, 2))));
     }
-    const nc = lpCoef(350, sr);
+    const nc = lpCoef(260, sr);
     let noise = 0;
+    let noise2 = 0;
     let phase = 0;
     const wob = rand() * TAU;
     for (let i = 0; i < n; i++) {
@@ -79,7 +81,8 @@
         h += weights[k] * Math.sin((k + 1) * phase);
       }
       noise += nc * (rand() * 2 - 1 - noise);
-      out[i] = amp * env * (0.35 * h + 1.6 * noise);
+      noise2 += nc * (noise - noise2);
+      out[i] = amp * env * (0.35 * h + 2.4 * noise2);
     }
     return out;
   }

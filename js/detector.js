@@ -19,6 +19,9 @@
  *   3b. Breathing rhythm: a snore-like sound that is only rejected for being
  *      choppy (a rattling snore) still counts when an accepted snore lies
  *      2-12 s before or after it. It waits up to 12 s for that snore.
+ *   3c. Snores repeat with the breathing. SessionStats marks a snore as
+ *      confirmed when another snore lies 2-12 s before or after it; isolated
+ *      ones are only "possible" and left out of the headline figures.
  *   4. Only events classified as snores keep their audio (downsampled to
  *      ~8 kHz). Everything else is dropped from the short rolling buffer
  *      that exists only to capture the start of a snore.
@@ -45,7 +48,7 @@
     maxDuration: 4.0, // s, longer events are continuous sounds
     minLowRatio: 0.55, // share of energy 50-800 Hz
     maxHighRatio: 0.2, // share of energy 1-4 kHz
-    maxCentroid: 1000, // Hz
+    maxCentroid: 500, // Hz (real snores measured 60-250 Hz; brighter sounds are mostly other things)
     maxPeaks: 2, // loudness bursts inside one event (syllables, knocks)
     peakDropDb: 6,
     maxSubBass: 0.85, // share of energy 20-60 Hz (of 20-4000 Hz); above = deep rumble
@@ -587,18 +590,38 @@
     }
   }
 
-  /** Aggregates classified events into the live statistics and the report. */
+  /**
+   * Aggregates classified events into the live statistics and the report.
+   * `snores` holds every detected snore; the figures count only confirmed
+   * ones (another snore 2-12 s before or after), isolated ones are "possible".
+   */
   class SessionStats {
     constructor(options = {}) {
       this.maxClips = options.maxClips || 1500;
       this.episodeGapSec = options.episodeGapSec || 60;
+      this.rhythmMinSec = options.rhythmMinSec || DEFAULTS.rhythmMinSec;
+      this.rhythmMaxSec = options.rhythmMaxSec || DEFAULTS.rhythmMaxSec;
       this.snores = [];
       this.ignored = [];
       this.clipCount = 0;
     }
 
+    /** Snores with a neighbour in breathing rhythm. */
+    get confirmed() {
+      return this.snores.filter((s) => s.confirmed);
+    }
+
     add(ev) {
       if (ev.isSnore) {
+        ev.confirmed = false;
+        for (let i = this.snores.length - 1; i >= 0; i--) {
+          const gap = ev.start - this.snores[i].start;
+          if (gap > this.rhythmMaxSec) break;
+          if (gap >= this.rhythmMinSec) {
+            ev.confirmed = true;
+            this.snores[i].confirmed = true;
+          }
+        }
         this.snores.push(ev);
         if (ev.clip) this.clipCount++;
         if (this.clipCount > this.maxClips) this._dropQuietestClip();
@@ -632,7 +655,7 @@
     episodes() {
       const eps = [];
       let cur = null;
-      for (const s of this.snores) {
+      for (const s of this.confirmed) {
         if (cur && s.start - cur.end <= this.episodeGapSec) {
           cur.end = s.end;
           cur.count++;
@@ -655,13 +678,14 @@
     }
 
     summary(elapsedSec) {
-      const n = this.snores.length;
+      const snores = this.confirmed;
+      const n = snores.length;
       const elapsed = Math.max(elapsedSec, 1e-9);
       let snoreSeconds = 0;
       let relSum = 0;
       let maxRel = 0;
       const intensity = { light: 0, moderate: 0, loud: 0 };
-      for (const s of this.snores) {
+      for (const s of snores) {
         snoreSeconds += s.duration;
         relSum += s.relDb;
         if (s.relDb > maxRel) maxRel = s.relDb;
@@ -671,7 +695,7 @@
       }
       const intervals = [];
       for (let i = 1; i < n; i++) {
-        const gap = this.snores[i].start - this.snores[i - 1].start;
+        const gap = snores[i].start - snores[i - 1].start;
         if (gap <= this.episodeGapSec) intervals.push(gap);
       }
       const ignoredByReason = {};
@@ -687,7 +711,8 @@
         maxRelDb: maxRel,
         medianInterval: intervals.length ? percentile(intervals, 0.5) : null,
         intensity,
-        rhythmCount: this.snores.filter((s) => s.rhythm).length,
+        possibleCount: this.snores.length - n,
+        rhythmCount: snores.filter((s) => s.rhythm).length,
         ignoredCount: this.ignored.length,
         ignoredByReason,
         episodes,
@@ -699,7 +724,7 @@
     buckets(elapsedSec, bucketSec) {
       const count = Math.max(1, Math.ceil(elapsedSec / bucketSec));
       const out = Array.from({ length: count }, (_, i) => ({ start: i * bucketSec, count: 0, relDbSum: 0 }));
-      for (const s of this.snores) {
+      for (const s of this.confirmed) {
         const b = out[Math.min(count - 1, Math.floor(s.start / bucketSec))];
         b.count++;
         b.relDbSum += s.relDb;
