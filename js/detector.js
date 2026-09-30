@@ -13,8 +13,12 @@
  *      the level stays within `releaseDb` of the floor for `hangoverSec`.
  *   3. When an event ends it is classified. A snore is a single smooth burst
  *      of 0.25-4 s whose energy sits mostly below 800 Hz. Clicks and knocks
- *      are too short, traffic and music too long, speech and coughs too
- *      bright or too choppy.
+ *      are too short, traffic and music too long, deep rumble (traffic,
+ *      building) has nearly all its energy below 60 Hz, speech and coughs are
+ *      too bright or too choppy.
+ *   3b. Breathing rhythm: a snore-like sound that is only rejected for being
+ *      choppy (a rattling snore) still counts when an accepted snore lies
+ *      2-12 s before or after it. It waits up to 12 s for that snore.
  *   4. Only events classified as snores keep their audio (downsampled to
  *      ~8 kHz). Everything else is dropped from the short rolling buffer
  *      that exists only to capture the start of a snore.
@@ -44,6 +48,13 @@
     maxCentroid: 1000, // Hz
     maxPeaks: 2, // loudness bursts inside one event (syllables, knocks)
     peakDropDb: 6,
+    maxSubBass: 0.85, // share of energy 20-60 Hz (of 20-4000 Hz); above = deep rumble
+    // Rhythm rescue of choppy but snore-like sounds
+    rhythmMinSec: 2, // start-to-start distance to an accepted snore
+    rhythmMaxSec: 12,
+    rhythmMaxHighRatio: 0.05,
+    rhythmMaxCentroid: 400, // Hz
+    rhythmMinFill: 0.6, // share of frames within 15 dB of the peak (knocks are short thuds with gaps)
     hangoverSec: 0.2,
     calibrationSec: 1.0,
     minAbsDb: null, // overrides the sensitivity's absolute gate when set
@@ -60,6 +71,7 @@
     'too-bright': 'Too bright (speech, cough)',
     'not-low': 'Not enough low-frequency energy',
     choppy: 'Choppy rhythm (speech, knocking)',
+    rumble: 'Deep rumble (traffic, building)',
   };
 
   function nextPow2(n) {
@@ -218,6 +230,41 @@
     return count;
   }
 
+  /** Share of frames within 15 dB of the peak: high for a sustained sound, low for thuds with gaps. */
+  function bodyShare(track, peakDb) {
+    if (!track.length) return 0;
+    let n = 0;
+    for (const db of track) if (db >= peakDb - 15) n++;
+    return n / track.length;
+  }
+
+  const fftCache = new Map();
+
+  /**
+   * Share of energy at 20-60 Hz within 20-4000 Hz over a whole clip. Deep
+   * rumble from traffic or the building sits almost entirely below 60 Hz;
+   * snores have their fundamental and harmonics higher up.
+   */
+  function subBassShare(samples, rate) {
+    if (samples.length < 64) return 0;
+    const n = nextPow2(samples.length);
+    if (!fftCache.has(n)) fftCache.set(n, new FFT(n));
+    const re = new Float64Array(n);
+    const im = new Float64Array(n);
+    const len = samples.length;
+    for (let i = 0; i < len; i++) re[i] = samples[i] * (0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (len - 1)));
+    fftCache.get(n).transform(re, im);
+    const binHz = rate / n;
+    let sub = 0;
+    let total = 0;
+    for (let k = Math.ceil(20 / binHz); k < Math.min(n / 2, 4000 / binHz); k++) {
+      const p = re[k] * re[k] + im[k] * im[k];
+      total += p;
+      if (k * binHz < 60) sub += p;
+    }
+    return total > 0 ? sub / total : 0;
+  }
+
   function percentile(values, q) {
     const s = values.slice().sort((a, b) => a - b);
     return s[Math.min(s.length - 1, Math.floor(q * s.length))];
@@ -250,6 +297,8 @@
       this.calib = [];
       this.event = null;
       this.eventCount = 0;
+      this.emitted = [];
+      this.gate = new RhythmGate(this.opts, (ev) => this._emit(ev));
     }
 
     setSensitivity(level) {
@@ -268,9 +317,8 @@
       return this.floor === null;
     }
 
-    /** Feed mono samples (Float32Array, -1..1). Returns events finished in this chunk. */
+    /** Feed mono samples (Float32Array, -1..1). Returns events decided in this chunk. */
     process(samples) {
-      const out = [];
       const ring = this.ring;
       const ringLen = ring.length;
       for (let i = 0; i < samples.length; i++) {
@@ -284,18 +332,32 @@
         }
         this.pending[this.pendingLen++] = x;
         if (this.pendingLen === this.frameSize) {
-          const ev = this._frame(this.pending);
+          this._frame(this.pending);
           this.pendingLen = 0;
-          if (ev) out.push(ev);
         }
       }
+      return this._takeEmitted();
+    }
+
+    /**
+     * Ends everything still open, e.g. when recording stops: the current sound
+     * and any sounds still waiting for a snore in rhythm. Returns those events.
+     */
+    flush() {
+      if (this.event) this.gate.decide(this._finish());
+      this.gate.flush();
+      return this._takeEmitted();
+    }
+
+    _takeEmitted() {
+      const out = this.emitted;
+      this.emitted = [];
       return out;
     }
 
-    /** Ends a sound event that is still open, e.g. when recording stops. */
-    flush() {
-      if (!this.event) return null;
-      return this._finish();
+    _emit(ev) {
+      this.emitted.push(ev);
+      if (this.opts.onEvent) this.opts.onEvent(ev);
     }
 
     _frame(frame) {
@@ -345,6 +407,7 @@
         this.floor += (this.hopSec / tau) * (f.db - this.floor);
         if ((index - ev.lastLoud) * this.hopSec >= o.hangoverSec) finished = this._finish();
       }
+      this.gate.expire(index * this.hopSec);
 
       this.frameIndex++;
       if (o.onFrame) {
@@ -359,8 +422,7 @@
           lowRatio: f.lowRatio,
         });
       }
-      if (finished && o.onEvent) o.onEvent(finished);
-      return finished;
+      if (finished) this.gate.decide(finished);
     }
 
     _accumulate(f, index) {
@@ -388,12 +450,15 @@
       const end = (ev.lastLoud + 1) * hop;
       const duration = end - start;
       const w = ev.w || 1;
+      const audio = ev.tooLong ? null : this._ringSegment(start - o.preRollSec, end + o.postRollSec);
       const features = {
         lowRatio: ev.low / w,
         highRatio: ev.high / w,
         centroid: ev.centroid / w,
         zcr: ev.zcr / Math.max(1, ev.loudFrames),
         peaks: countPeaks(ev.track, o.peakDropDb),
+        subBass: audio ? subBassShare(audio, this.clipRate) : null,
+        fill: bodyShare(ev.track.slice(0, ev.lastLoud - ev.startFrame + 1), ev.peakDb),
       };
       const verdict = classify(Object.assign({ duration, tooLong: ev.tooLong }, features), o);
       const result = {
@@ -411,24 +476,25 @@
         reason: verdict.reason,
         startFrame: ev.startFrame,
         endFrame: ev.lastLoud,
+        rhythm: false,
+        rhythmCandidate: verdict.reason === 'choppy' && isRhythmCandidate(features, o),
         clip: null,
         clipRate: this.clipRate,
       };
-      if (result.isSnore) result.clip = this._cutClip(start - o.preRollSec, end + o.postRollSec);
+      // Candidates keep their audio only while they wait; it is dropped if no snore confirms them.
+      if (result.isSnore || result.rhythmCandidate) result.clip = Int16Array.from(audio, (x) => Math.max(-32768, Math.min(32767, Math.round(x * 32767))));
       return result;
     }
 
-    _cutClip(fromSec, toSec) {
+    /** Downsampled audio between two times, as far as the rolling buffer still holds it. */
+    _ringSegment(fromSec, toSec) {
       const ringLen = this.ring.length;
       const oldest = Math.max(0, this.ringWritten - ringLen);
       const a = Math.max(oldest, Math.floor(fromSec * this.clipRate));
       const b = Math.min(this.ringWritten, Math.ceil(toSec * this.clipRate));
-      const clip = new Int16Array(Math.max(0, b - a));
-      for (let i = a; i < b; i++) {
-        const x = this.ring[i % ringLen];
-        clip[i - a] = Math.max(-32768, Math.min(32767, Math.round(x * 32767)));
-      }
-      return clip;
+      const out = new Float32Array(Math.max(0, b - a));
+      for (let i = a; i < b; i++) out[i - a] = this.ring[i % ringLen];
+      return out;
     }
   }
 
@@ -437,6 +503,7 @@
     let reason = null;
     if (f.tooLong || f.duration > opts.maxDuration) reason = 'too-long';
     else if (f.duration < opts.minDuration) reason = 'too-short';
+    else if (f.subBass != null && f.subBass > opts.maxSubBass) reason = 'rumble';
     else if (f.highRatio > opts.maxHighRatio || f.centroid > opts.maxCentroid) reason = 'too-bright';
     else if (f.lowRatio < opts.minLowRatio) reason = 'not-low';
     else if (f.peaks > opts.maxPeaks) reason = 'choppy';
@@ -447,6 +514,77 @@
     ].map(clamp01);
     const score = reason ? 0 : 0.5 + 0.5 * (margins.reduce((a, b) => a + b, 0) / margins.length);
     return { isSnore: !reason, reason, score };
+  }
+
+  /** A choppy sound that looks like a rattling snore: low, dull and mostly sounding, not knocks with gaps. */
+  function isRhythmCandidate(f, o) {
+    const opts = Object.assign({}, DEFAULTS, o);
+    return f.highRatio <= opts.rhythmMaxHighRatio && f.centroid <= opts.rhythmMaxCentroid && f.fill >= opts.rhythmMinFill;
+  }
+
+  /**
+   * Breathing-rhythm rescue. Receives classified events in time order and
+   * passes them on: snores and clear rejections at once, rhythm candidates
+   * (choppy but snore-like) once a snore 2-12 s before or after decides them.
+   * Only snores accepted on their own count as anchors.
+   * Used by the live detector and by scripts/evaluate.js.
+   */
+  class RhythmGate {
+    constructor(options, emit) {
+      this.opts = Object.assign({}, DEFAULTS, options);
+      this.emit = emit;
+      this.candidates = [];
+      this.lastSnoreStart = -Infinity;
+    }
+
+    decide(ev) {
+      const o = this.opts;
+      if (ev.isSnore) {
+        // A snore confirms earlier candidates one breath before it; others are rejected.
+        for (const c of this.candidates.splice(0)) {
+          const gap = ev.start - c.start;
+          if (gap >= o.rhythmMinSec && gap <= o.rhythmMaxSec) this._accept(c);
+          else this._reject(c);
+        }
+        this._pass(ev);
+      } else if (ev.rhythmCandidate) {
+        const gap = ev.start - this.lastSnoreStart;
+        if (gap >= o.rhythmMinSec && gap <= o.rhythmMaxSec) this._accept(ev);
+        else this.candidates.push(ev);
+      } else {
+        this._pass(ev);
+      }
+    }
+
+    /** Rejects candidates that no snore followed within the rhythm window. */
+    expire(now) {
+      while (this.candidates.length && now - this.candidates[0].start > this.opts.rhythmMaxSec) {
+        this._reject(this.candidates.shift());
+      }
+    }
+
+    flush() {
+      for (const c of this.candidates.splice(0)) this._reject(c);
+    }
+
+    _accept(ev) {
+      ev.isSnore = true;
+      ev.reason = null;
+      ev.rhythm = true;
+      ev.score = classify(Object.assign({}, ev, { peaks: 1 }), this.opts).score;
+      this._pass(ev);
+    }
+
+    _reject(ev) {
+      ev.clip = null; // the audio of sounds that are not snores is dropped
+      this._pass(ev);
+    }
+
+    _pass(ev) {
+      // Only snores that passed on their own anchor the rhythm, so rescues cannot chain through noise.
+      if (ev.isSnore && !ev.rhythm) this.lastSnoreStart = Math.max(this.lastSnoreStart, ev.start);
+      this.emit(ev);
+    }
   }
 
   /** Aggregates classified events into the live statistics and the report. */
@@ -476,6 +614,8 @@
           highRatio: ev.highRatio,
           centroid: ev.centroid,
           peaks: ev.peaks,
+          subBass: ev.subBass,
+          fill: ev.fill,
         });
       }
     }
@@ -547,6 +687,7 @@
         maxRelDb: maxRel,
         medianInterval: intervals.length ? percentile(intervals, 0.5) : null,
         intensity,
+        rhythmCount: this.snores.filter((s) => s.rhythm).length,
         ignoredCount: this.ignored.length,
         ignoredByReason,
         episodes,
@@ -615,8 +756,11 @@
     FFT,
     FrameAnalyzer,
     SnoreDetector,
+    RhythmGate,
     SessionStats,
     classify,
+    isRhythmCandidate,
+    subBassShare,
     countPeaks,
     encodeWav,
     normalizeClip,

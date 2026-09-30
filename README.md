@@ -76,11 +76,18 @@ Report, after Stop:
 
    Phones record a quiet bedroom at about −80 dBFS, so in a quiet room the
    minimum level is often what decides; use High there.
-3. Each finished event is classified. A **snore** is one smooth burst of
-   0.25–4 s with ≥ 55 % of its energy below 800 Hz, ≤ 20 % between 1–4 kHz, and a
-   centroid under 1 kHz. Otherwise it is ignored as *too short* (clicks, knocks),
-   *too long* (traffic, music, fans switching on), *too bright* (speech, coughs),
-   *not low enough*, or *choppy* (several bursts: syllables, knocking).
+3. Each finished event is classified. A **snore** is a burst of 0.25–4 s with
+   ≥ 55 % of its energy below 800 Hz, ≤ 20 % between 1–4 kHz and a centroid
+   under 1 kHz. Otherwise it is ignored as *too short* (clicks, knocks),
+   *too long* (traffic, music, fans switching on), *deep rumble* (more than 85 %
+   of the energy below 60 Hz: trucks, the building, heating), *too bright*
+   (speech, coughs), *not low enough*, or *choppy* (several bursts: syllables,
+   knocking).
+   **Breathing rhythm:** real snores often rattle and break into several
+   bursts. A choppy sound still counts when it is clearly snore-like (almost
+   nothing above 1 kHz, centroid under 400 Hz, sustained rather than separate
+   thuds) and a snore accepted on its own lies 2–12 s before or after it. It
+   waits up to 12 s for that snore; rescued snores do not anchor further rescues.
 4. Only snores keep their audio (downsampled to 8 kHz, 16-bit). A rolling buffer
    of a few seconds exists only to capture the start of a snore and is
    continuously overwritten.
@@ -100,6 +107,7 @@ npx playwright install chromium
 npm run test:e2e    # real page in Chromium with a fake microphone playing the demo night
 npm run sample      # regenerate samples/snore-demo.wav
 npm run build       # dist/snorewatch.html: everything inlined into one file
+npm run evaluate -- snore-report.json   # re-evaluate a downloaded night with the current rules
 npm start           # local server on http://localhost:8080 (PORT to change)
 ```
 

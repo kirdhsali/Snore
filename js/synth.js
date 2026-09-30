@@ -84,6 +84,43 @@
     return out;
   }
 
+  /**
+   * A rattling snore: one long, dull snore broken into several bursts by the
+   * fluttering airway, with dips of about 12 dB between them. Darker than
+   * snore() to match real recordings (spectral centroid around 100-250 Hz).
+   */
+  function rattle(sr, rand, opts = {}) {
+    const duration = opts.duration || 1.4 + rand() * 0.6;
+    const bursts = opts.bursts || 4 + Math.floor(rand() * 2);
+    const out = snore(sr, rand, { duration, f0: opts.f0, amp: opts.amp || 0.25 + rand() * 0.1 });
+    const c = lpCoef(160, sr);
+    let a = 0;
+    let b = 0;
+    for (let i = 0; i < out.length; i++) {
+      a += c * (out[i] - a);
+      b += c * (a - b);
+      const m = Math.abs(Math.sin((Math.PI * bursts * i) / out.length));
+      out[i] = b * (0.25 + 0.75 * Math.pow(m, 1.5));
+    }
+    return out;
+  }
+
+  /** Deep rumble (a truck outside, the building, heating): almost all energy below 60 Hz. */
+  function rumble(sr, rand, opts = {}) {
+    const dur = opts.duration || 0.6 + rand() * 0.6;
+    const amp = opts.amp || 2.5;
+    const n = Math.round(dur * sr);
+    const out = new Float32Array(n);
+    const c = lpCoef(30, sr);
+    const y = [0, 0, 0, 0];
+    for (let i = 0; i < n; i++) {
+      let v = rand() * 2 - 1;
+      for (let k = 0; k < 4; k++) v = y[k] += c * (v - y[k]);
+      out[i] = amp * Math.pow(Math.sin((Math.PI * i) / n), 2) * v;
+    }
+    return out;
+  }
+
   /** Speech-like babble: voiced syllables with formants plus the odd fricative. */
   function speech(sr, rand, opts = {}) {
     const syllables = opts.syllables || 5 + Math.floor(rand() * 4);
@@ -190,7 +227,7 @@
     return out;
   }
 
-  const MAKERS = { snore, speech, knock, cough, car };
+  const MAKERS = { snore, rattle, rumble, speech, knock, cough, car };
 
   /**
    * Places sounds on a timeline over room noise.
@@ -241,5 +278,5 @@
     return compose(sr, 90, plan, seed);
   }
 
-  return { rng, compose, demoScenario, snoreRun, snore, speech, knock, cough, car, roomNoise };
+  return { rng, compose, demoScenario, snoreRun, snore, rattle, rumble, speech, knock, cough, car, roomNoise };
 });

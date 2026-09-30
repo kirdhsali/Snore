@@ -318,8 +318,7 @@
     if (!running) return;
     running = false;
     const s = session;
-    const last = s.detector.flush();
-    if (last) handleEvent(last);
+    s.detector.flush(); // decides open sounds; they arrive through handleEvent
     s.elapsed = s.detector.elapsed;
     s.endWall = s.startWall + s.elapsed * 1000;
     try {
@@ -353,8 +352,10 @@
     const s = session;
     s.stats.add(ev);
     const cls = ev.isSnore ? 's' : 'i';
+    // Sounds waiting for a snore in rhythm are decided later, so recolor only this event's frames.
+    const lastFrame = ev.endFrame + Math.ceil(s.detector.opts.hangoverSec / s.detector.hopSec) + 1;
     for (let i = s.frames.length - 1; i >= 0 && s.frames[i].index >= ev.startFrame; i--) {
-      if (s.frames[i].cls === 'p') s.frames[i].cls = cls;
+      if (s.frames[i].index <= lastFrame && s.frames[i].cls === 'p') s.frames[i].cls = cls;
     }
     s.lastVerdict = { ev, t: ev.end };
     if (ev.isSnore) s.newClips.push(ev);
@@ -796,6 +797,9 @@
         highFrequencyShare: +x.highRatio.toFixed(3),
         centroidHz: Math.round(x.centroid),
         bursts: x.peaks,
+        subBassShare: x.subBass == null ? null : +x.subBass.toFixed(3),
+        loudFill: +x.fill.toFixed(2),
+        rhythmRescued: !!x.rhythm,
         wavStartSec: wavPos.has(x) ? +wavPos.get(x).toFixed(2) : null,
       })),
       ignored: s.stats.ignored.map((x) => ({
@@ -809,6 +813,8 @@
         highFrequencyShare: +x.highRatio.toFixed(3),
         centroidHz: Math.round(x.centroid),
         bursts: x.peaks,
+        subBassShare: x.subBass == null ? null : +x.subBass.toFixed(3),
+        loudFill: +x.fill.toFixed(2),
       })),
     };
     download(`snore-report_${stamp()}.json`, new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
