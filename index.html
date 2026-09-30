@@ -16,6 +16,7 @@
   <header class="brand">
     <span class="brand-mark" aria-hidden="true"></span>
     <span class="brand-name">Snorewatch</span>
+    <span class="demo-badge" id="demo-badge" hidden>Demo</span>
     <span class="brand-note">Runs on this device. Only snores are kept.</span>
   </header>
 
@@ -27,11 +28,6 @@
     <p class="status" id="status" role="status" aria-live="polite">Tap Start and put the device next to your bed.</p>
 
     <div class="controls" id="controls">
-      <div class="segmented" role="radiogroup" aria-label="Sound source">
-        <label><input type="radio" name="source" id="src-mic" value="mic" checked><span>Microphone</span></label>
-        <label><input type="radio" name="source" id="src-demo" value="demo"><span>Demo night</span></label>
-        <label><input type="radio" name="source" id="src-file" value="file"><span>Audio file</span></label>
-      </div>
       <div class="control-row">
         <label class="field" for="sensitivity">Sensitivity
           <select id="sensitivity">
@@ -39,14 +35,6 @@
             <option value="normal" selected>Normal</option>
             <option value="high">High (quiet snorer)</option>
           </select>
-        </label>
-        <label class="field check" id="monitor-wrap" for="monitor" hidden>
-          <input type="checkbox" id="monitor" checked> Play sound through speakers
-        </label>
-        <label class="field file" id="file-wrap" for="file" hidden>
-          <span>Choose file</span>
-          <input type="file" id="file" accept="audio/*,video/*">
-          <span class="file-name" id="file-name">No file selected</span>
         </label>
       </div>
       <p class="hint" id="source-hint"></p>

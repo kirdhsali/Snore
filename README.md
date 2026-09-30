@@ -15,23 +15,24 @@ No build step and no runtime dependencies: plain HTML, CSS and JavaScript.
 
 | Way | How |
 | --- | --- |
-| Quickest | Open `index.html` in Chrome/Edge/Firefox, choose **Demo night**, tap **Start**. |
+| Quickest | Open `index.html#demo` in Chrome/Edge/Firefox and tap **Start** (simulated night). |
 | With your microphone | `npm start`, then open <http://localhost:8080>. Microphones need https or localhost. |
 | On your phone | Open <https://kirdhsali.github.io/Snore/> (GitHub Pages, see below). |
 
-### Three test sources
+### Microphone and demo
 
-- **Microphone** – the real thing. Put the device within 1–2 m of your head and
-  plug it in. The screen is kept awake while recording.
-- **Demo night** – a 90-second simulated night: 16 snores mixed with talking,
-  knocking, a passing car and a cough. The report should show 16 snores and 5
-  ignored sounds.
-- **Audio file** – analyzes any recording in real time (e.g. a snoring clip from
-  the internet, or `samples/snore-demo.wav`).
+- **Microphone** (default): the real thing. Put the device within 1–2 m of your
+  head and plug it in. The screen is kept awake while recording.
+- **Demo night**: add `#demo` to the address
+  (<https://kirdhsali.github.io/Snore/#demo>). It plays a 90-second simulated
+  night through the speakers: 16 snores mixed with talking, knocking, a passing
+  car and a cough. The report should show 16 snores and 5 ignored sounds. A
+  “Demo” label marks this mode; it is meant for showing the app or checking it
+  during the day.
 
-To test the real microphone path without snoring: play
-`samples/snore-demo.wav` from your phone next to the computer while recording
-with **Microphone**.
+To test the real microphone path without snoring, play
+`samples/snore-demo.wav` from another device next to the microphone, or just
+fake a few snores.
 
 ## What you get
 

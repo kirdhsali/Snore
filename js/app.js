@@ -18,12 +18,8 @@
     status: $('status'),
     controls: $('controls'),
     sensitivity: $('sensitivity'),
-    monitorWrap: $('monitor-wrap'),
-    monitor: $('monitor'),
-    fileWrap: $('file-wrap'),
-    file: $('file'),
-    fileName: $('file-name'),
     hint: $('source-hint'),
+    demoBadge: $('demo-badge'),
     live: $('live'),
     pill: $('pill'),
     pillText: $('pill-text'),
@@ -58,10 +54,9 @@
 
   const HINTS = {
     mic: 'Uses your microphone. Put the device within 1–2 m of your head and plug it in; the screen stays on while recording.',
-    demo: 'Plays a simulated 90-second night: snoring mixed with talking, knocking, a passing car and a cough. Only the snores should be counted.',
-    file: 'Analyzes a recording in real time, for example a snoring clip or samples/snore-demo.wav from this project.',
+    demo: 'Demo: plays a simulated 90-second night through the speakers (snoring mixed with talking, knocking, a passing car and a cough). Only the snores should be counted.',
   };
-  const SOURCE_NAMES = { mic: 'Microphone recording', demo: 'Demo night (simulated sounds)', file: 'Audio file' };
+  const SOURCE_NAMES = { mic: 'Microphone recording', demo: 'Demo night (simulated sounds)' };
 
   let session = null; // current or last session
   let running = false;
@@ -98,31 +93,24 @@
     return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
   }
 
-  // ---------- source selection ----------
+  // ---------- source ----------
+  // The app records from the microphone. Adding #demo to the address plays a
+  // simulated night instead, to show the app or check it during the day.
   function currentSource() {
-    return document.querySelector('input[name="source"]:checked').value;
+    return EMBED || location.hash === '#demo' ? 'demo' : 'mic';
   }
   function updateSourceUI() {
     const src = currentSource();
-    el.monitorWrap.hidden = src === 'mic';
-    el.fileWrap.hidden = src !== 'file';
+    el.demoBadge.hidden = src !== 'demo';
     el.hint.textContent = HINTS[src];
-    if (!running) setStatus(src === 'file' && !el.file.files.length ? 'Choose an audio file, then tap Start.' : 'Tap Start to begin.');
+    if (!running) setStatus('Tap Start to begin.');
   }
-  document.querySelectorAll('input[name="source"]').forEach((r) => r.addEventListener('change', updateSourceUI));
-  el.file.addEventListener('change', () => {
-    el.fileName.textContent = el.file.files.length ? el.file.files[0].name : 'No file selected';
-    updateSourceUI();
-  });
+  window.addEventListener('hashchange', () => !running && updateSourceUI());
   el.sensitivity.addEventListener('change', () => {
     if (session && running) session.detector.setSensitivity(el.sensitivity.value);
   });
 
   if (EMBED) {
-    const mic = $('src-mic');
-    mic.disabled = true;
-    $('src-demo').checked = true;
-    HINTS.mic = '';
     HINTS.demo += ' The microphone is not available in this preview; open the app from its own address to record yourself.';
     el.dlWav.hidden = true;
     el.dlJson.hidden = true;
@@ -220,10 +208,6 @@
       if (navigator.audioSession) navigator.audioSession.type = 'auto';
     } catch (e) {}
     const source = currentSource();
-    if (source === 'file' && !el.file.files.length) {
-      setStatus('Choose an audio file first.', true);
-      return;
-    }
     starting = true;
     el.rec.disabled = true;
     setStatus(source === 'mic' ? 'Waiting for microphone permission…' : 'Preparing audio…');
@@ -239,18 +223,17 @@
       let player = null;
       if (source === 'mic') {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-          throw new Error('Microphone access needs a secure page (https or localhost). Try Demo night, or open the app via npm start.');
+          throw new Error('Microphone access needs a secure page. Open the app over https, or on localhost via npm start.');
         }
         stream = await navigator.mediaDevices.getUserMedia({
           audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 },
         });
         input = ctx.createMediaStreamSource(stream);
       } else {
-        const buffer = source === 'demo' ? demoBuffer(ctx) : await ctx.decodeAudioData(await el.file.files[0].arrayBuffer());
         player = ctx.createBufferSource();
-        player.buffer = buffer;
+        player.buffer = demoBuffer(ctx);
         input = player;
-        if (el.monitor.checked) player.connect(ctx.destination);
+        player.connect(ctx.destination); // the demo is meant to be heard
         player.onended = () => stop('ended');
       }
       if (ctx.state === 'suspended') await ctx.resume();
@@ -258,7 +241,6 @@
       const stats = new SessionStats();
       session = {
         source,
-        fileName: source === 'file' ? el.file.files[0].name : null,
         startWall: Date.now(),
         endWall: null,
         ctx,
@@ -289,9 +271,7 @@
       setStatus(
         source === 'mic'
           ? 'Recording. Only snores are kept. Tap Stop in the morning.'
-          : source === 'demo'
-            ? 'Playing the demo night. The report appears when it ends, or tap Stop.'
-            : 'Analyzing the file. The report appears when it ends, or tap Stop.',
+          : 'Playing the demo night. The report appears when it ends, or tap Stop.',
       );
       loop();
     } catch (err) {
@@ -301,11 +281,9 @@
       session = null;
       let msg = err && err.message ? err.message : String(err);
       if (err && (err.name === 'NotAllowedError' || err.name === 'SecurityError')) {
-        msg = 'Microphone access was blocked. Allow it in the browser’s site settings, or try Demo night.';
+        msg = 'Microphone access was blocked. Allow it in the browser’s site settings, then tap Start again.';
       } else if (err && err.name === 'NotFoundError') {
-        msg = 'No microphone found. Connect one, or try Demo night.';
-      } else if (err && err.name === 'EncodingError') {
-        msg = 'This file could not be decoded. Try an MP3, WAV, M4A or OGG file.';
+        msg = 'No microphone found. Connect one, then tap Start again.';
       }
       setStatus(msg, true);
     } finally {
@@ -564,7 +542,7 @@
     el.controls.classList.remove('is-locked');
     setStatus('Recording stopped. Your report is below. Tap Start for a new recording.');
 
-    el.reportSource.textContent = s.fileName ? `${SOURCE_NAMES.file}: ${s.fileName}` : SOURCE_NAMES[s.source];
+    el.reportSource.textContent = SOURCE_NAMES[s.source];
     const start = at(0);
     const end = new Date(s.endWall);
     const day = start.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' });
@@ -642,7 +620,7 @@
         summary: s.summary,
         version: VERSION_TEXT,
         sensitivity: s.detector.sensitivity,
-        sourceLabel: s.fileName ? `${SOURCE_NAMES.file}: ${s.fileName}` : SOURCE_NAMES[s.source],
+        sourceLabel: SOURCE_NAMES[s.source],
         reasons: REASONS,
       };
       const canvas = Share.drawShareCard(document.createElement('canvas'), data);
@@ -791,7 +769,6 @@
       app: 'Snorewatch',
       version: VERSION_TEXT,
       source: s.source,
-      file: s.fileName,
       startedAt: new Date(s.startWall).toISOString(),
       endedAt: new Date(s.endWall).toISOString(),
       sensitivity: s.detector.sensitivity,
