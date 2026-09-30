@@ -9,7 +9,7 @@
 // filter is skipped, without loudFill the knock check of the rhythm rule is.
 'use strict';
 const fs = require('fs');
-const { classify, isRhythmCandidate, RhythmGate, DEFAULTS, REASONS } = require('../js/detector.js');
+const { classify, isRhythmCandidate, RhythmGate, SessionStats, DEFAULTS, REASONS } = require('../js/detector.js');
 
 function eventsOf(report) {
   const toEvent = (x, isSnore) => ({
@@ -69,16 +69,25 @@ function report(file) {
   if (missing.length) console.log(`  missing: ${missing.join('; ')}`);
   const before = count(events, (e) => e.wasSnore);
   const now = count(after, (e) => e.isSnore);
+  // Confirmed = another snore 2-12 s before or after (what the app counts since 1.5).
+  const confirmedOf = (list) => {
+    const stats = new SessionStats();
+    list.forEach((e) => stats.add({ ...e, clip: null }));
+    return stats.confirmed.length;
+  };
+  const confBefore = confirmedOf(events.filter((e) => e.wasSnore).map((e) => ({ ...e, isSnore: true })));
+  const confNow = confirmedOf(after.filter((e) => e.isSnore));
   console.log('\n                     recorded   current rules');
-  console.log(`  snores             ${pad(before, 8)}   ${pad(now, 13)}`);
-  console.log(`  per hour           ${pad((before / hours).toFixed(0), 8)}   ${pad((now / hours).toFixed(0), 13)}`);
+  console.log(`  snore-like sounds  ${pad(before, 8)}   ${pad(now, 13)}`);
+  console.log(`  confirmed snores   ${pad(confBefore, 8)}   ${pad(confNow, 13)}`);
+  console.log(`  confirmed per hour ${pad((confBefore / hours).toFixed(0), 8)}   ${pad((confNow / hours).toFixed(0), 13)}`);
   console.log(`  via rhythm         ${pad(count(events, (e) => e.wasRhythm), 8)}   ${pad(count(after, (e) => e.rhythm), 13)}`);
   for (const k of Object.keys(REASONS)) {
     const b = count(events, (e) => e.wasReason === k);
     const a = count(after, (e) => e.reason === k);
     if (a || b) console.log(`  ${REASONS[k].padEnd(34).slice(0, 34)} ${pad(b, 4)}   ${pad(a, 13)}`);
   }
-  console.log('\n  hour    recorded  current   (snores per clock hour)');
+  console.log('\n  hour    recorded  current   (snore-like sounds per clock hour)');
   const byHour = new Map();
   const hourOf = (e) => new Date(start + e.start * 1000).getHours();
   for (const e of events) if (e.wasSnore) byHour.set(hourOf(e), (byHour.get(hourOf(e)) || [0, 0]).map((v, i) => v + (i === 0)));

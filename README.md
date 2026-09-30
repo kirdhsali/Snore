@@ -88,9 +88,29 @@ Report, after Stop:
    nothing above 1 kHz, centroid under 400 Hz, sustained rather than separate
    thuds) and a snore accepted on its own lies 2–12 s before or after it. It
    waits up to 12 s for that snore; rescued snores do not anchor further rescues.
+   **Confirmed snores:** snores come in runs with the breathing. The figures,
+   charts and share outputs count a snore only when another snore lies 2–12 s
+   before or after it. Isolated snore-like sounds (a footstep, a door, a single
+   cough) are listed as “possible” and not counted.
 4. Only snores keep their audio (downsampled to 8 kHz, 16-bit). A rolling buffer
    of a few seconds exists only to capture the start of a snore and is
    continuously overwritten.
+
+### Checked against public data
+
+`npm run eval:public` runs the detector on [ESC-50](https://github.com/karolpiczak/ESC-50)
+(CC BY-NC; downloaded for testing only, never committed). Each 5-second clip is
+placed in quiet room noise at bedside level. Results for version 1.5:
+
+| | any snore-like sound | confirmed snore |
+| --- | --- | --- |
+| snoring clips recognised | 29/40 (72.5 %) | 13/40 (32.5 %)* |
+| night sounds counted as snore (25 classes) | 100/1000 (10.0 %) | 22/1000 (2.2 %) |
+
+\* Confirmation needs a second snore 2–12 s away inside the same 5-second
+clip, which most clips do not contain; over a real night snores come in runs,
+so nearly all are confirmed. Missed snoring clips are mostly brighter
+(mouth) snores recorded close up.
 
 This is a heuristic, not a trained model. If it misses your snoring, raise the
 sensitivity; if it counts other things, lower it.
@@ -108,6 +128,7 @@ npm run test:e2e    # real page in Chromium with a fake microphone playing the d
 npm run sample      # regenerate samples/snore-demo.wav
 npm run build       # dist/snorewatch.html: everything inlined into one file
 npm run evaluate -- snore-report.json   # re-evaluate a downloaded night with the current rules
+npm run eval:public # check against ESC-50, a public set of 2,000 labelled sounds (downloads ~600 MB once)
 npm start           # local server on http://localhost:8080 (PORT to change)
 ```
 

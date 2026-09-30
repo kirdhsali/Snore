@@ -91,3 +91,11 @@ test('busiest period is found', () => {
   assert.deepEqual(Share.busiest(snores, 7200), { start: 1800, end: 3600, count: 3 });
   assert.equal(Share.busiest([], 7200), null);
 });
+
+test('report states how many isolated snores were not counted', () => {
+  const stats = new Core.SessionStats();
+  [10, 14, 18, 300].forEach((start) => stats.add({ isSnore: true, start, end: start + 1, duration: 1, relDb: 12, clip: null }));
+  const html = reportFor({ stats, elapsed: 3600, summary: stats.summary(3600) });
+  assert.match(html, /1 isolated snore-like sounds without a neighbour in breathing rhythm were not counted/);
+  assert.match(html, /\+1 possible, not counted/);
+});

@@ -115,7 +115,7 @@ test('audio is kept for snores only', () => {
 
 test('lower sensitivity ignores faint snores that high sensitivity catches', () => {
   const sr = 16000;
-  const plan = [0, 1, 2, 3].map((i) => ({ type: 'snore', at: 2 + i * 4, amp: 0.009 }));
+  const plan = [0, 1, 2, 3].map((i) => ({ type: 'snore', at: 2 + i * 4, amp: 0.02 }));
   const scenario = Synth.compose(sr, 20, plan, 11);
   const high = run(scenario, { sensitivity: 'high' }).events.filter((e) => e.isSnore).length;
   const low = run(scenario, { sensitivity: 'low' }).events.filter((e) => e.isSnore).length;
@@ -125,14 +125,16 @@ test('lower sensitivity ignores faint snores that high sensitivity catches', () 
 test('session statistics and episodes', () => {
   const stats = new SessionStats();
   const snore = (start, relDb) => ({ isSnore: true, start, end: start + 1, duration: 1, relDb, clip: null });
+  // A run of four, a pair, and one isolated snore.
   [10, 14, 18, 22, 500, 504, 1000].forEach((t, i) => stats.add(snore(t, [12, 18, 30, 14, 20, 22, 9][i])));
   stats.add({ isSnore: false, start: 30, duration: 0.1, reason: 'too-short', relDb: 20 });
   const s = stats.summary(3600);
-  assert.equal(s.snoreCount, 7);
-  assert.equal(Math.round(s.snoresPerHour), 7);
-  assert.equal(s.snoreSeconds, 7);
+  assert.equal(s.snoreCount, 6, 'only snores with a neighbour 2-12 s away count');
+  assert.equal(s.possibleCount, 1);
+  assert.equal(Math.round(s.snoresPerHour), 6);
+  assert.equal(s.snoreSeconds, 6);
   assert.equal(s.maxRelDb, 30);
-  assert.deepEqual(s.intensity, { light: 3, moderate: 3, loud: 1 });
+  assert.deepEqual(s.intensity, { light: 2, moderate: 3, loud: 1 });
   assert.equal(s.ignoredCount, 1);
   assert.deepEqual(s.ignoredByReason, { 'too-short': 1 });
   assert.equal(s.episodes.length, 1, 'only runs of 3+ snores count as episodes');
@@ -141,7 +143,21 @@ test('session statistics and episodes', () => {
   const b = stats.buckets(3600, 600);
   assert.equal(b.length, 6);
   assert.equal(b[0].count, 6);
-  assert.equal(b[1].count, 1);
+  assert.equal(b[1].count, 0, 'the isolated snore is not charted');
+  assert.deepEqual(
+    stats.snores.map((x) => x.confirmed),
+    [true, true, true, true, true, true, false],
+  );
+});
+
+test('snores closer than 2 s or further than 12 s apart do not confirm each other', () => {
+  const stats = new SessionStats();
+  [0, 1.5, 20, 40].forEach((start) => stats.add({ isSnore: true, start, end: start + 1, duration: 1, relDb: 10, clip: null }));
+  assert.equal(stats.summary(60).snoreCount, 0);
+  assert.equal(stats.summary(60).possibleCount, 4);
+  // A later snore in rhythm confirms the earlier one.
+  stats.add({ isSnore: true, start: 45, end: 46, duration: 1, relDb: 10, clip: null });
+  assert.equal(stats.summary(60).snoreCount, 2);
 });
 
 test('clip budget drops the quietest clips first', () => {
