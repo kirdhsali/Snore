@@ -230,6 +230,22 @@
     return out;
   }
 
+  /**
+   * Restless background (wind, a fan changing speed, rain on and off): room
+   * noise whose level wanders by several dB over a few seconds.
+   */
+  function gustyNoise(sr, n, level, rand, depthDb = 12) {
+    const out = roomNoise(sr, n, level, rand);
+    let g = 0;
+    let target = 0;
+    for (let i = 0; i < n; i++) {
+      if (i % Math.round(sr * 0.5) === 0) target = (rand() - 0.5) * depthDb;
+      g += (target - g) / (sr * 0.8);
+      out[i] *= Math.pow(10, g / 20);
+    }
+    return out;
+  }
+
   const MAKERS = { snore, rattle, rumble, speech, knock, cough, car };
 
   /**
@@ -237,10 +253,10 @@
    * `plan` is a list of { type, at (seconds), ...opts }.
    * Returns { samples, sampleRate, truth: [{ type, start, end }] }.
    */
-  function compose(sr, seconds, plan, seed = 1, noiseLevel = 0.002) {
+  function compose(sr, seconds, plan, seed = 1, noiseLevel = 0.002, background = 'still') {
     const rand = rng(seed);
     const n = Math.round(seconds * sr);
-    const samples = roomNoise(sr, n, noiseLevel, rand);
+    const samples = background === 'gusty' ? gustyNoise(sr, n, noiseLevel, rand) : roomNoise(sr, n, noiseLevel, rand);
     const truth = [];
     for (const item of plan) {
       const buf = MAKERS[item.type](sr, rand, item);
@@ -281,5 +297,5 @@
     return compose(sr, 90, plan, seed);
   }
 
-  return { rng, compose, demoScenario, snoreRun, snore, rattle, rumble, speech, knock, cough, car, roomNoise };
+  return { rng, compose, demoScenario, snoreRun, snore, rattle, rumble, speech, knock, cough, car, roomNoise, gustyNoise };
 });

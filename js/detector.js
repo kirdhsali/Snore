@@ -40,6 +40,9 @@
     low: { triggerDb: 12, releaseDb: 6, minAbsDb: -65 },
     normal: { triggerDb: 8, releaseDb: 4, minAbsDb: -75 },
     high: { triggerDb: 5, releaseDb: 3, minAbsDb: -85 },
+    // Starts like normal, then sets the margins from how much the room noise
+    // fluctuates (see _autoUpdate). The absolute gate only guards against silence.
+    auto: { triggerDb: 8, releaseDb: 4, minAbsDb: -95 },
   };
 
   const DEFAULTS = {
@@ -64,6 +67,12 @@
     preRollSec: 0.25,
     postRollSec: 0.15,
     clipRate: 8000,
+    keepClips: true, // false for a detector that only counts (the auto shadow)
+    // Auto sensitivity: statistics of quiet frames (not during or right after a sound)
+    autoWindowSec: 180,
+    autoUpdateSec: 30,
+    autoGuardSec: 1,
+    autoMinIdleSec: 20,
     onFrame: null,
     onEvent: null,
   };
@@ -302,6 +311,12 @@
       this.eventCount = 0;
       this.emitted = [];
       this.gate = new RhythmGate(this.opts, (ev) => this._emit(ev));
+
+      // Auto sensitivity: rolling record of how far quiet frames sit above the floor.
+      this.autoIdle = new Float32Array(Math.ceil(this.opts.autoWindowSec / this.hopSec));
+      this.autoIdleCount = 0;
+      this.lastEventEndFrame = -Infinity;
+      this.levels = []; // history of auto margins: {t, triggerDb, releaseDb, spreadDb, floorDb}
     }
 
     setSensitivity(level) {
@@ -310,6 +325,28 @@
       this.triggerDb = s.triggerDb;
       this.releaseDb = s.releaseDb;
       this.minAbsDb = this.opts.minAbsDb != null ? this.opts.minAbsDb : s.minAbsDb;
+      this.auto = this.sensitivity === 'auto';
+    }
+
+    /**
+     * Auto sensitivity. The spread of quiet frames above the floor (90th minus
+     * 50th percentile) says how restless the room is: a still bedroom gets small
+     * margins, a fan or rain larger ones. Changes are limited to 2 dB per update.
+     */
+    _autoUpdate(t) {
+      const o = this.opts;
+      const n = Math.min(this.autoIdleCount, this.autoIdle.length);
+      if (n * this.hopSec < o.autoMinIdleSec) return;
+      const v = Array.from(this.autoIdle.subarray(0, n)).sort((a, b) => a - b);
+      const spread = v[Math.floor(0.9 * (n - 1))] - v[Math.floor(0.5 * (n - 1))];
+      const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
+      const step = (from, to) => from + clamp(to - from, -2, 2);
+      // Lower limits as for "high": smaller margins let room noise dilute the sound's profile.
+      const release = clamp(1.5 * spread + 2, 3, 7);
+      const trigger = clamp(release + 2 + spread, 5, 14);
+      this.releaseDb = step(this.releaseDb, release);
+      this.triggerDb = Math.max(this.releaseDb + 1, step(this.triggerDb, trigger));
+      this.levels.push({ t, triggerDb: this.triggerDb, releaseDb: this.releaseDb, spreadDb: spread, floorDb: this.floor });
     }
 
     get elapsed() {
@@ -398,6 +435,9 @@
           const tau = f.db < this.floor ? 0.5 : 8;
           this.floor += (this.hopSec / tau) * (f.db - this.floor);
           this.floor = Math.max(-100, this.floor);
+          if (this.auto && (index - this.lastEventEndFrame) * this.hopSec > o.autoGuardSec) {
+            this.autoIdle[this.autoIdleCount++ % this.autoIdle.length] = f.db - this.floor;
+          }
         }
       } else {
         const ev = this.event;
@@ -411,6 +451,9 @@
         if ((index - ev.lastLoud) * this.hopSec >= o.hangoverSec) finished = this._finish();
       }
       this.gate.expire(index * this.hopSec);
+      if (this.auto && this.floor !== null && index % Math.round(o.autoUpdateSec / this.hopSec) === 0) {
+        this._autoUpdate(index * this.hopSec);
+      }
 
       this.frameIndex++;
       if (o.onFrame) {
@@ -448,6 +491,7 @@
       const ev = this.event;
       const o = this.opts;
       this.event = null;
+      this.lastEventEndFrame = ev.lastLoud;
       const hop = this.hopSec;
       const start = ev.startFrame * hop;
       const end = (ev.lastLoud + 1) * hop;
@@ -485,7 +529,7 @@
         clipRate: this.clipRate,
       };
       // Candidates keep their audio only while they wait; it is dropped if no snore confirms them.
-      if (result.isSnore || result.rhythmCandidate) result.clip = Int16Array.from(audio, (x) => Math.max(-32768, Math.min(32767, Math.round(x * 32767))));
+      if ((result.isSnore || result.rhythmCandidate) && o.keepClips) result.clip = Int16Array.from(audio, (x) => Math.max(-32768, Math.min(32767, Math.round(x * 32767))));
       return result;
     }
 
