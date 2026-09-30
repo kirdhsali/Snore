@@ -572,7 +572,7 @@ ${
 <p class="sub">Heard during the night but not snoring. No audio of these was kept.</p>
 ${ignored ? `<table><tbody>${ignored}</tbody></table>` : '<p class="note">No other sounds were heard.</p>'}
 </section>
-<p class="note">How it works: the recording is split into short frames. A sound counts as a snore when it is one smooth burst of 0.25–4 s rising above the room’s background noise, with most of its energy below 800 Hz. Loudness is given in dB above the room noise. Only snores were recorded; all other sounds were discarded on the device.</p>
+<p class="note">How it works: the recording is split into short frames. A sound counts as a snore when it is a burst of 0.25–4 s rising above the room’s background noise, with most of its energy below 800 Hz but not only deep rumble below 60 Hz. A rattling snore made of several bursts counts when it fits the breathing rhythm of the snores around it. Loudness is given in dB above the room noise. Only snores were recorded; all other sounds were discarded on the device.</p>
 <p class="note">Snorewatch estimates snoring from sound alone. It is not a medical device and cannot detect sleep apnea. If you stop breathing at night, wake up gasping or feel very tired during the day, talk to a doctor.</p>
 </main>
 </body>

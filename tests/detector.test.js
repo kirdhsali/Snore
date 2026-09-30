@@ -13,8 +13,7 @@ function run(scenario, options) {
   for (let i = 0; i < scenario.samples.length; i += 1024) {
     events.push(...det.process(scenario.samples.subarray(i, i + 1024)));
   }
-  const last = det.flush();
-  if (last) events.push(last);
+  events.push(...det.flush());
   return { det, events };
 }
 
@@ -194,4 +193,70 @@ test('normalizeClip boosts quiet clips and caps the gain', () => {
   assert.equal(Core.normalizeClip(loud), loud);
   const mid = Core.normalizeClip(new Int16Array([1000, -2000]));
   assert.equal(Math.max(...mid.map(Math.abs)), Math.round(0.7 * 32767));
+});
+
+test('deep rumble is rejected although it is low and smooth', () => {
+  for (const sr of [48000, 16000]) {
+    for (let seed = 1; seed <= 4; seed++) {
+      const scenario = Synth.compose(sr, 10, [{ type: 'rumble', at: 3 }], seed);
+      const { events } = run(scenario);
+      assert.equal(events.length, 1);
+      assert.equal(events[0].reason, 'rumble', `seed ${seed} at ${sr} Hz`);
+      assert.ok(events[0].subBass > 0.85);
+    }
+  }
+  // Without the rumble gate the same sound passes as a snore, as it did in real nights.
+  const scenario = Synth.compose(48000, 10, [{ type: 'rumble', at: 3 }], 1);
+  assert.ok(run(scenario, { maxSubBass: 1 }).events[0].isSnore);
+});
+
+test('rattling snores within a run of snores count through the breathing rhythm', () => {
+  for (const sr of [48000, 44100, 16000]) {
+    // A rattle first (confirmed by the snore after it), then alternating.
+    const types = ['rattle', 'snore', 'rattle', 'rattle', 'snore', 'rattle', 'snore'];
+    const plan = types.map((type, i) => ({ type, at: 2 + i * 4.2 }));
+    const scenario = Synth.compose(sr, 34, plan, 5);
+    const { events } = run(scenario);
+    for (const t of scenario.truth) {
+      const ev = events.find((e) => overlaps(e, t));
+      assert.ok(ev && ev.isSnore, `${t.type} at ${t.start.toFixed(1)} s (${sr} Hz): ${ev ? ev.reason : 'not heard'}`);
+    }
+    const rescued = events.filter((e) => e.rhythm);
+    assert.ok(rescued.length >= 2, `rhythm rescued ${rescued.length} at ${sr} Hz`);
+    assert.ok(rescued.every((e) => e.clip && e.clip.length), 'rescued snores keep their audio');
+    const starts = events.filter((e) => e.isSnore).map((e) => e.start);
+    assert.deepEqual(starts, starts.slice().sort((a, b) => a - b), 'snores arrive in time order');
+  }
+});
+
+test('a rattle with no snore around it is not counted and its audio is dropped', () => {
+  const scenario = Synth.compose(48000, 30, [{ type: 'rattle', at: 3 }], 2);
+  const det = new SnoreDetector(48000);
+  const early = det.process(scenario.samples.subarray(0, 48000 * 8));
+  assert.equal(early.length, 0, 'it waits for a snore in rhythm');
+  const events = [...early, ...det.process(scenario.samples.subarray(48000 * 8)), ...det.flush()];
+  assert.equal(events.length, 1);
+  assert.equal(events[0].reason, 'choppy');
+  assert.equal(events[0].clip, null);
+});
+
+test('knocking and speech in the rhythm of snoring stay ignored', () => {
+  for (const sr of [48000, 16000]) {
+    const types = ['snore', 'knock', 'snore', 'speech', 'snore', 'knock', 'snore'];
+    const plan = types.map((type, i) => ({ type, at: 2 + i * 4.5 }));
+    const scenario = Synth.compose(sr, 36, plan, 9);
+    const { events } = run(scenario);
+    for (const t of scenario.truth) {
+      const ev = events.find((e) => overlaps(e, t));
+      assert.ok(ev, `${t.type} at ${t.start.toFixed(1)} s heard`);
+      assert.equal(ev.isSnore, t.type === 'snore', `${t.type} at ${t.start.toFixed(1)} s (${sr} Hz): ${ev.reason}`);
+    }
+  }
+});
+
+test('summary counts snores found through the rhythm', () => {
+  const stats = new SessionStats();
+  stats.add({ isSnore: true, start: 1, end: 2, duration: 1, relDb: 10, clip: null });
+  stats.add({ isSnore: true, start: 5, end: 6, duration: 1, relDb: 10, clip: null, rhythm: true });
+  assert.equal(stats.summary(60).rhythmCount, 1);
 });
