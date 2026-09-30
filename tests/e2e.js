@@ -118,8 +118,11 @@ async function main() {
     console.log(`  image ${Math.round(png.length / 1024)} KB, report ${Math.round(html.length / 1024)} KB with ${nAudio} snores; first plays ${clipSeconds.toFixed(2)} s`);
     assert.ok(nAudio >= 6, 'report embeds the snores');
 
-    console.log('Demo mode: playing 12 s of the simulated night…');
-    await page.check('#src-demo', { force: true });
+    console.log('Demo mode (#demo in the address): playing 12 s of the simulated night…');
+    assert.ok(await page.isHidden('#demo-badge'), 'no demo label while recording from the microphone');
+    await page.evaluate(() => (location.hash = 'demo'));
+    await page.waitForSelector('#demo-badge:not([hidden])');
+    assert.equal(await page.$('input[type="file"]'), null, 'no file upload any more');
     await page.click('#rec');
     await page.waitForFunction(() => window.__snorewatch.running, null, { timeout: 10000 });
     await sleep(12000);
