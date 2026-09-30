@@ -60,6 +60,7 @@
     <div class="state-row">
       <span class="pill" id="pill" data-state="calibrating"><span class="dot" aria-hidden="true"></span><span id="pill-text">Measuring room noise</span></span>
       <span class="level" id="level-text"></span>
+      <button type="button" class="btn" id="go-dark">Darken screen</button>
     </div>
 
     <figure class="panel">
@@ -162,6 +163,13 @@
     <p class="version" id="app-version"></p>
   </footer>
 </main>
+
+<div class="night" id="night" hidden role="button" tabindex="0" aria-label="Screen darkened while recording. Tap to show the app.">
+  <div class="night-info" id="night-info">
+    <span class="night-clock" id="night-clock"></span>
+    <span class="night-meta" id="night-meta"></span>
+  </div>
+</div>
 
 <script src="js/version.js"></script>
 <script src="js/detector.js"></script>
