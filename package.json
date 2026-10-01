@@ -1,6 +1,6 @@
 {
   "name": "snorewatch",
-  "version": "1.11.2",
+  "version": "1.11.3",
   "private": true,
   "description": "Record and analyze snoring in the browser. Only snore clips are kept.",
   "license": "MIT",

@@ -1,8 +1,10 @@
 /*
- * Snorewatch core: signal analysis, snore detection and session statistics.
+ * Snorewatch core: signal analysis and snore detection. Also the one entry
+ * point (window.SnoreCore / require) that re-exports the session statistics
+ * (js/stats.js) and the WAV helpers (js/wav.js), which load before it.
  *
  * Pure JavaScript with no browser dependencies, so the same file runs in the
- * page (as window.SnoreCore) and in Node for tests (via require).
+ * page and in Node for tests.
  *
  * How detection works
  *   1. Audio is cut into ~40 ms frames. Each frame gets a loudness (dBFS) and
@@ -31,11 +33,15 @@
  *      that exists only to capture the start of a snore.
  */
 (function (root, factory) {
-  const api = factory();
-  if (typeof module === 'object' && module.exports) module.exports = api;
+  const node = typeof module === 'object' && module.exports;
+  const api = factory(node ? require('./stats.js') : root.SnoreStats, node ? require('./wav.js') : root.SnoreWav);
+  if (node) module.exports = api;
   else root.SnoreCore = api;
-})(typeof self !== 'undefined' ? self : this, function () {
+})(typeof self !== 'undefined' ? self : this, function (Stats, Wav) {
   'use strict';
+
+  const { SessionStats, percentile } = Stats;
+  const { encodeWav, normalizeClip } = Wav;
 
   // triggerDb/releaseDb: margin above the room's noise floor.
   // minAbsDb: absolute level (dBFS) a sound must reach at all. Phones record
@@ -61,8 +67,8 @@
     maxSubBass: 0.85, // share of energy 20-60 Hz (of 20-4000 Hz); above = deep rumble
     minBreathRiseDb: null, // rise of 150-1500 Hz above the room noise a snore needs; null = not checked
     // Rhythm rescue of choppy but snore-like sounds
-    rhythmMinSec: 2, // start-to-start distance to an accepted snore
-    rhythmMaxSec: 12,
+    rhythmMinSec: Stats.RHYTHM_MIN_SEC, // start-to-start distance to an accepted snore (js/stats.js)
+    rhythmMaxSec: Stats.RHYTHM_MAX_SEC,
     rhythmMaxHighRatio: 0.05,
     rhythmMaxCentroid: 400, // Hz
     rhythmMinFill: 0.6, // share of frames within 15 dB of the peak (knocks are short thuds with gaps)
@@ -289,11 +295,6 @@
       if (k * binHz < 60) sub += p;
     }
     return total > 0 ? sub / total : 0;
-  }
-
-  function percentile(values, q) {
-    const s = values.slice().sort((a, b) => a - b);
-    return s[Math.min(s.length - 1, Math.floor(q * s.length))];
   }
 
   class SnoreDetector {
@@ -731,218 +732,6 @@
       if (ev.isSnore && !ev.rhythm) this.anchors.push(ev.start);
       this.emit(ev);
     }
-  }
-
-  /**
-   * Aggregates classified events into the live statistics and the report.
-   * `snores` holds every detected snore; the figures count only confirmed
-   * ones (another snore 2-12 s before or after), isolated ones are "possible".
-   */
-  // How much later than its start an event can reach the statistics: a rhythm
-  // candidate waits up to rhythmMaxSec for a snore, which then has to end.
-  const LATE_ARRIVAL_SEC = 30;
-
-  class SessionStats {
-    constructor(options = {}) {
-      this.maxClips = options.maxClips || 1500;
-      this.episodeGapSec = options.episodeGapSec || 60;
-      this.rhythmMinSec = options.rhythmMinSec || DEFAULTS.rhythmMinSec;
-      this.rhythmMaxSec = options.rhythmMaxSec || DEFAULTS.rhythmMaxSec;
-      this.snores = [];
-      this.ignored = [];
-      this.gaps = []; // interruptions {start, end} in event time; no confirmation across them
-      this.clipCount = 0;
-    }
-
-    /** Records an interruption; snores on either side of it do not confirm each other. */
-    addGap(start, end) {
-      this.gaps.push({ start, end });
-    }
-
-    _acrossGap(a, b) {
-      const lo = Math.min(a, b);
-      const hi = Math.max(a, b);
-      return this.gaps.some((g) => g.start >= lo && g.start < hi);
-    }
-
-    /**
-     * Snores with a neighbour in breathing rhythm, in time order. Events can
-     * arrive out of order: a rhythm candidate is decided when a later snore comes.
-     */
-    get confirmed() {
-      return this.snores.filter((s) => s.confirmed).sort((a, b) => a.start - b.start);
-    }
-
-    add(ev) {
-      if (ev.isSnore) {
-        ev.confirmed = false;
-        // Neighbours before or after: a rescued sound arrives only once a later
-        // snore decided it, i.e. after snores that started later than itself.
-        for (let i = this.snores.length - 1; i >= 0; i--) {
-          const gap = Math.abs(ev.start - this.snores[i].start);
-          if (ev.start - this.snores[i].start > this.rhythmMaxSec + LATE_ARRIVAL_SEC) break;
-          if (gap >= this.rhythmMinSec && gap <= this.rhythmMaxSec && !this._acrossGap(ev.start, this.snores[i].start)) {
-            ev.confirmed = true;
-            this.snores[i].confirmed = true;
-          }
-        }
-        this.snores.push(ev);
-        if (ev.clip) this.clipCount++;
-        if (this.clipCount > this.maxClips) this._dropQuietestClip();
-      } else {
-        // Only the verdict and sound features are kept for ignored sounds, never audio.
-        this.ignored.push({
-          id: ev.id,
-          start: ev.start,
-          duration: ev.duration,
-          reason: ev.reason,
-          relDb: ev.relDb,
-          peakDb: ev.peakDb,
-          lowRatio: ev.lowRatio,
-          highRatio: ev.highRatio,
-          centroid: ev.centroid,
-          peaks: ev.peaks,
-          subBass: ev.subBass,
-          fill: ev.fill,
-          breathRise: ev.breathRise,
-        });
-      }
-    }
-
-    _dropQuietestClip() {
-      let min = null;
-      for (const s of this.snores) if (s.clip && (!min || s.relDb < min.relDb)) min = s;
-      if (min) {
-        min.clip = null;
-        this.clipCount--;
-      }
-    }
-
-    episodes() {
-      const eps = [];
-      let cur = null;
-      for (const s of this.confirmed) {
-        if (cur && s.start - cur.end <= this.episodeGapSec) {
-          cur.end = Math.max(cur.end, s.end);
-          cur.lastStart = s.start;
-          cur.count++;
-          cur.relDbSum += s.relDb;
-        } else {
-          cur = { start: s.start, lastStart: s.start, end: s.end, count: 1, relDbSum: s.relDb };
-          eps.push(cur);
-        }
-      }
-      return eps
-        .filter((e) => e.count >= 3)
-        .map((e) => ({
-          start: e.start,
-          end: e.end,
-          duration: e.end - e.start,
-          count: e.count,
-          meanRelDb: e.relDbSum / e.count,
-          // Mean time from one snore's start to the next one's.
-          interval: (e.lastStart - e.start) / Math.max(1, e.count - 1),
-        }));
-    }
-
-    summary(elapsedSec) {
-      const snores = this.confirmed;
-      const n = snores.length;
-      const elapsed = Math.max(elapsedSec, 1e-9);
-      let snoreSeconds = 0;
-      let relSum = 0;
-      let maxRel = 0;
-      const intensity = { light: 0, moderate: 0, loud: 0 };
-      for (const s of snores) {
-        snoreSeconds += s.duration;
-        relSum += s.relDb;
-        if (s.relDb > maxRel) maxRel = s.relDb;
-        if (s.relDb < 15) intensity.light++;
-        else if (s.relDb < 25) intensity.moderate++;
-        else intensity.loud++;
-      }
-      const intervals = [];
-      for (let i = 1; i < n; i++) {
-        const gap = snores[i].start - snores[i - 1].start;
-        if (gap <= this.episodeGapSec) intervals.push(gap);
-      }
-      const ignoredByReason = {};
-      for (const e of this.ignored) ignoredByReason[e.reason] = (ignoredByReason[e.reason] || 0) + 1;
-      const episodes = this.episodes();
-      return {
-        elapsed: elapsedSec,
-        snoreCount: n,
-        snoresPerHour: elapsedSec > 0 ? (n / elapsed) * 3600 : 0,
-        snoreSeconds,
-        snorePercent: elapsedSec > 0 ? (100 * snoreSeconds) / elapsed : 0,
-        meanRelDb: n ? relSum / n : 0,
-        maxRelDb: maxRel,
-        medianInterval: intervals.length ? percentile(intervals, 0.5) : null,
-        intensity,
-        possibleCount: this.snores.length - n,
-        rhythmCount: snores.filter((s) => s.rhythm).length,
-        ignoredCount: this.ignored.length,
-        ignoredByReason,
-        episodes,
-        longestEpisode: episodes.reduce((m, e) => (e.duration > m ? e.duration : m), 0),
-      };
-    }
-
-    /** Snore counts per time bucket for the timeline chart. */
-    buckets(elapsedSec, bucketSec) {
-      const count = Math.max(1, Math.ceil(elapsedSec / bucketSec));
-      const out = Array.from({ length: count }, (_, i) => ({ start: i * bucketSec, count: 0, relDbSum: 0 }));
-      for (const s of this.confirmed) {
-        const b = out[Math.min(count - 1, Math.floor(s.start / bucketSec))];
-        b.count++;
-        b.relDbSum += s.relDb;
-      }
-      return out.map((b) => ({ start: b.start, count: b.count, meanRelDb: b.count ? b.relDbSum / b.count : 0 }));
-    }
-  }
-
-  /**
-   * Evens out clip volume for listening: scales the clip so its peak reaches
-   * `targetPeak` (0..1), boosting by at most `maxGainDb`. Never turns it down.
-   */
-  function normalizeClip(clip, targetPeak = 0.7, maxGainDb = 60) {
-    let peak = 1;
-    for (let i = 0; i < clip.length; i++) peak = Math.max(peak, Math.abs(clip[i]));
-    const gain = Math.min((targetPeak * 32767) / peak, Math.pow(10, maxGainDb / 20));
-    if (gain <= 1) return clip;
-    return Int16Array.from(clip, (x) => Math.max(-32768, Math.min(32767, Math.round(x * gain))));
-  }
-
-  /** 16-bit mono WAV from Int16 chunks, with `gapSec` of silence between them. */
-  function encodeWav(chunks, sampleRate, gapSec = 0.4) {
-    const rate = Math.round(sampleRate);
-    const gap = Math.round(gapSec * rate);
-    let samples = 0;
-    chunks.forEach((c, i) => (samples += c.length + (i ? gap : 0)));
-    const buf = new ArrayBuffer(44 + samples * 2);
-    const v = new DataView(buf);
-    const str = (off, s) => {
-      for (let i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i));
-    };
-    str(0, 'RIFF');
-    v.setUint32(4, 36 + samples * 2, true);
-    str(8, 'WAVE');
-    str(12, 'fmt ');
-    v.setUint32(16, 16, true);
-    v.setUint16(20, 1, true);
-    v.setUint16(22, 1, true);
-    v.setUint32(24, rate, true);
-    v.setUint32(28, rate * 2, true);
-    v.setUint16(32, 2, true);
-    v.setUint16(34, 16, true);
-    str(36, 'data');
-    v.setUint32(40, samples * 2, true);
-    let off = 44;
-    chunks.forEach((c, i) => {
-      if (i) off += gap * 2;
-      for (let j = 0; j < c.length; j++, off += 2) v.setInt16(off, c[j], true);
-    });
-    return buf;
   }
 
   return {
