@@ -1,4 +1,4 @@
-# CLAUDE.md
+# AGENTS.md
 
 Snorewatch: a static browser app that records a night with the phone microphone,
 keeps only snores and reports on them. **Read `docs/HANDOVER.md` first** (state,
