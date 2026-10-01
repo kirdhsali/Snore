@@ -196,3 +196,43 @@ test("resume is tried for 'suspended' and iOS 'interrupted' audio, not for 'clos
   assert.equal(await attempts('closed'), 0);
   assert.equal(await attempts('interrupted', { endTrack: true }), 0);
 });
+
+test('a screen lock that arrives after Stop, or for an earlier night, is released at once', async () => {
+  const b = fakeBrowser();
+  const pending = [];
+  const released = [];
+  b.env.navigator.wakeLock = { request: () => new Promise((resolve) => pending.push(resolve)) };
+  const sentinel = (name) => {
+    const handlers = [];
+    return {
+      name,
+      addEventListener: (type, fn) => handlers.push(fn),
+      release: async () => {
+        released.push(name);
+        handlers.forEach((fn) => fn());
+      },
+    };
+  };
+  const rec = createRecorder({ env: b.env });
+
+  // Stop before the browser answers.
+  await rec.start();
+  rec.stop();
+  pending.shift()(sentinel('late'));
+  await new Promise((r) => setImmediate(r));
+  assert.equal(rec.state, 'completed');
+  assert.equal(rec.wakeLockState, 'off');
+  assert.deepEqual(released, ['late']);
+
+  // An answer for the first night arrives during the second one.
+  await rec.start(); // request A
+  rec.stop();
+  await rec.start(); // request B
+  pending.shift()(sentinel('old night'));
+  pending.shift()(sentinel('this night'));
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(released, ['late', 'old night']);
+  assert.equal(rec.wakeLockState, 'on');
+  rec.stop();
+  assert.deepEqual(released, ['late', 'old night', 'this night']);
+});
