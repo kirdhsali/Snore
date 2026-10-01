@@ -9,6 +9,7 @@ permissions:
 jobs:
   # The same fast checks as CI, so nothing untested is published even if CI was skipped.
   test:
+    name: Tests before release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

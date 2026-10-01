@@ -148,6 +148,10 @@ both. Since 1.11.0 the file carries `schemaVersion: 2` (older files count as 1);
   switch / routed to the earpiece after recording.
 - **Workflow:** GitHub Flow; Claude may merge its own PRs when CI is green and
   tags come from `release.yml` (the Claude session cannot push to `main` or tags).
+- **Ruleset on `main` (set by the owner, 2026-10-01):** pull request required
+  (0 approvals), required status check **`CI tests`** (the job in `ci.yml`; the
+  test jobs before deploy and release have their own names so a skipped one can
+  never stand in for it), deletions and force pushes blocked, no bypass.
 
 ## 6. Rejected or failed approaches
 
