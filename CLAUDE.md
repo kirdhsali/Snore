@@ -1,7 +1,7 @@
 # CLAUDE.md
 
 Snorewatch: a static browser app that records a night with the phone microphone,
-keeps only snores and reports on them. **Read `docs/HANDOVER.md` first** (state,
+keeps only short snore clips and reports on them. **Read `docs/HANDOVER.md` first** (state,
 decisions, known issues, next task). General working rules: `docs/WORKING-RULES.md`.
 
 ## Rules
@@ -12,7 +12,7 @@ decisions, known issues, next task). General working rules: `docs/WORKING-RULES.
 - Ask the owner before changing counting rules, thresholds or defaults, deleting
   data, or changing repository settings. New detection rules run as background
   tests (shadow detectors) before they change the headline numbers.
-- Keep the privacy promise: only snore audio is kept; nothing is uploaded.
+- Keep the privacy promise: only short snore clips keep audio; nothing is uploaded.
 - Never commit recordings, report JSON/WAV from real nights, personal data,
   secrets or the ESC-50 dataset (CC BY-NC).
 - Never skip, disable or weaken a test to get green; fix the cause.
@@ -28,5 +28,6 @@ for f in js/*.js scripts/*.js tests/*.js; do node --check "$f"; done
 npm run eval:public                        # before detection changes (ESC-50, ~600 MB once)
 npm run evaluate -- report.json            # compare a downloaded night with the current rules
 ```
-No linter, formatter or type checker is configured. Record results as in
-`docs/VERIFICATION.md`.
+No linter, formatter or type checker is configured yet. Where `docs/WORKING-RULES.md`
+differs (lint/format gates, creating tags), the rules in this file apply. Record
+results as in `docs/VERIFICATION.md`.

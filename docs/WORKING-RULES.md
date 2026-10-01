@@ -33,8 +33,10 @@ repository, `CLAUDE.md` and `AGENTS.md` summarise them and add project specifics
 ## Pull requests
 
 - The description covers what changed, why, and how it was tested. Keep pull requests small enough to review.
-- CI must be green before merging: formatting/lint, unit tests, and an end-to-end test of the most important user flow.
-- Claude may merge its own pull requests into `main` when CI is green, and may create version tags.
+- CI must be green before merging: formatting/lint (once configured), unit tests, and an end-to-end test of the most important user flow.
+- Claude may merge its own pull requests into `main` when CI is green. Version tags
+  are created by the release workflow (or by Claude where it has the right to push tags);
+  a project's own `CLAUDE.md` says which applies.
 - Ask the owner first for anything risky or hard to undo: deleting data or
   files people rely on, database or data-format migrations, security or
   permission changes, anything that costs money, repository or cloud settings,

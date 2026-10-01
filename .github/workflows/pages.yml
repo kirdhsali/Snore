@@ -13,7 +13,19 @@ concurrency:
   group: pages
   cancel-in-progress: true
 jobs:
+  # The same fast checks as CI, so nothing untested is published even if CI was skipped.
+  test:
+    if: github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm test
+      - run: for f in js/*.js scripts/*.js tests/*.js; do node --check "$f"; done
   deploy:
+    needs: test
     if: github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-latest
     environment:

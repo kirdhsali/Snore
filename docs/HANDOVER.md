@@ -1,6 +1,6 @@
 # Snorewatch handover
 
-State at version **1.10.2** (1.9.1 was the documentation and reproducibility checkpoint,
+State at version **1.10.3** (1.9.1 was the documentation and reproducibility checkpoint,
 2026-10-01; later versions fix findings of an external review, see §9).
 Statements marked **[verified]** were checked against this repository or by running
 it; **[assumption]** marks beliefs not proven; **[suspected]** marks probable problems.
@@ -53,7 +53,9 @@ fallback); detector with adaptive floor, rule-based classification, rumble filte
 breathing-rhythm rescue, confirmed vs possible snores; live strip, tiles, timeline,
 clip cards; report; WAV/JSON download; copy summary; share image and HTML report;
 night screen; before-you-sleep checklist; hidden demo; version and build hash in
-the footer; CI, Pages deploy, automatic version tags; offline evaluation scripts.
+the footer; CI, Pages deploy, automatic version tags; offline evaluation scripts;
+detection and display of microphone interruptions with real-clock gaps (1.10.1–2).
+Deploy and tagging run the unit tests first (1.10.3).
 
 **Partly implemented (background tests, not counted in the headline figures):**
 - Breath-noise rule (`minBreathRiseDb: 3`) — runs as shadow detector `breath`.
@@ -110,9 +112,11 @@ External services: GitHub Pages (hosting), GitHub Actions, Google Fonts
 grep: no fetch/XHR/storage in `js/`]**. No database; all state is in memory.
 
 Data formats: report JSON (`app`, `version`, `startedAt`, `endedAt`,
-`sensitivity`, `summary`, `snores[]`, `ignored[]`, `shadows{breath,auto}`). v1.8
-wrote a single `shadow` object; `evaluate.js` reads both. There is no explicit
-schema version field.
+`wallSeconds`, `capturedSeconds`, `interruptions[]`, `screenWakeLock`,
+`sensitivity`, `summary`, `snores[]`, `ignored[]`, `shadows{breath,auto}`).
+`offsetSec` of snores and interruptions is on the night's clock (analysed audio
+plus interruptions). v1.8 wrote a single `shadow` object; `evaluate.js` reads
+both. There is no explicit schema version field yet (planned: Phase B2).
 
 ## 5. Decisions and reasons
 
@@ -166,7 +170,9 @@ Shortcuts and assumptions:
 - Event times come from the audio sample count plus the length of interruptions
   (1.10.2), not directly from the wall clock; start, end and interruptions use the real clock.
 - No Content-Security-Policy; Google Fonts request reveals the visitor's IP to Google.
-- No linter, formatter or type checker configured.
+- No linter, formatter or type checker configured (planned: Phase B1).
+- Interruption handling is verified only with simulated events in Chromium; how
+  iOS Safari reports a call, Siri or a locked screen is untested on a device.
 
 Untested:
 - iOS share sheet (Chromium tests take the download fallback).
@@ -179,7 +185,9 @@ Untested:
 
 ## 8. Next intended task
 
-Collect 2–3 real nights with v1.9 (JSON, optionally the zipped WAV), run
+Phase A of the review fixes is complete (§9). Phase B (restructuring for saved
+nights, history and a native app; no behaviour change) waits for the owner's
+"go". Independently: collect 2–3 real nights with 1.10 or later (JSON, optionally the zipped WAV), run
 `npm run evaluate` on each, compare Normal vs `breath` vs `auto`, and decide whether
 "Auto + breath-noise rule" becomes the default (v2.0). Check against `npm run
 eval:public` before switching. Keep the owner informed and ask before changing
@@ -205,3 +213,4 @@ then a report to the owner and a "go" before any restructuring (Phase B).
 | 1.10.0 | R3 (counting change, owner-approved rule): the rhythm rescue missed sounds the documented 2–12 s rule covers — a waiting rattle expired while a long snore that started 11 s later was still in progress; a snore too close (< 2 s) rejected a candidate that a later snore would have rescued; a candidate was checked only against the latest snore. Live and offline evaluation disagreed. The statistics also missed confirmations between a late-decided sound and snores that arrived before it | `RhythmGate` keeps all recent anchors, leaves too-close candidates waiting, and the live detector expires candidates only up to the start of a sound still in progress; `SessionStats` confirms in both directions. Limits (2 s, 12 s) unchanged; rescued sounds still never anchor |
 | 1.10.1 | R1 part 1: a suspended audio context, a muted or ended microphone, or audio simply stopping left the app saying "Recording"; the end time was computed from analysed audio, so gaps vanished; a refused screen wake lock was silent | Interruptions are detected (context `statechange`, track `mute`/`ended`, no audio for 2 s), shown in the status, and the app keeps trying to resume. Audio arriving during a gap is not analysed. `endedAt` is the real clock; the JSON adds `wallSeconds`, `capturedSeconds`, `interruptions[]` and `screenWakeLock`; the report line says "interrupted N×". A refused or unsupported wake lock is shown. Event times inside the night are still analysed-audio time (fixed in 1.10.2) |
 | 1.10.2 | R1 part 2: after an interruption, event times were analysed-audio time (early by the gap), a sound in progress and rhythm candidates spanned the gap, and snores on both sides could confirm each other | `SnoreDetector.resumeAfterGap(sec)` closes the open sound, rejects waiting candidates, drops the rhythm anchors and times later events after the gap (`clock` = analysed audio + interruptions); `SessionStats.addGap` prevents confirmation across a gap (owner decision). Timelines, share image and HTML report use the night's clock; per-hour figures still use analysed time. JSON interruptions carry `offsetSec` on the snores' clock |
+| 1.10.3 | Workflows and docs: CI had no explicit permissions; deploy and tagging ran without tests for that commit; `WORKING-RULES.md` named lint gates and tag rights that differ from this project; handover claims on retention, wake lock and data format were out of date | `ci.yml` `contents: read`; `pages.yml` and `release.yml` run `npm test` + syntax checks before deploy/tag; `CLAUDE.md`/`AGENTS.md` state that they take precedence and use the new privacy wording; handover status, data format, known issues and next task updated. Repository settings (branch protection, required checks) are for the owner |
