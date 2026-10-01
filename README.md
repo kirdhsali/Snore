@@ -106,15 +106,21 @@ Report, after Stop:
    nothing above 1 kHz, centroid under 400 Hz, sustained rather than separate
    thuds) and a snore accepted on its own lies 2–12 s before or after it. It
    waits up to 12 s for that snore; rescued snores do not anchor further rescues.
-   **Automatic sensitivity (testing in the background):** a second detector
-   runs on the same audio with `auto` sensitivity. Every 30 s it measures how
-   much the room noise fluctuates while nothing happens (90th minus 50th
-   percentile of quiet frames above the floor) and sets its margins from that:
-   5 dB in a still room, up to 14 dB when it is restless (fan, wind, rain),
-   changing at most 2 dB per step. Its absolute gate only guards against
-   silence (−95 dBFS). It keeps no audio; its counts, margins and snore times go
-   into the JSON under `shadow`, and the report shows one line comparing it with
-   the chosen setting. `npm run evaluate` compares both for a downloaded night.
+   **Breath noise (testing in the background):** a snore is air rushing
+   through a narrowed throat, so the 150–1500 Hz band rises above the room
+   noise. Every sound gets `breathRiseDb`; with the rule (≥ 3 dB) deep hums,
+   rumble and machinery without breath noise are ignored as “no breath noise”.
+   **Automatic sensitivity (testing in the background):** every 30 s it measures
+   how much quiet half-second stretches fluctuate above the room noise and sets
+   its margins from that: 5 dB in a still room, up to 14 dB when restless (fan,
+   wind, rain), at most 2 dB change per step, capped at 9 dB in a very quiet
+   room (floor below −78 dBFS) where flicker is not restlessness. Its absolute
+   gate only guards against silence (−95 dBFS).
+   The app runs two extra detectors on the same audio: **breath** (chosen
+   sensitivity + breath rule) and **auto** (automatic sensitivity + breath
+   rule). They keep no audio; their counts, margins and snore times go into the
+   JSON under `shadows`, the report shows one line, and `npm run evaluate`
+   compares them with the recorded result.
    **Confirmed snores:** snores come in runs with the breathing. The figures,
    charts and share outputs count a snore only when another snore lies 2–12 s
    before or after it. Isolated snore-like sounds (a footstep, a door, a single
@@ -127,12 +133,13 @@ Report, after Stop:
 
 `npm run eval:public` runs the detector on [ESC-50](https://github.com/karolpiczak/ESC-50)
 (CC BY-NC; downloaded for testing only, never committed). Each 5-second clip is
-placed in quiet room noise at bedside level. Results for version 1.5:
+placed in quiet room noise at bedside level. Results for version 1.9 (snoring recognised is unchanged by the breath-noise rule):
 
 | | any snore-like sound | confirmed snore |
 | --- | --- | --- |
 | snoring clips recognised | 29/40 (72.5 %) | 13/40 (32.5 %)* |
 | night sounds counted as snore (25 classes) | 100/1000 (10.0 %) | 22/1000 (2.2 %) |
+| … with the breath-noise rule (background test) | 87/1000 (8.7 %) | 18/1000 (1.8 %) |
 
 \* Confirmation needs a second snore 2–12 s away inside the same 5-second
 clip, which most clips do not contain; over a real night snores come in runs,

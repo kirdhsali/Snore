@@ -79,19 +79,29 @@ function inRoom({ sampleRate: sr, x }, seed) {
 function main() {
   ensureDataset();
   const rows = fs.readFileSync(path.join(DIR, 'meta', 'esc50.csv'), 'utf8').trim().split('\n').slice(1);
-  const byClass = {};
+  // Current rules and the candidate breath-noise rule (tested in the background in the app).
+  const variants = { 'current rules': {}, 'with breath-noise rule': { minBreathRiseDb: 3 } };
+  const results = {};
   rows.forEach((line, i) => {
     const [file, , , category] = line.split(',');
     const clip = readWav(path.join(DIR, 'audio', file));
-    const det = new SnoreDetector(clip.sampleRate);
-    const stats = new SessionStats();
-    [...det.process(inRoom(clip, i + 1)), ...det.flush()].forEach((e) => stats.add(e));
-    const c = (byClass[category] ||= { n: 0, detected: 0, confirmed: 0, missed: {} });
-    c.n++;
-    if (stats.snores.length) c.detected++;
-    else for (const e of stats.ignored) c.missed[e.reason] = (c.missed[e.reason] || 0) + 1;
-    if (stats.confirmed.length) c.confirmed++;
+    const audio = inRoom(clip, i + 1);
+    for (const [name, options] of Object.entries(variants)) {
+      const det = new SnoreDetector(clip.sampleRate, options);
+      const stats = new SessionStats();
+      [...det.process(audio), ...det.flush()].forEach((e) => stats.add(e));
+      const byClass = (results[name] ||= {});
+      const c = (byClass[category] ||= { n: 0, detected: 0, confirmed: 0, missed: {} });
+      c.n++;
+      if (stats.snores.length) c.detected++;
+      else for (const e of stats.ignored) c.missed[e.reason] = (c.missed[e.reason] || 0) + 1;
+      if (stats.confirmed.length) c.confirmed++;
+    }
   });
+  for (const [name, byClass] of Object.entries(results)) printResults(name, byClass);
+}
+
+function printResults(title, byClass) {
 
   const sum = (classes, key) => classes.reduce((a, k) => a + byClass[k][key], 0);
   const pct = (a, b) => `${((100 * a) / b).toFixed(1)}%`;
@@ -101,7 +111,7 @@ function main() {
   const nNight = sum(night, 'n');
   const nOther = sum(other, 'n');
 
-  console.log('\nESC-50 with the current detector (default settings)\n');
+  console.log(`\nESC-50, ${title}\n`);
   console.log('                                 any snore-like sound   confirmed snore*');
   console.log(`  snoring clips recognised       ${`${snoring.detected}/${snoring.n}`.padEnd(8)} ${pct(snoring.detected, snoring.n).padStart(6)}        ${`${snoring.confirmed}/${snoring.n}`.padEnd(7)} ${pct(snoring.confirmed, snoring.n).padStart(6)}`);
   console.log(`  night sounds counted as snore  ${`${sum(night, 'detected')}/${nNight}`.padEnd(8)} ${pct(sum(night, 'detected'), nNight).padStart(6)}        ${`${sum(night, 'confirmed')}/${nNight}`.padEnd(7)} ${pct(sum(night, 'confirmed'), nNight).padStart(6)}`);

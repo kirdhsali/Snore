@@ -8,6 +8,7 @@
   const Share = window.SnoreShare;
   const EMBED = !!window.SNOREWATCH_EMBED;
   const LIVE_SECONDS = 30;
+  const BREATH_RULE_DB = 3; // candidate breath-noise rule, tested in the background
   const V = window.SNOREWATCH_VERSION || { version: '?', build: 'dev' };
   const VERSION_TEXT = `${V.version} (${V.build})`;
 
@@ -269,17 +270,20 @@
       });
       session.detector = det;
       session.frameCap = Math.ceil(LIVE_SECONDS / det.hopSec);
-      // Shadow test of automatic sensitivity: a second detector on the same audio.
-      // It keeps no audio and changes nothing on screen; its counts go into the data file.
-      const shadowStats = new SessionStats();
-      session.shadow = {
-        stats: shadowStats,
-        detector: new SnoreDetector(ctx.sampleRate, { sensitivity: 'auto', keepClips: false, onEvent: (e) => shadowStats.add(e) }),
+      // Background tests of candidate rules: extra detectors on the same audio.
+      // They keep no audio and change nothing on screen; their counts go into the data file.
+      const shadow = (options) => {
+        const stats = new SessionStats();
+        return { options, stats, detector: new SnoreDetector(ctx.sampleRate, { ...options, keepClips: false, onEvent: (e) => stats.add(e) }) };
+      };
+      session.shadows = {
+        breath: shadow({ sensitivity: el.sensitivity.value, minBreathRiseDb: BREATH_RULE_DB }),
+        auto: shadow({ sensitivity: 'auto', minBreathRiseDb: BREATH_RULE_DB }),
       };
       session.tap = await createTap(ctx, input, (samples) => {
         if (!running) return;
         det.process(samples);
-        session.shadow.detector.process(samples);
+        for (const sh of Object.values(session.shadows)) sh.detector.process(samples);
       });
       if (player) player.start();
 
@@ -315,7 +319,7 @@
     running = false;
     const s = session;
     s.detector.flush(); // decides open sounds; they arrive through handleEvent
-    s.shadow.detector.flush();
+    for (const sh of Object.values(s.shadows)) sh.detector.flush();
     s.elapsed = s.detector.elapsed;
     s.endWall = s.startWall + s.elapsed * 1000;
     try {
@@ -640,12 +644,13 @@
     const day = start.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' });
     el.reportRange.textContent = `${day}, ${fmtTime(start)} – ${fmtTime(end)} · ${fmtSpan(s.elapsed)}`;
     el.verdict.textContent = verdictText(sum);
-    const shadow = s.shadow.stats.summary(s.elapsed);
-    s.shadowSummary = shadow;
+    for (const sh of Object.values(s.shadows)) sh.summary = sh.stats.summary(s.elapsed);
     el.shadowNote.hidden = false;
-    el.shadowNote.textContent = `Test of automatic sensitivity: it would have counted ${fmtNum(shadow.snoreCount)} snore${
-      shadow.snoreCount === 1 ? '' : 's'
-    } (this recording used ${s.detector.sensitivity}: ${fmtNum(sum.snoreCount)}). Details are in the data file.`;
+    el.shadowNote.textContent = `Background tests, not counted yet: with the breath-noise rule ${fmtNum(
+      s.shadows.breath.summary.snoreCount,
+    )} snores; with automatic sensitivity and the breath-noise rule ${fmtNum(s.shadows.auto.summary.snoreCount)} (this recording, ${
+      s.detector.sensitivity
+    }: ${fmtNum(sum.snoreCount)}). Details are in the data file.`;
 
     el.reportTiles.innerHTML = [
       tile('Snores', fmtNum(sum.snoreCount), possibleNote(sum) || (sum.medianInterval ? `typically every ${sum.medianInterval.toFixed(1)} s` : ''), true),
@@ -884,6 +889,7 @@
         bursts: x.peaks,
         subBassShare: x.subBass == null ? null : +x.subBass.toFixed(3),
         loudFill: +x.fill.toFixed(2),
+        breathRiseDb: x.breathRise == null ? null : +x.breathRise.toFixed(1),
         rhythmRescued: !!x.rhythm,
         confirmed: !!x.confirmed,
         wavStartSec: wavPos.has(x) ? +wavPos.get(x).toFixed(2) : null,
@@ -901,33 +907,40 @@
         bursts: x.peaks,
         subBassShare: x.subBass == null ? null : +x.subBass.toFixed(3),
         loudFill: +x.fill.toFixed(2),
+        breathRiseDb: x.breathRise == null ? null : +x.breathRise.toFixed(1),
       })),
-      // Automatic sensitivity running in the background on the same audio, for comparison.
-      shadow: {
-        sensitivity: 'auto',
-        summary: {
-          snoreCount: s.shadowSummary.snoreCount,
-          possibleCount: s.shadowSummary.possibleCount,
-          snoresPerHour: +s.shadowSummary.snoresPerHour.toFixed(1),
-          ignoredCount: s.shadowSummary.ignoredCount,
-          ignoredByReason: s.shadowSummary.ignoredByReason,
-          episodes: s.shadowSummary.episodes.length,
-        },
-        levels: s.shadow.detector.levels.map((l) => ({
-          offsetSec: Math.round(l.t),
-          triggerDb: +l.triggerDb.toFixed(1),
-          releaseDb: +l.releaseDb.toFixed(1),
-          spreadDb: +l.spreadDb.toFixed(2),
-          floorDbfs: +l.floorDb.toFixed(1),
-        })),
-        snores: s.shadow.stats.snores.map((x) => ({
-          offsetSec: +x.start.toFixed(2),
-          durationSec: +x.duration.toFixed(2),
-          aboveRoomDb: +x.relDb.toFixed(1),
-          peakDbfs: +x.peakDb.toFixed(1),
-          confirmed: !!x.confirmed,
-        })),
-      },
+      // Candidate rules running in the background on the same audio, for comparison.
+      shadows: Object.fromEntries(
+        Object.entries(s.shadows).map(([name, sh]) => [
+          name,
+          {
+            sensitivity: sh.options.sensitivity,
+            minBreathRiseDb: sh.options.minBreathRiseDb,
+            summary: {
+              snoreCount: sh.summary.snoreCount,
+              possibleCount: sh.summary.possibleCount,
+              snoresPerHour: +sh.summary.snoresPerHour.toFixed(1),
+              ignoredCount: sh.summary.ignoredCount,
+              ignoredByReason: sh.summary.ignoredByReason,
+              episodes: sh.summary.episodes.length,
+            },
+            levels: sh.detector.levels.map((l) => ({
+              offsetSec: Math.round(l.t),
+              triggerDb: +l.triggerDb.toFixed(1),
+              releaseDb: +l.releaseDb.toFixed(1),
+              spreadDb: +l.spreadDb.toFixed(2),
+              floorDbfs: +l.floorDb.toFixed(1),
+            })),
+            snores: sh.stats.snores.map((x) => ({
+              offsetSec: +x.start.toFixed(2),
+              durationSec: +x.duration.toFixed(2),
+              aboveRoomDb: +x.relDb.toFixed(1),
+              breathRiseDb: x.breathRise == null ? null : +x.breathRise.toFixed(1),
+              confirmed: !!x.confirmed,
+            })),
+          },
+        ]),
+      ),
     };
     download(`snore-report_${stamp()}.json`, new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
   });

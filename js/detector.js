@@ -19,6 +19,10 @@
  *   3b. Breathing rhythm: a snore-like sound that is only rejected for being
  *      choppy (a rattling snore) still counts when an accepted snore lies
  *      2-12 s before or after it. It waits up to 12 s for that snore.
+ *   3b'. Breath noise: a snore is air rushing through a narrowed throat, so the
+ *      150-1500 Hz band rises above the room noise. `breathRise` measures that
+ *      rise; with `minBreathRiseDb` set, sounds without it (hum, rumble, a lift)
+ *      are ignored as 'no-breath'. Off by default, tested in the background.
  *   3c. Snores repeat with the breathing. SessionStats marks a snore as
  *      confirmed when another snore lies 2-12 s before or after it; isolated
  *      ones are only "possible" and left out of the headline figures.
@@ -55,6 +59,7 @@
     maxPeaks: 2, // loudness bursts inside one event (syllables, knocks)
     peakDropDb: 6,
     maxSubBass: 0.85, // share of energy 20-60 Hz (of 20-4000 Hz); above = deep rumble
+    minBreathRiseDb: null, // rise of 150-1500 Hz above the room noise a snore needs; null = not checked
     // Rhythm rescue of choppy but snore-like sounds
     rhythmMinSec: 2, // start-to-start distance to an accepted snore
     rhythmMaxSec: 12,
@@ -73,6 +78,9 @@
     autoUpdateSec: 30,
     autoGuardSec: 1,
     autoMinIdleSec: 20,
+    autoBlockSec: 0.5, // quiet stretches are averaged over this long before measuring their spread
+    autoQuietRoomDb: -78, // below this floor (dBFS) the room counts as very quiet
+    autoQuietMaxTriggerDb: 9, // ...and the trigger margin is capped there
     onFrame: null,
     onEvent: null,
   };
@@ -84,6 +92,7 @@
     'not-low': 'Not enough low-frequency energy',
     choppy: 'Choppy rhythm (speech, knocking)',
     rumble: 'Deep rumble (traffic, building)',
+    'no-breath': 'No breath noise (hum, rumble)',
   };
 
   function nextPow2(n) {
@@ -168,6 +177,7 @@
       this.total = [bin(50), bin(Math.min(8000, nyq))];
       this.low = [bin(50), bin(800)];
       this.high = [bin(1000), bin(Math.min(4000, nyq))];
+      this.mid = [bin(150), bin(Math.min(1500, nyq))]; // breath noise band
     }
 
     analyze(frame) {
@@ -192,6 +202,7 @@
       let total = 0;
       let low = 0;
       let high = 0;
+      let mid = 0;
       let weighted = 0;
       for (let k = this.total[0]; k < this.total[1]; k++) {
         const p = re[k] * re[k] + im[k] * im[k];
@@ -199,6 +210,7 @@
         weighted += p * k * this.binHz;
         if (k >= this.low[0] && k < this.low[1]) low += p;
         if (k >= this.high[0] && k < this.high[1]) high += p;
+        if (k >= this.mid[0] && k < this.mid[1]) mid += p;
       }
       const safe = total > 0 ? total : 1;
       return {
@@ -209,6 +221,7 @@
         highRatio: high / safe,
         centroid: total > 0 ? weighted / total : 0,
         zcr: crossings / n,
+        midDb: 10 * Math.log10(mid / n + 1e-24),
       };
     }
   }
@@ -313,8 +326,13 @@
       this.gate = new RhythmGate(this.opts, (ev) => this._emit(ev));
 
       // Auto sensitivity: rolling record of how far quiet frames sit above the floor.
-      this.autoIdle = new Float32Array(Math.ceil(this.opts.autoWindowSec / this.hopSec));
+      // Quiet frames are averaged into blocks first: single 40 ms frames of a very
+      // quiet room flicker by several dB without the room being restless.
+      this.autoIdle = new Float32Array(Math.ceil(this.opts.autoWindowSec / this.opts.autoBlockSec));
       this.autoIdleCount = 0;
+      this.autoBlock = { power: 0, n: 0, size: Math.max(1, Math.round(this.opts.autoBlockSec / this.hopSec)) };
+      this.bgMid = null; // room noise level in the breath band (dB), tracked like the floor
+      this.calibMid = [];
       this.lastEventEndFrame = -Infinity;
       this.levels = []; // history of auto margins: {t, triggerDb, releaseDb, spreadDb, floorDb}
     }
@@ -328,22 +346,42 @@
       this.auto = this.sensitivity === 'auto';
     }
 
+    /** Averages quiet frames (not during or just after a sound) into blocks for the spread measurement. */
+    _autoCollect(f, index) {
+      const o = this.opts;
+      const b = this.autoBlock;
+      if ((index - this.lastEventEndFrame) * this.hopSec <= o.autoGuardSec) {
+        b.power = 0;
+        b.n = 0;
+        return;
+      }
+      b.power += f.power;
+      if (++b.n === b.size) {
+        this.autoIdle[this.autoIdleCount++ % this.autoIdle.length] = 10 * Math.log10(b.power / b.n + 1e-24) - this.floor;
+        b.power = 0;
+        b.n = 0;
+      }
+    }
+
     /**
-     * Auto sensitivity. The spread of quiet frames above the floor (90th minus
-     * 50th percentile) says how restless the room is: a still bedroom gets small
-     * margins, a fan or rain larger ones. Changes are limited to 2 dB per update.
+     * Auto sensitivity. The spread of quiet half-second blocks above the floor
+     * (90th minus 50th percentile) says how restless the room is: a still bedroom
+     * gets small margins, a fan or rain larger ones. In a very quiet room the
+     * trigger is capped. Changes are limited to 2 dB per update.
      */
     _autoUpdate(t) {
       const o = this.opts;
       const n = Math.min(this.autoIdleCount, this.autoIdle.length);
-      if (n * this.hopSec < o.autoMinIdleSec) return;
+      if (n * o.autoBlockSec < o.autoMinIdleSec) return;
       const v = Array.from(this.autoIdle.subarray(0, n)).sort((a, b) => a - b);
       const spread = v[Math.floor(0.9 * (n - 1))] - v[Math.floor(0.5 * (n - 1))];
       const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
       const step = (from, to) => from + clamp(to - from, -2, 2);
       // Lower limits as for "high": smaller margins let room noise dilute the sound's profile.
-      const release = clamp(1.5 * spread + 2, 3, 7);
-      const trigger = clamp(release + 2 + spread, 5, 14);
+      // In a very quiet room a large spread is more likely microphone flicker than a restless room.
+      const quiet = this.floor < o.autoQuietRoomDb;
+      const release = clamp(1.5 * spread + 2, 3, quiet ? o.autoQuietMaxTriggerDb - 2 : 7);
+      const trigger = clamp(release + 2 + spread, 5, quiet ? o.autoQuietMaxTriggerDb : 14);
       this.releaseDb = step(this.releaseDb, release);
       this.triggerDb = Math.max(this.releaseDb + 1, step(this.triggerDb, trigger));
       this.levels.push({ t, triggerDb: this.triggerDb, releaseDb: this.releaseDb, spreadDb: spread, floorDb: this.floor });
@@ -408,9 +446,12 @@
 
       if (this.floor === null) {
         this.calib.push(f.db);
+        this.calibMid.push(f.midDb);
         if (this.calib.length * this.hopSec >= o.calibrationSec) {
           this.floor = Math.max(-100, percentile(this.calib, 0.3));
+          this.bgMid = percentile(this.calibMid, 0.3);
           this.calib = [];
+          this.calibMid = [];
         }
       } else if (!this.event) {
         if (f.db > this.floor + this.triggerDb && f.db > this.minAbsDb) {
@@ -418,6 +459,8 @@
             startFrame: index,
             lastLoud: index,
             floor: this.floor,
+            bgMid: this.bgMid,
+            mid: 0,
             w: 0,
             low: 0,
             high: 0,
@@ -435,9 +478,9 @@
           const tau = f.db < this.floor ? 0.5 : 8;
           this.floor += (this.hopSec / tau) * (f.db - this.floor);
           this.floor = Math.max(-100, this.floor);
-          if (this.auto && (index - this.lastEventEndFrame) * this.hopSec > o.autoGuardSec) {
-            this.autoIdle[this.autoIdleCount++ % this.autoIdle.length] = f.db - this.floor;
-          }
+          const tauMid = f.midDb < this.bgMid ? 0.5 : 8;
+          this.bgMid += (this.hopSec / tauMid) * (f.midDb - this.bgMid);
+          if (this.auto) this._autoCollect(f, index);
         }
       } else {
         const ev = this.event;
@@ -448,6 +491,7 @@
         // Let a lasting change in background noise become the new floor.
         const tau = ev.tooLong ? 8 : 60;
         this.floor += (this.hopSec / tau) * (f.db - this.floor);
+        this.bgMid += (this.hopSec / tau) * (f.midDb - this.bgMid);
         if ((index - ev.lastLoud) * this.hopSec >= o.hangoverSec) finished = this._finish();
       }
       this.gate.expire(index * this.hopSec);
@@ -482,6 +526,7 @@
       ev.centroid += w * f.centroid;
       ev.zcr += f.zcr;
       ev.energy += f.power;
+      ev.mid += Math.pow(10, f.midDb / 10);
       ev.loudFrames++;
       if (f.db > ev.peakDb) ev.peakDb = f.db;
       ev.track.push(f.db);
@@ -506,6 +551,7 @@
         peaks: countPeaks(ev.track, o.peakDropDb),
         subBass: audio ? subBassShare(audio, this.clipRate) : null,
         fill: bodyShare(ev.track.slice(0, ev.lastLoud - ev.startFrame + 1), ev.peakDb),
+        breathRise: ev.loudFrames ? 10 * Math.log10(ev.mid / ev.loudFrames + 1e-24) - ev.bgMid : null,
       };
       const verdict = classify(Object.assign({ duration, tooLong: ev.tooLong }, features), o);
       const result = {
@@ -553,6 +599,7 @@
     else if (f.subBass != null && f.subBass > opts.maxSubBass) reason = 'rumble';
     else if (f.highRatio > opts.maxHighRatio || f.centroid > opts.maxCentroid) reason = 'too-bright';
     else if (f.lowRatio < opts.minLowRatio) reason = 'not-low';
+    else if (opts.minBreathRiseDb != null && f.breathRise != null && f.breathRise < opts.minBreathRiseDb) reason = 'no-breath';
     else if (f.peaks > opts.maxPeaks) reason = 'choppy';
     const margins = [
       (f.lowRatio - opts.minLowRatio) / (1 - opts.minLowRatio),
@@ -683,6 +730,7 @@
           peaks: ev.peaks,
           subBass: ev.subBass,
           fill: ev.fill,
+          breathRise: ev.breathRise,
         });
       }
     }
