@@ -1,0 +1,681 @@
+{
+  "app": "Snorewatch",
+  "version": "1.9.1 (dev)",
+  "source": "demo",
+  "startedAt": "2026-10-01T12:42:03.639Z",
+  "endedAt": "2026-10-01T12:43:33.593Z",
+  "sensitivity": "normal",
+  "summary": {
+    "elapsed": 89.95410430839003,
+    "snoreCount": 16,
+    "snoresPerHour": 640.3265358802272,
+    "snoreSeconds": 17.2756462585034,
+    "snorePercent": 19.20495611770779,
+    "meanRelDb": 31.28676453774909,
+    "maxRelDb": 34.625286245087345,
+    "medianInterval": 3.761632653061227,
+    "intensity": {
+      "light": 0,
+      "moderate": 0,
+      "loud": 16
+    },
+    "possibleCount": 0,
+    "rhythmCount": 0,
+    "ignoredCount": 5,
+    "ignoredByReason": {
+      "too-bright": 3,
+      "choppy": 1,
+      "too-long": 1
+    },
+    "episodes": [
+      {
+        "start": 3.01859410430839,
+        "end": 82.84879818594105,
+        "duration": 79.83020408163266,
+        "count": 16,
+        "meanRelDb": 31.28676453774909,
+        "interval": 5.322013605442177
+      }
+    ],
+    "longestEpisode": 79.83020408163266
+  },
+  "snores": [
+    {
+      "time": "2026-10-01T12:42:06.657Z",
+      "offsetSec": 3.02,
+      "durationSec": 0.88,
+      "aboveRoomDb": 32.4,
+      "peakDbfs": -25.2,
+      "confidence": 0.94,
+      "lowFrequencyShare": 0.991,
+      "highFrequencyShare": 0.005,
+      "centroidHz": 153,
+      "bursts": 1,
+      "subBassShare": 0.144,
+      "loudFill": 0.84,
+      "breathRiseDb": 27.1,
+      "rhythmRescued": false,
+      "confirmed": true,
+      "wavStartSec": 0
+    },
+    {
+      "time": "2026-10-01T12:42:10.187Z",
+      "offsetSec": 6.55,
+      "durationSec": 0.88,
+      "aboveRoomDb": 32.6,
+      "peakDbfs": -24.9,
+      "confidence": 0.94,
+      "lowFrequencyShare": 0.989,
+      "highFrequencyShare": 0.006,
+      "centroidHz": 168,
+      "bursts": 1,
+      "subBassShare": 0.087,
+      "loudFill": 0.84,
+      "breathRiseDb": 27.9,
+      "rhythmRescued": false,
+      "confirmed": true,
+      "wavStartSec": 1.68
+    },
+    {
+      "time": "2026-10-01T12:42:13.995Z",
+      "offsetSec": 10.36,
+      "durationSec": 0.79,
+      "aboveRoomDb": 33,
+      "peakDbfs": -24.6,
+      "confidence": 0.94,
+      "lowFrequencyShare": 0.992,
+      "highFrequencyShare": 0.005,
+      "centroidHz": 171,
+      "bursts": 1,
+      "subBassShare": 0.29,
+      "loudFill": 0.82,
+      "breathRiseDb": 28,
+      "rhythmRescued": false,
+      "confirmed": true,
+      "wavStartSec": 3.36
+    },
+    {
+      "time": "2026-10-01T12:42:17.663Z",
+      "offsetSec": 14.02,
+      "durationSec": 1.49,
+      "aboveRoomDb": 27.4,
+      "peakDbfs": -30,
+      "confidence": 0.93,
+      "lowFrequencyShare": 0.987,
+      "highFrequencyShare": 0.008,
+      "centroidHz": 184,
+      "bursts": 1,
+      "subBassShare": 0.202,
+      "loudFill": 0.91,
+      "breathRiseDb": 22.8,
+      "rhythmRescued": false,
+      "confirmed": true,
+      "wavStartSec": 4.95
+    },
+    {
+      "time": "2026-10-01T12:42:20.914Z",
+      "offsetSec": 17.28,
+      "durationSec": 0.88,
+      "aboveRoomDb": 31.6,
+      "peakDbfs": -25.7,
+      "confidence": 0.93,
+      "lowFrequencyShare": 0.99,
+      "highFrequencyShare": 0.005,
+      "centroidHz": 180,
+      "bursts": 1,
+      "subBassShare": 0.068,
+      "loudFill": 0.89,
+      "breathRiseDb": 27.3,
+      "rhythmRescued": false,
+      "confirmed": true,
+      "wavStartSec": 7.24
+    },
+    {
+      "time": "2026-10-01T12:42:25.233Z",
+      "offsetSec": 21.59,
+      "durationSec": 1.16,
+      "aboveRoomDb": 34.2,
+      "peakDbfs": -23.3,
+      "confidence": 0.95,
+      "lowFrequencyShare": 0.994,
+      "highFrequencyShare": 0.003,
+      "centroidHz": 146,
+      "bursts": 1,
+      "subBassShare": 0.194,
+      "loudFill": 0.84,
+      "breathRiseDb": 28.7,
+      "rhythmRescued": false,
+      "confirmed": true,
+      "wavStartSec": 8.92
+    },
+    {
+      "time": "2026-10-01T12:42:35.728Z",
+      "offsetSec": 32.09,
+      "durationSec": 1.35,
+      "aboveRoomDb": 33.8,
+      "peakDbfs": -23.6,
+      "confidence": 0.95,
+      "lowFrequencyShare": 0.993,
+      "highFrequencyShare": 0.004,
+      "centroidHz": 143,
+      "bursts": 1,
+      "subBassShare": 0.055,
+      "loudFill": 0.86,
+      "breathRiseDb": 27.7,
+      "rhythmRescued": false,
+      "confirmed": true,
+      "wavStartSec": 10.88
+    },
+    {
+      "time": "2026-10-01T12:42:38.933Z",
+      "offsetSec": 35.29,
+      "durationSec": 1.25,
+      "aboveRoomDb": 31.4,
+      "peakDbfs": -25.8,
+      "confidence": 0.94,
+      "lowFrequencyShare": 0.991,
+      "highFrequencyShare": 0.005,
+      "centroidHz": 149,
+      "bursts": 1,
+      "subBassShare": 0.32,
+      "loudFill": 0.93,
+      "breathRiseDb": 26.5,
+      "rhythmRescued": false,
+      "confirmed": true,
+      "wavStartSec": 13.03
+    },
+    {
+      "time": "2026-10-01T12:42:42.091Z",
+      "offsetSec": 38.45,
+      "durationSec": 0.79,
+      "aboveRoomDb": 31,
+      "peakDbfs": -26.4,
+      "confidence": 0.93,
+      "lowFrequencyShare": 0.99,
+      "highFrequencyShare": 0.006,
+      "centroidHz": 174,
+      "bursts": 1,
+      "subBassShare": 0.076,
+      "loudFill": 0.82,
+      "breathRiseDb": 26.2,
+      "rhythmRescued": false,
+      "confirmed": true,
+      "wavStartSec": 15.09
+    },
+    {
+      "time": "2026-10-01T12:42:45.852Z",
+      "offsetSec": 42.21,
+      "durationSec": 1.07,
+      "aboveRoomDb": 30.4,
+      "peakDbfs": -27.1,
+      "confidence": 0.93,
+      "lowFrequencyShare": 0.986,
+      "highFrequencyShare": 0.007,
+      "centroidHz": 188,
+      "bursts": 1,
+      "subBassShare": 0.187,
+      "loudFill": 0.83,
+      "breathRiseDb": 26.2,
+      "rhythmRescued": false,
+      "confirmed": true,
+      "wavStartSec": 16.67
+    },
+    {
+      "time": "2026-10-01T12:42:48.917Z",
+      "offsetSec": 45.28,
+      "durationSec": 1.16,
+      "aboveRoomDb": 32.8,
+      "peakDbfs": -24.6,
+      "confidence": 0.96,
+      "lowFrequencyShare": 0.994,
+      "highFrequencyShare": 0.003,
+      "centroidHz": 119,
+      "bursts": 1,
+      "subBassShare": 0.489,
+      "loudFill": 0.88,
+      "breathRiseDb": 25.7,
+      "rhythmRescued": false,
+      "confirmed": true,
+      "wavStartSec": 18.54
+    },
+    {
+      "time": "2026-10-01T12:43:08.701Z",
+      "offsetSec": 65.06,
+      "durationSec": 0.93,
+      "aboveRoomDb": 30,
+      "peakDbfs": -27.4,
+      "confidence": 0.93,
+      "lowFrequencyShare": 0.988,
+      "highFrequencyShare": 0.006,
+      "centroidHz": 178,
+      "bursts": 1,
+      "subBassShare": 0.26,
+      "loudFill": 0.9,
+      "breathRiseDb": 26.3,
+      "rhythmRescued": false,
+      "confirmed": true,
+      "wavStartSec": 20.5
+    },
+    {
+      "time": "2026-10-01T12:43:13.159Z",
+      "offsetSec": 69.52,
+      "durationSec": 1.21,
+      "aboveRoomDb": 28.8,
+      "peakDbfs": -28.8,
+      "confidence": 0.93,
+      "lowFrequencyShare": 0.987,
+      "highFrequencyShare": 0.007,
+      "centroidHz": 180,
+      "bursts": 1,
+      "subBassShare": 0.292,
+      "loudFill": 0.88,
+      "breathRiseDb": 23.5,
+      "rhythmRescued": false,
+      "confirmed": true,
+      "wavStartSec": 22.23
+    },
+    {
+      "time": "2026-10-01T12:43:16.921Z",
+      "offsetSec": 73.28,
+      "durationSec": 0.79,
+      "aboveRoomDb": 28.1,
+      "peakDbfs": -29.3,
+      "confidence": 0.93,
+      "lowFrequencyShare": 0.987,
+      "highFrequencyShare": 0.007,
+      "centroidHz": 176,
+      "bursts": 1,
+      "subBassShare": 0.253,
+      "loudFill": 0.88,
+      "breathRiseDb": 23.9,
+      "rhythmRescued": false,
+      "confirmed": true,
+      "wavStartSec": 24.24
+    },
+    {
+      "time": "2026-10-01T12:43:21.472Z",
+      "offsetSec": 77.83,
+      "durationSec": 1.44,
+      "aboveRoomDb": 34.6,
+      "peakDbfs": -22.9,
+      "confidence": 0.94,
+      "lowFrequencyShare": 0.993,
+      "highFrequencyShare": 0.004,
+      "centroidHz": 149,
+      "bursts": 1,
+      "subBassShare": 0.08,
+      "loudFill": 0.84,
+      "breathRiseDb": 28.1,
+      "rhythmRescued": false,
+      "confirmed": true,
+      "wavStartSec": 25.83
+    },
+    {
+      "time": "2026-10-01T12:43:25.280Z",
+      "offsetSec": 81.64,
+      "durationSec": 1.21,
+      "aboveRoomDb": 28.5,
+      "peakDbfs": -28.9,
+      "confidence": 0.94,
+      "lowFrequencyShare": 0.99,
+      "highFrequencyShare": 0.005,
+      "centroidHz": 147,
+      "bursts": 1,
+      "subBassShare": 0.33,
+      "loudFill": 0.85,
+      "breathRiseDb": 21.5,
+      "rhythmRescued": false,
+      "confirmed": true,
+      "wavStartSec": 28.07
+    }
+  ],
+  "ignored": [
+    {
+      "time": "2026-10-01T12:42:31.131Z",
+      "offsetSec": 27.49,
+      "durationSec": 2.32,
+      "reason": "too-bright",
+      "aboveRoomDb": 34.3,
+      "peakDbfs": -23.3,
+      "lowFrequencyShare": 0.767,
+      "highFrequencyShare": 0.16,
+      "centroidHz": 794,
+      "bursts": 8,
+      "subBassShare": 0,
+      "loudFill": 0.72,
+      "breathRiseDb": 32.5
+    },
+    {
+      "time": "2026-10-01T12:42:54.119Z",
+      "offsetSec": 50.48,
+      "durationSec": 0.56,
+      "reason": "choppy",
+      "aboveRoomDb": 39.6,
+      "peakDbfs": -18,
+      "lowFrequencyShare": 0.961,
+      "highFrequencyShare": 0.021,
+      "centroidHz": 295,
+      "bursts": 3,
+      "subBassShare": 0.018,
+      "loudFill": 0.42,
+      "breathRiseDb": 36.7
+    },
+    {
+      "time": "2026-10-01T12:42:56.998Z",
+      "offsetSec": 53.36,
+      "durationSec": 6.13,
+      "reason": "too-long",
+      "aboveRoomDb": 40.6,
+      "peakDbfs": -16.8,
+      "lowFrequencyShare": 0.774,
+      "highFrequencyShare": 0.15,
+      "centroidHz": 661,
+      "bursts": 1,
+      "subBassShare": null,
+      "loudFill": 0.82,
+      "breathRiseDb": 37.4
+    },
+    {
+      "time": "2026-10-01T12:43:05.636Z",
+      "offsetSec": 62,
+      "durationSec": 0.37,
+      "reason": "too-bright",
+      "aboveRoomDb": 38.7,
+      "peakDbfs": -18.5,
+      "lowFrequencyShare": 0.026,
+      "highFrequencyShare": 0.265,
+      "centroidHz": 5029,
+      "bursts": 1,
+      "subBassShare": 0.006,
+      "loudFill": 0.63,
+      "breathRiseDb": 21.7
+    },
+    {
+      "time": "2026-10-01T12:43:29.645Z",
+      "offsetSec": 86.01,
+      "durationSec": 1.76,
+      "reason": "too-bright",
+      "aboveRoomDb": 33.8,
+      "peakDbfs": -23.6,
+      "lowFrequencyShare": 0.761,
+      "highFrequencyShare": 0.176,
+      "centroidHz": 724,
+      "bursts": 6,
+      "subBassShare": 0,
+      "loudFill": 0.74,
+      "breathRiseDb": 32.3
+    }
+  ],
+  "shadows": {
+    "breath": {
+      "sensitivity": "normal",
+      "minBreathRiseDb": 3,
+      "summary": {
+        "snoreCount": 16,
+        "possibleCount": 0,
+        "snoresPerHour": 640.3,
+        "ignoredCount": 5,
+        "ignoredByReason": {
+          "too-bright": 3,
+          "choppy": 1,
+          "too-long": 1
+        },
+        "episodes": 1
+      },
+      "levels": [],
+      "snores": [
+        {
+          "offsetSec": 3.02,
+          "durationSec": 0.88,
+          "aboveRoomDb": 32.4,
+          "breathRiseDb": 27.1,
+          "confirmed": true
+        },
+        {
+          "offsetSec": 6.55,
+          "durationSec": 0.88,
+          "aboveRoomDb": 32.6,
+          "breathRiseDb": 27.9,
+          "confirmed": true
+        },
+        {
+          "offsetSec": 10.36,
+          "durationSec": 0.79,
+          "aboveRoomDb": 33,
+          "breathRiseDb": 28,
+          "confirmed": true
+        },
+        {
+          "offsetSec": 14.02,
+          "durationSec": 1.49,
+          "aboveRoomDb": 27.4,
+          "breathRiseDb": 22.8,
+          "confirmed": true
+        },
+        {
+          "offsetSec": 17.28,
+          "durationSec": 0.88,
+          "aboveRoomDb": 31.6,
+          "breathRiseDb": 27.3,
+          "confirmed": true
+        },
+        {
+          "offsetSec": 21.59,
+          "durationSec": 1.16,
+          "aboveRoomDb": 34.2,
+          "breathRiseDb": 28.7,
+          "confirmed": true
+        },
+        {
+          "offsetSec": 32.09,
+          "durationSec": 1.35,
+          "aboveRoomDb": 33.8,
+          "breathRiseDb": 27.7,
+          "confirmed": true
+        },
+        {
+          "offsetSec": 35.29,
+          "durationSec": 1.25,
+          "aboveRoomDb": 31.4,
+          "breathRiseDb": 26.5,
+          "confirmed": true
+        },
+        {
+          "offsetSec": 38.45,
+          "durationSec": 0.79,
+          "aboveRoomDb": 31,
+          "breathRiseDb": 26.2,
+          "confirmed": true
+        },
+        {
+          "offsetSec": 42.21,
+          "durationSec": 1.07,
+          "aboveRoomDb": 30.4,
+          "breathRiseDb": 26.2,
+          "confirmed": true
+        },
+        {
+          "offsetSec": 45.28,
+          "durationSec": 1.16,
+          "aboveRoomDb": 32.8,
+          "breathRiseDb": 25.7,
+          "confirmed": true
+        },
+        {
+          "offsetSec": 65.06,
+          "durationSec": 0.93,
+          "aboveRoomDb": 30,
+          "breathRiseDb": 26.3,
+          "confirmed": true
+        },
+        {
+          "offsetSec": 69.52,
+          "durationSec": 1.21,
+          "aboveRoomDb": 28.8,
+          "breathRiseDb": 23.5,
+          "confirmed": true
+        },
+        {
+          "offsetSec": 73.28,
+          "durationSec": 0.79,
+          "aboveRoomDb": 28.1,
+          "breathRiseDb": 23.9,
+          "confirmed": true
+        },
+        {
+          "offsetSec": 77.83,
+          "durationSec": 1.44,
+          "aboveRoomDb": 34.6,
+          "breathRiseDb": 28.1,
+          "confirmed": true
+        },
+        {
+          "offsetSec": 81.64,
+          "durationSec": 1.21,
+          "aboveRoomDb": 28.5,
+          "breathRiseDb": 21.5,
+          "confirmed": true
+        }
+      ]
+    },
+    "auto": {
+      "sensitivity": "auto",
+      "minBreathRiseDb": 3,
+      "summary": {
+        "snoreCount": 16,
+        "possibleCount": 0,
+        "snoresPerHour": 640.3,
+        "ignoredCount": 5,
+        "ignoredByReason": {
+          "too-bright": 3,
+          "choppy": 1,
+          "too-long": 1
+        },
+        "episodes": 1
+      },
+      "levels": [
+        {
+          "offsetSec": 60,
+          "triggerDb": 6,
+          "releaseDb": 3,
+          "spreadDb": 0.14,
+          "floorDbfs": -52.6
+        }
+      ],
+      "snores": [
+        {
+          "offsetSec": 3.02,
+          "durationSec": 0.88,
+          "aboveRoomDb": 32.4,
+          "breathRiseDb": 27.1,
+          "confirmed": true
+        },
+        {
+          "offsetSec": 6.55,
+          "durationSec": 0.88,
+          "aboveRoomDb": 32.6,
+          "breathRiseDb": 27.9,
+          "confirmed": true
+        },
+        {
+          "offsetSec": 10.36,
+          "durationSec": 0.79,
+          "aboveRoomDb": 33,
+          "breathRiseDb": 28,
+          "confirmed": true
+        },
+        {
+          "offsetSec": 14.02,
+          "durationSec": 1.49,
+          "aboveRoomDb": 27.4,
+          "breathRiseDb": 22.8,
+          "confirmed": true
+        },
+        {
+          "offsetSec": 17.28,
+          "durationSec": 0.88,
+          "aboveRoomDb": 31.6,
+          "breathRiseDb": 27.3,
+          "confirmed": true
+        },
+        {
+          "offsetSec": 21.59,
+          "durationSec": 1.16,
+          "aboveRoomDb": 34.2,
+          "breathRiseDb": 28.7,
+          "confirmed": true
+        },
+        {
+          "offsetSec": 32.09,
+          "durationSec": 1.35,
+          "aboveRoomDb": 33.8,
+          "breathRiseDb": 27.7,
+          "confirmed": true
+        },
+        {
+          "offsetSec": 35.29,
+          "durationSec": 1.25,
+          "aboveRoomDb": 31.4,
+          "breathRiseDb": 26.5,
+          "confirmed": true
+        },
+        {
+          "offsetSec": 38.45,
+          "durationSec": 0.79,
+          "aboveRoomDb": 31,
+          "breathRiseDb": 26.2,
+          "confirmed": true
+        },
+        {
+          "offsetSec": 42.21,
+          "durationSec": 1.07,
+          "aboveRoomDb": 30.4,
+          "breathRiseDb": 26.2,
+          "confirmed": true
+        },
+        {
+          "offsetSec": 45.28,
+          "durationSec": 1.16,
+          "aboveRoomDb": 32.8,
+          "breathRiseDb": 25.7,
+          "confirmed": true
+        },
+        {
+          "offsetSec": 65.06,
+          "durationSec": 0.93,
+          "aboveRoomDb": 30,
+          "breathRiseDb": 26.3,
+          "confirmed": true
+        },
+        {
+          "offsetSec": 69.47,
+          "durationSec": 1.25,
+          "aboveRoomDb": 28.8,
+          "breathRiseDb": 23.4,
+          "confirmed": true
+        },
+        {
+          "offsetSec": 73.28,
+          "durationSec": 0.79,
+          "aboveRoomDb": 28.2,
+          "breathRiseDb": 23.9,
+          "confirmed": true
+        },
+        {
+          "offsetSec": 77.79,
+          "durationSec": 1.49,
+          "aboveRoomDb": 34.7,
+          "breathRiseDb": 28,
+          "confirmed": true
+        },
+        {
+          "offsetSec": 81.64,
+          "durationSec": 1.21,
+          "aboveRoomDb": 28.5,
+          "breathRiseDb": 21.5,
+          "confirmed": true
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "app": "Snorewatch",
+  "version": "1.8.0 (synthetic)",
+  "source": "demo",
+  "startedAt": "2026-09-28T23:00:00.000Z",
+  "endedAt": "2026-09-28T23:01:00.000Z",
+  "sensitivity": "normal",
+  "summary": { "elapsed": 60, "snoreCount": 2, "possibleCount": 0, "ignoredCount": 1 },
+  "snores": [
+    { "time": "2026-09-28T23:00:10.000Z", "offsetSec": 10, "durationSec": 1.2, "aboveRoomDb": 18.5, "peakDbfs": -42.1, "confidence": 0.81, "lowFrequencyShare": 0.93, "highFrequencyShare": 0.02, "centroidHz": 190, "bursts": 1, "subBassShare": 0.21, "loudFill": 0.88, "rhythmRescued": false, "confirmed": true },
+    { "time": "2026-09-28T23:00:14.000Z", "offsetSec": 14, "durationSec": 1.1, "aboveRoomDb": 17.9, "peakDbfs": -42.8, "confidence": 0.79, "lowFrequencyShare": 0.92, "highFrequencyShare": 0.02, "centroidHz": 205, "bursts": 1, "subBassShare": 0.19, "loudFill": 0.85, "rhythmRescued": false, "confirmed": true }
+  ],
+  "ignored": [
+    { "time": "2026-09-28T23:00:30.000Z", "offsetSec": 30, "durationSec": 0.9, "reason": "too-bright", "aboveRoomDb": 22, "peakDbfs": -38, "lowFrequencyShare": 0.4, "highFrequencyShare": 0.31, "centroidHz": 1450, "bursts": 3, "subBassShare": 0.05, "loudFill": 0.6 }
+  ],
+  "shadow": {
+    "sensitivity": "auto",
+    "summary": { "snoreCount": 2, "possibleCount": 0, "snoresPerHour": 120, "ignoredCount": 1, "ignoredByReason": { "too-bright": 1 }, "episodes": 0 },
+    "levels": [{ "offsetSec": 30, "triggerDb": 6, "releaseDb": 3, "spreadDb": 1.2, "floorDbfs": -61 }],
+    "snores": [
+      { "offsetSec": 10, "durationSec": 1.2, "aboveRoomDb": 18.5, "confirmed": true },
+      { "offsetSec": 14, "durationSec": 1.1, "aboveRoomDb": 17.9, "confirmed": true }
+    ]
+  }
+}

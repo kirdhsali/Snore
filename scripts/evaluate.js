@@ -10,34 +10,27 @@
 'use strict';
 const fs = require('fs');
 const { classify, isRhythmCandidate, RhythmGate, SessionStats, DEFAULTS, REASONS } = require('../js/detector.js');
+const { fromReport } = require('../js/report-format.js');
 
+/** The night's events in time order, each with the verdict it got when recorded (was*). */
 function eventsOf(report) {
-  const toEvent = (x, isSnore) => ({
-    start: x.offsetSec,
-    duration: x.durationSec,
-    relDb: x.aboveRoomDb,
-    lowRatio: x.lowFrequencyShare,
-    highRatio: x.highFrequencyShare,
-    centroid: x.centroidHz,
-    peaks: x.bursts,
-    subBass: x.subBassShare ?? null,
-    fill: x.loudFill ?? null,
-    breathRise: x.breathRiseDb ?? null,
-    wasSnore: isSnore,
-    wasReason: isSnore ? null : x.reason,
-    wasRhythm: !!x.rhythmRescued,
-  });
-  return [...report.snores.map((x) => toEvent(x, true)), ...report.ignored.map((x) => toEvent(x, false))]
-    .filter((e) => e.start != null)
-    .sort((a, b) => a.start - b.start);
+  return fromReport(report).events.map((e) => ({ ...e, wasSnore: e.isSnore, wasReason: e.reason, wasRhythm: e.rhythm }));
 }
 
-/** Runs the stored features through the current rules, or through `options` to try a candidate rule set. */
-function reevaluate(events, options = DEFAULTS) {
+/**
+ * Runs the stored features through the current rules, or through `options` to try a candidate rule set.
+ * `gaps` are interruptions ({start, end} on the events' clock): as live, nothing waits or anchors across them.
+ */
+function reevaluate(events, options = DEFAULTS, gaps = []) {
   const opts = { ...DEFAULTS, ...options };
   const out = [];
   const gate = new RhythmGate(opts, (ev) => out.push(ev));
+  const pending = [...gaps].sort((a, b) => a.start - b.start);
   for (const e of events) {
+    while (pending.length && pending[0].start <= e.start) {
+      gate.expire(pending.shift().start);
+      gate.breakRhythm();
+    }
     gate.expire(e.start);
     if (e.lowRatio == null) {
       // No features stored (older report): keep the original verdict.
@@ -47,7 +40,7 @@ function reevaluate(events, options = DEFAULTS) {
     // The live detector flags "too long" while the sound lasts, which can include its fade-out.
     const v = classify({ ...e, tooLong: e.wasReason === 'too-long' || e.duration > opts.maxDuration }, opts);
     const rhythmCandidate = v.reason === 'choppy' && isRhythmCandidate({ ...e, fill: e.fill ?? 1 }, opts);
-    gate.decide({ ...e, isSnore: v.isSnore, reason: v.reason, rhythmCandidate });
+    gate.decide({ ...e, isSnore: v.isSnore, reason: v.reason, rhythm: false, rhythmCandidate });
   }
   gate.flush();
   return out.sort((a, b) => a.start - b.start);
@@ -58,15 +51,18 @@ const count = (list, f) => list.filter(f).length;
 
 function report(file) {
   const r = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const night = fromReport(r);
   const events = eventsOf(r);
-  const after = reevaluate(events);
+  const after = reevaluate(events, DEFAULTS, night.interruptions);
   const hours = r.summary.elapsed / 3600;
-  const start = Date.parse(r.startedAt);
-  const missing = [];
-  if (!events.some((e) => e.subBass != null)) missing.push('subBassShare (rumble filter skipped)');
-  if (!events.some((e) => e.fill != null)) missing.push('loudFill (knock check of the rhythm rule skipped)');
-  if (!events.some((e) => e.breathRise != null)) missing.push('breathRiseDb (breath-noise rule cannot be checked)');
-  if (!r.ignored.some((x) => x.lowFrequencyShare != null)) missing.push('features of ignored sounds (no rhythm rescue possible)');
+  const start = night.startedAt;
+  const explain = {
+    subBassShare: 'subBassShare (rumble filter skipped)',
+    loudFill: 'loudFill (knock check of the rhythm rule skipped)',
+    breathRiseDb: 'breathRiseDb (breath-noise rule cannot be checked)',
+    ignoredFeatures: 'features of ignored sounds (no rhythm rescue possible)',
+  };
+  const missing = night.missing.map((k) => explain[k]);
 
   console.log(`\n${file}`);
   const length = hours >= 1 ? `${hours.toFixed(1)} h` : `${Math.round(hours * 60)} min`;
@@ -77,6 +73,7 @@ function report(file) {
   // Confirmed = another snore 2-12 s before or after (what the app counts since 1.5).
   const confirmedOf = (list) => {
     const stats = new SessionStats();
+    for (const g of night.interruptions) stats.addGap(g.start, g.end);
     list.forEach((e) => stats.add({ ...e, clip: null }));
     return stats.confirmed.length;
   };

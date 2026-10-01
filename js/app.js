@@ -6,6 +6,7 @@
   const Synth = window.SnoreSynth;
   const Charts = window.SnoreCharts;
   const Share = window.SnoreShare;
+  const Report = window.SnoreReport;
   const EMBED = !!window.SNOREWATCH_EMBED;
   const LIVE_SECONDS = 30;
   let liveClipLimit = 6; // snore cards shown while recording
@@ -1020,92 +1021,26 @@
   el.dlJson.addEventListener('click', () => {
     if (!finished()) return;
     const s = session;
-    const wavPos = wavPositions(inTimeOrder(s.stats.snores));
-    const data = {
-      app: 'Snorewatch',
+    const data = Report.toReport({
       version: VERSION_TEXT,
       source: s.source,
-      startedAt: new Date(s.startWall).toISOString(),
-      endedAt: new Date(s.endWall).toISOString(),
-      wallSeconds: +((s.endWall - s.startWall) / 1000).toFixed(1),
-      capturedSeconds: +s.elapsed.toFixed(1),
-      // Times the system paused or stopped the microphone; nothing was analysed then.
-      interruptions: s.gaps.map((g) => ({
-        start: new Date(g.start).toISOString(),
-        end: new Date(g.end).toISOString(),
-        seconds: +((g.end - g.start) / 1000).toFixed(1),
-        offsetSec: +g.clock.toFixed(2), // on the same clock as the snores' offsetSec
-        reason: g.reason,
-      })),
+      startWall: s.startWall,
+      endWall: s.endWall,
+      capturedSeconds: s.elapsed,
+      gaps: s.gaps,
       screenWakeLock: s.wakeLock,
       sensitivity: s.detector.sensitivity,
       summary: s.summary,
-      snores: inTimeOrder(s.stats.snores).map((x) => ({
-        time: at(x.start).toISOString(),
-        offsetSec: +x.start.toFixed(2),
-        durationSec: +x.duration.toFixed(2),
-        aboveRoomDb: +x.relDb.toFixed(1),
-        peakDbfs: +x.peakDb.toFixed(1),
-        confidence: +x.score.toFixed(2),
-        lowFrequencyShare: +x.lowRatio.toFixed(3),
-        highFrequencyShare: +x.highRatio.toFixed(3),
-        centroidHz: Math.round(x.centroid),
-        bursts: x.peaks,
-        subBassShare: x.subBass == null ? null : +x.subBass.toFixed(3),
-        loudFill: +x.fill.toFixed(2),
-        breathRiseDb: x.breathRise == null ? null : +x.breathRise.toFixed(1),
-        rhythmRescued: !!x.rhythm,
-        confirmed: !!x.confirmed,
-        wavStartSec: wavPos.has(x) ? +wavPos.get(x).toFixed(2) : null,
-      })),
-      ignored: s.stats.ignored.map((x) => ({
-        time: at(x.start).toISOString(),
-        offsetSec: +x.start.toFixed(2),
-        durationSec: +x.duration.toFixed(2),
-        reason: x.reason,
-        aboveRoomDb: +x.relDb.toFixed(1),
-        peakDbfs: +x.peakDb.toFixed(1),
-        lowFrequencyShare: +x.lowRatio.toFixed(3),
-        highFrequencyShare: +x.highRatio.toFixed(3),
-        centroidHz: Math.round(x.centroid),
-        bursts: x.peaks,
-        subBassShare: x.subBass == null ? null : +x.subBass.toFixed(3),
-        loudFill: +x.fill.toFixed(2),
-        breathRiseDb: x.breathRise == null ? null : +x.breathRise.toFixed(1),
-      })),
-      // Candidate rules running in the background on the same audio, for comparison.
+      snores: s.stats.snores,
+      ignored: s.stats.ignored,
+      wavStarts: wavPositions(inTimeOrder(s.stats.snores)),
       shadows: Object.fromEntries(
         Object.entries(s.shadows).map(([name, sh]) => [
           name,
-          {
-            sensitivity: sh.options.sensitivity,
-            minBreathRiseDb: sh.options.minBreathRiseDb,
-            summary: {
-              snoreCount: sh.summary.snoreCount,
-              possibleCount: sh.summary.possibleCount,
-              snoresPerHour: +sh.summary.snoresPerHour.toFixed(1),
-              ignoredCount: sh.summary.ignoredCount,
-              ignoredByReason: sh.summary.ignoredByReason,
-              episodes: sh.summary.episodes.length,
-            },
-            levels: sh.detector.levels.map((l) => ({
-              offsetSec: Math.round(l.t),
-              triggerDb: +l.triggerDb.toFixed(1),
-              releaseDb: +l.releaseDb.toFixed(1),
-              spreadDb: +l.spreadDb.toFixed(2),
-              floorDbfs: +l.floorDb.toFixed(1),
-            })),
-            snores: inTimeOrder(sh.stats.snores).map((x) => ({
-              offsetSec: +x.start.toFixed(2),
-              durationSec: +x.duration.toFixed(2),
-              aboveRoomDb: +x.relDb.toFixed(1),
-              breathRiseDb: x.breathRise == null ? null : +x.breathRise.toFixed(1),
-              confirmed: !!x.confirmed,
-            })),
-          },
+          { options: sh.options, summary: sh.summary, levels: sh.detector.levels, snores: sh.stats.snores },
         ]),
       ),
-    };
+    });
     download(`snore-report_${stamp()}.json`, new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
   });
 

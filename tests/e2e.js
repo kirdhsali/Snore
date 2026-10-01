@@ -119,6 +119,7 @@ async function main() {
     assert.match(await page.textContent('#shadow-note'), /breath-noise rule .* automatic sensitivity/);
     const [jsonDl] = await Promise.all([page.waitForEvent('download'), page.click('#dl-json')]);
     const report = JSON.parse(fs.readFileSync(await jsonDl.path(), 'utf8'));
+    assert.equal(report.schemaVersion, 2, 'data file carries its schema version');
     assert.equal(report.sensitivity, 'normal');
     assert.equal(report.shadows.breath.sensitivity, 'normal');
     assert.ok(await page.isEnabled('#sensitivity'), 'sensitivity can be changed again after Stop');
