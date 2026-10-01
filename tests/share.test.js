@@ -36,11 +36,18 @@ test('pickSamples takes the loudest plus distinct random snores, in time order',
   const { loud, random } = Share.pickSamples(snores, 8, 5, Synth.rng(2));
   assert.equal(loud.length, 8);
   assert.equal(random.length, 5);
-  const loudest = snores.filter((s) => s.clip).sort((a, b) => b.relDb - a.relDb).slice(0, 8);
+  const loudest = snores
+    .filter((s) => s.clip)
+    .sort((a, b) => b.relDb - a.relDb)
+    .slice(0, 8);
   assert.deepEqual(new Set(loud), new Set(loudest));
   assert.ok(random.every((s) => !loud.includes(s) && s.clip));
   assert.equal(new Set(random).size, 5);
-  for (const list of [loud, random]) assert.deepEqual(list, list.slice().sort((a, b) => a.start - b.start));
+  for (const list of [loud, random])
+    assert.deepEqual(
+      list,
+      list.slice().sort((a, b) => a.start - b.start),
+    );
 });
 
 test('report file is self-contained, script-free and plays the samples', () => {

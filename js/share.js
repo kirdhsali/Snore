@@ -424,7 +424,9 @@
       const h = (ph * c) / max;
       const y = pt + ph - h;
       const r = Math.min(4, bw / 2, h);
-      out += `<path class="bar" d="M${x.toFixed(1)},${(pt + ph).toFixed(1)}V${(y + r).toFixed(1)}Q${x.toFixed(1)},${y.toFixed(1)} ${(x + r).toFixed(
+      out += `<path class="bar" d="M${x.toFixed(1)},${(pt + ph).toFixed(1)}V${(y + r).toFixed(1)}Q${x.toFixed(1)},${y.toFixed(1)} ${(
+        x + r
+      ).toFixed(
         1,
       )},${y.toFixed(1)}H${(x + bw - r).toFixed(1)}Q${(x + bw).toFixed(1)},${y.toFixed(1)} ${(x + bw).toFixed(1)},${(y + r).toFixed(1)}V${(
         pt + ph
@@ -501,7 +503,9 @@ tr:last-child td{border-bottom:0}
           1,
         )}% of the recording${sum.longestEpisode ? ` and the longest episode lasted ${fmtSpan(sum.longestEpisode)}` : ''}.`
       : 'No snoring was detected.';
-    const possible = sum.possibleCount ? `${sum.possibleCount} isolated snore-like sounds without a neighbour in breathing rhythm were not counted.` : '';
+    const possible = sum.possibleCount
+      ? `${sum.possibleCount} isolated snore-like sounds without a neighbour in breathing rhythm were not counted.`
+      : '';
     const ignored = Object.keys(d.reasons)
       .filter((k) => sum.ignoredByReason[k])
       .map((k) => `<tr><td>${esc(d.reasons[k])}</td><td>${sum.ignoredByReason[k]}</td></tr>`)

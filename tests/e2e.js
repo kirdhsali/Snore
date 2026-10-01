@@ -128,8 +128,13 @@ async function main() {
       assert.ok(sh.summary.snoreCount >= 4, `background test counted ${sh.summary.snoreCount}`);
       assert.ok(sh.snores.every((x) => typeof x.offsetSec === 'number' && !('clip' in x)));
     }
-    assert.ok(report.snores.every((x) => typeof x.breathRiseDb === 'number'), 'breath noise saved per snore');
-    console.log(`  background tests: breath rule ${report.shadows.breath.summary.snoreCount}, auto + breath ${report.shadows.auto.summary.snoreCount} snores`);
+    assert.ok(
+      report.snores.every((x) => typeof x.breathRiseDb === 'number'),
+      'breath noise saved per snore',
+    );
+    console.log(
+      `  background tests: breath rule ${report.shadows.breath.summary.snoreCount}, auto + breath ${report.shadows.auto.summary.snoreCount} snores`,
+    );
 
     console.log('Playback: tapping the loudest snore…');
     await page.click('#report-clips .clip');
@@ -169,7 +174,9 @@ async function main() {
       return a.duration;
     });
     await reportPage.close();
-    console.log(`  image ${Math.round(png.length / 1024)} KB, report ${Math.round(html.length / 1024)} KB with ${nAudio} snores; first plays ${clipSeconds.toFixed(2)} s`);
+    console.log(
+      `  image ${Math.round(png.length / 1024)} KB, report ${Math.round(html.length / 1024)} KB with ${nAudio} snores; first plays ${clipSeconds.toFixed(2)} s`,
+    );
     assert.ok(nAudio >= 6, 'report embeds the snores');
 
     console.log('Failed restart: the previous night stays downloadable…');
@@ -196,14 +203,18 @@ async function main() {
     });
     await page.click('#rec');
     await page.waitForFunction(() => window.__snorewatch.running, null, { timeout: 10000 });
-    await page.waitForFunction(() => /did not let the app keep the screen on/.test(document.querySelector('#status').textContent), null, { timeout: 5000 });
+    await page.waitForFunction(() => /did not let the app keep the screen on/.test(document.querySelector('#status').textContent), null, {
+      timeout: 5000,
+    });
     await sleep(2000);
     await page.evaluate(() => {
       const track = window.__snorewatch.audio.stream.getAudioTracks()[0];
       track.stop(); // stop() alone fires no event; the system's switch-off does
       track.dispatchEvent(new Event('ended'));
     });
-    await page.waitForFunction(() => /switched the microphone off/.test(document.querySelector('#status').textContent), null, { timeout: 5000 });
+    await page.waitForFunction(() => /switched the microphone off/.test(document.querySelector('#status').textContent), null, {
+      timeout: 5000,
+    });
     await sleep(1500);
     await page.click('#rec');
     await page.waitForSelector('#report:not([hidden])');
@@ -255,7 +266,9 @@ async function main() {
     const demoJson = JSON.parse(fs.readFileSync(await demoDl.path(), 'utf8'));
     const gap = demoJson.interruptions[0];
     console.log(`  gap ${gap.seconds} s (${gap.reason}); ${demoJson.capturedSeconds} s analysed of ${demoJson.wallSeconds} s`);
-    console.log(`  snores at ${demoJson.snores.map((x) => `${x.offsetSec} s${x.confirmed ? '' : ' (possible)'}`).join(', ')}; gap from ${gap.offsetSec} s`);
+    console.log(
+      `  snores at ${demoJson.snores.map((x) => `${x.offsetSec} s${x.confirmed ? '' : ' (possible)'}`).join(', ')}; gap from ${gap.offsetSec} s`,
+    );
     assert.ok(gap.seconds >= 2.5 && gap.seconds <= 6, `gap ${gap.seconds} s`);
     assert.ok(Math.abs(demoJson.wallSeconds - demoJson.capturedSeconds - gap.seconds) < 0.6, 'missing time is the gap, not silence');
     // Snores after the gap are timed on the night's clock, so the last ones lie beyond the analysed seconds.
@@ -263,10 +276,16 @@ async function main() {
     const gapAt = gap.offsetSec;
     if (lastSnore > gapAt) assert.ok(lastSnore >= gapAt + gap.seconds - 0.5, `snore at ${lastSnore} s after the gap at ${gapAt} s`);
     // No snore is confirmed by one on the other side of the gap.
-    const sameSide = (a, b) => (a.offsetSec < gapAt) === (b.offsetSec < gapAt);
+    const sameSide = (a, b) => a.offsetSec < gapAt === b.offsetSec < gapAt;
     for (const x of demoJson.snores) {
-      const partner = demoJson.snores.some((y) => y !== x && sameSide(x, y) && Math.abs(x.offsetSec - y.offsetSec) >= 2 && Math.abs(x.offsetSec - y.offsetSec) <= 12);
-      assert.equal(x.confirmed, partner, `snore at ${x.offsetSec} s: ${JSON.stringify(demoJson.snores.map((y) => [y.offsetSec, y.durationSec, y.confirmed]))} gap ${gapAt}+${gap.seconds}`);
+      const partner = demoJson.snores.some(
+        (y) => y !== x && sameSide(x, y) && Math.abs(x.offsetSec - y.offsetSec) >= 2 && Math.abs(x.offsetSec - y.offsetSec) <= 12,
+      );
+      assert.equal(
+        x.confirmed,
+        partner,
+        `snore at ${x.offsetSec} s: ${JSON.stringify(demoJson.snores.map((y) => [y.offsetSec, y.durationSec, y.confirmed]))} gap ${gapAt}+${gap.seconds}`,
+      );
     }
 
     assert.deepEqual(errors, [], 'no page errors');

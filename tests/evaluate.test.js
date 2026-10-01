@@ -23,12 +23,18 @@ test('evaluator reads the breath noise of each sound and can apply the breath-no
   // A breathy snore run and a hum swell without breath noise.
   const report = { snores: [feature(2, 12), feature(6, 10), feature(10, 1.2)], ignored: [] };
   const events = eventsOf(report);
-  assert.deepEqual(events.map((e) => e.breathRise), [12, 10, 1.2]);
+  assert.deepEqual(
+    events.map((e) => e.breathRise),
+    [12, 10, 1.2],
+  );
   // Current rules (breath rule off): all three stay snores.
   assert.equal(reevaluate(events).filter((e) => e.isSnore).length, 3);
   // Candidate rule, as in the background test: the hum swell is rejected.
   const withRule = reevaluate(eventsOf(report), { minBreathRiseDb: 3 });
-  assert.deepEqual(withRule.map((e) => e.reason), [null, null, 'no-breath']);
+  assert.deepEqual(
+    withRule.map((e) => e.reason),
+    [null, null, 'no-breath'],
+  );
 });
 
 test('evaluator keeps working with reports that lack newer features', () => {

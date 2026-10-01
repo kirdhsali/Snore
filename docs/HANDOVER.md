@@ -1,6 +1,6 @@
 # Snorewatch handover
 
-State at version **1.10.4** (1.9.1 was the documentation and reproducibility checkpoint,
+State at version **1.10.5** (1.9.1 was the documentation and reproducibility checkpoint,
 2026-10-01; later versions fix findings of an external review, see §9).
 Statements marked **[verified]** were checked against this repository or by running
 it; **[assumption]** marks beliefs not proven; **[suspected]** marks probable problems.
@@ -154,7 +154,6 @@ both. There is no explicit schema version field yet (planned: Phase B2).
 Verified issues:
 - **No persistence:** a tab reload, crash or iOS memory eviction during the night
   loses all data.
-- 6 unused `catch (e)` variables in `js/app.js` (lint noise only).
 - `dist/` builds and the old Claude preview artifact (v1.0) are not maintained.
 
 Shortcuts and assumptions:
@@ -170,7 +169,7 @@ Shortcuts and assumptions:
 - Event times come from the audio sample count plus the length of interruptions
   (1.10.2), not directly from the wall clock; start, end and interruptions use the real clock.
 - No Content-Security-Policy; Google Fonts request reveals the visitor's IP to Google.
-- No linter, formatter or type checker configured (planned: Phase B1).
+- No type checker. ESLint and Prettier (JS only) run in CI since 1.10.5.
 - Interruption handling is verified only with simulated events in Chromium; how
   iOS Safari reports a call, Siri or a locked screen is untested on a device.
 
@@ -224,3 +223,4 @@ B5 split detector.js, B6 storage interface).
 | Version | Step | Change |
 | --- | --- | --- |
 | 1.10.4 | B0 (owner's bug report) | "Darken screen" jumped on phones: it shared a wrapping row with the status pill and level text, whose widths change with every sound. It now sits under the Stop button (fixed size), shown only while recording. E2E checks its position at 390 × 844 while the status changes |
+| 1.10.5 | B1 | ESLint (recommended correctness rules) and Prettier (JavaScript only, single quotes, width 140) as dev dependencies; `npm run lint` in CI, `npm run format` to fix. The 7 unused `catch` bindings became `catch {}`; the code was formatted once (about 330 lines in 10 files). Linting needs Node ≥ 20.19; the app and unit tests still run on Node 18 |

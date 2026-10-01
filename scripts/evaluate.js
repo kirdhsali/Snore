@@ -86,7 +86,15 @@ function report(file) {
   console.log(`  snore-like sounds  ${pad(before, 8)}   ${pad(now, 13)}`);
   console.log(`  confirmed snores   ${pad(confBefore, 8)}   ${pad(confNow, 13)}`);
   console.log(`  confirmed per hour ${pad((confBefore / hours).toFixed(0), 8)}   ${pad((confNow / hours).toFixed(0), 13)}`);
-  console.log(`  via rhythm         ${pad(count(events, (e) => e.wasRhythm), 8)}   ${pad(count(after, (e) => e.rhythm), 13)}`);
+  console.log(
+    `  via rhythm         ${pad(
+      count(events, (e) => e.wasRhythm),
+      8,
+    )}   ${pad(
+      count(after, (e) => e.rhythm),
+      13,
+    )}`,
+  );
   for (const k of Object.keys(REASONS)) {
     const b = count(events, (e) => e.wasReason === k);
     const a = count(after, (e) => e.reason === k);
@@ -97,8 +105,18 @@ function report(file) {
   console.log('\n  hour    recorded  current   (snore-like sounds per clock hour)');
   const byHour = new Map();
   const hourOf = (e) => new Date(start + e.start * 1000).getHours();
-  for (const e of events) if (e.wasSnore) byHour.set(hourOf(e), (byHour.get(hourOf(e)) || [0, 0]).map((v, i) => v + (i === 0)));
-  for (const e of after) if (e.isSnore) byHour.set(hourOf(e), (byHour.get(hourOf(e)) || [0, 0]).map((v, i) => v + (i === 1)));
+  for (const e of events)
+    if (e.wasSnore)
+      byHour.set(
+        hourOf(e),
+        (byHour.get(hourOf(e)) || [0, 0]).map((v, i) => v + (i === 0)),
+      );
+  for (const e of after)
+    if (e.isSnore)
+      byHour.set(
+        hourOf(e),
+        (byHour.get(hourOf(e)) || [0, 0]).map((v, i) => v + (i === 1)),
+      );
   const order = [...byHour.keys()].sort((a, b) => ((a + 12) % 24) - ((b + 12) % 24));
   for (const h of order) console.log(`  ${pad(h, 2)}:00  ${pad(byHour.get(h)[0], 8)}  ${pad(byHour.get(h)[1], 7)}`);
 }
@@ -113,8 +131,12 @@ function compareShadow(r, shadow, name, hours) {
   const q = (p) => (trig.length ? trig[Math.floor(p * (trig.length - 1))].toFixed(1) : '-');
   const label = `${name}: sensitivity ${shadow.sensitivity}${shadow.minBreathRiseDb != null ? `, breath-noise rule ${shadow.minBreathRiseDb} dB` : ''}`;
   console.log(`\n  background test ${label} vs ${r.sensitivity}:`);
-  console.log(`    confirmed snores   ${r.sensitivity} ${main.length} (${(main.length / hours).toFixed(0)}/h)   ${name} ${auto.length} (${(auto.length / hours).toFixed(0)}/h)`);
-  console.log(`    found by both ${both}, only ${r.sensitivity} ${main.length - both}, only ${name} ${auto.filter((x) => !near(x, main)).length}`);
+  console.log(
+    `    confirmed snores   ${r.sensitivity} ${main.length} (${(main.length / hours).toFixed(0)}/h)   ${name} ${auto.length} (${(auto.length / hours).toFixed(0)}/h)`,
+  );
+  console.log(
+    `    found by both ${both}, only ${r.sensitivity} ${main.length - both}, only ${name} ${auto.filter((x) => !near(x, main)).length}`,
+  );
   if (trig.length) console.log(`    trigger margin over the night: min ${q(0)}, median ${q(0.5)}, max ${q(1)} dB`);
 }
 

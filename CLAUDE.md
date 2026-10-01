@@ -22,12 +22,14 @@ decisions, known issues, next task). General working rules: `docs/WORKING-RULES.
 ## Verify
 ```bash
 npm test                                   # unit tests (Node >= 18)
-npm ci && npx playwright install chromium  # once, for the browser test
+npm ci && npx playwright install chromium  # once, for the browser test and the linters
+npm run lint                               # ESLint + Prettier check (Node >= 20.19); `npm run format` fixes formatting
 npm run test:e2e                           # CHROMIUM_PATH=... to use an existing Chromium
 for f in js/*.js scripts/*.js tests/*.js; do node --check "$f"; done
 npm run eval:public                        # before detection changes (ESC-50, ~600 MB once)
 npm run evaluate -- report.json            # compare a downloaded night with the current rules
 ```
-No linter, formatter or type checker is configured yet. Where `docs/WORKING-RULES.md`
-differs (lint/format gates, creating tags), the rules in this file apply. Record
+ESLint (correctness rules) and Prettier (JavaScript only; CSS and HTML keep their
+compact hand layout) run in CI; there is no type checker. Where `docs/WORKING-RULES.md`
+differs (creating tags), the rules in this file apply. Record
 results as in `docs/VERIFICATION.md`.

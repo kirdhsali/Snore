@@ -1,0 +1,8 @@
+# Prettier formats the JavaScript only. CSS and HTML keep their compact hand
+# layout (one rule per line); Markdown, JSON fixtures and the lockfile stay as written.
+*.css
+*.html
+*.md
+*.json
+dist/
+samples/

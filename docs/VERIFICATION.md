@@ -91,3 +91,4 @@ the old code first and failed there.
 | Version | Check | Result |
 | --- | --- | --- |
 | 1.10.4 | E2E now runs at 390 × 844 (iPhone-sized); samples the "Darken screen" box 12× over 4.8 s while the pill changes (measuring → listening → sound heard) | old layout: two positions (x 247 and 16); new: one position; full e2e passed; \`npm test\` 47/47 |
+| 1.10.5 | `npm run lint` (ESLint 10 + Prettier 3.9), detector events on the demo night at 48/44.1/16 kHz × 3 seeds compared field by field with `main` | lint clean; events identical; `npm test` 47/47; full e2e passed; `npm run build` OK |

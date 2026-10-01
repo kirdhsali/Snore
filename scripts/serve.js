@@ -22,7 +22,7 @@ function resolve(urlPath) {
   let pathname;
   try {
     pathname = decodeURIComponent(new URL(urlPath, 'http://x').pathname);
-  } catch (e) {
+  } catch {
     return { status: 400 };
   }
   if (pathname.includes('\0')) return { status: 400 };

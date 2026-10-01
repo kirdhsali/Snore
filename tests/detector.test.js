@@ -52,7 +52,10 @@ for (const sr of [48000, 44100, 16000]) {
     const detected = events.filter((e) => e.isSnore);
 
     for (const t of snoreTruth) {
-      assert.ok(detected.some((e) => overlaps(e, t)), `missed snore at ${t.start.toFixed(1)} s`);
+      assert.ok(
+        detected.some((e) => overlaps(e, t)),
+        `missed snore at ${t.start.toFixed(1)} s`,
+      );
     }
     for (const e of detected) {
       const hit = scenario.truth.find((t) => overlaps(e, t));
@@ -69,7 +72,10 @@ test('each distractor on its own is ignored', () => {
       const scenario = Synth.compose(sr, 12, [{ type, at: 3 }], seed);
       const { events } = run(scenario);
       assert.ok(events.length >= 1, `${type} (seed ${seed}) should be heard`);
-      assert.ok(events.every((e) => !e.isSnore), `${type} (seed ${seed}) was counted as a snore`);
+      assert.ok(
+        events.every((e) => !e.isSnore),
+        `${type} (seed ${seed}) was counted as a snore`,
+      );
     }
   }
 });
@@ -118,17 +124,29 @@ test('no audio of other sounds remains once the recording ends', () => {
   const scenario = Synth.compose(16000, 12, [{ type: 'speech', at: 8 }], 1);
   const { det, events } = run(scenario);
   assert.ok(events.length && events.every((e) => !e.isSnore && e.clip === null), 'speech is rejected without audio');
-  assert.ok(det.ring.some((x) => x !== 0), 'buffer held the speech before release');
+  assert.ok(
+    det.ring.some((x) => x !== 0),
+    'buffer held the speech before release',
+  );
   det.release();
-  assert.ok(det.ring.every((x) => x === 0), 'rolling buffer wiped');
-  assert.ok(det.pending.every((x) => x === 0), 'frame buffer wiped');
+  assert.ok(
+    det.ring.every((x) => x === 0),
+    'rolling buffer wiped',
+  );
+  assert.ok(
+    det.pending.every((x) => x === 0),
+    'frame buffer wiped',
+  );
   assert.ok(det.analyzer.re.every((x) => x === 0) && det.analyzer.im.every((x) => x === 0), 'last spectrum wiped');
   // Kept snore clips are separate arrays and survive the release.
   const demo = run(Synth.demoScenario(16000));
   const clips = demo.events.filter((e) => e.isSnore).map((e) => e.clip);
   const sums = clips.map((c) => c.reduce((a, b) => a + Math.abs(b), 0));
   demo.det.release();
-  assert.deepEqual(clips.map((c) => c.reduce((a, b) => a + Math.abs(b), 0)), sums);
+  assert.deepEqual(
+    clips.map((c) => c.reduce((a, b) => a + Math.abs(b), 0)),
+    sums,
+  );
 });
 
 test('rhythm intervals are measured between snore starts, whatever order snores arrive in', () => {
@@ -144,7 +162,10 @@ test('rhythm intervals are measured between snore starts, whatever order snores 
   const late = new SessionStats();
   [2, 6, 3, 8].forEach((t) => late.add(snore(t, 0.6)));
   const s2 = late.summary(30);
-  assert.deepEqual(late.confirmed.map((x) => x.start), [2, 3, 6, 8]);
+  assert.deepEqual(
+    late.confirmed.map((x) => x.start),
+    [2, 3, 6, 8],
+  );
   assert.equal(s2.medianInterval, 2, 'gaps 1, 3, 2 between starts in time order');
   assert.equal(s2.episodes[0].interval, 2);
 });
@@ -198,9 +219,7 @@ test('snores closer than 2 s or further than 12 s apart do not confirm each othe
 
 test('clip budget drops the quietest clips first', () => {
   const stats = new SessionStats({ maxClips: 2 });
-  [5, 30, 10].forEach((relDb, i) =>
-    stats.add({ isSnore: true, start: i, end: i + 1, duration: 1, relDb, clip: new Int16Array(4) }),
-  );
+  [5, 30, 10].forEach((relDb, i) => stats.add({ isSnore: true, start: i, end: i + 1, duration: 1, relDb, clip: new Int16Array(4) }));
   assert.deepEqual(
     stats.snores.map((s) => !!s.clip),
     [false, true, true],
@@ -275,9 +294,16 @@ test('rattling snores within a run of snores count through the breathing rhythm'
     }
     const rescued = events.filter((e) => e.rhythm);
     assert.ok(rescued.length >= 2, `rhythm rescued ${rescued.length} at ${sr} Hz`);
-    assert.ok(rescued.every((e) => e.clip && e.clip.length), 'rescued snores keep their audio');
+    assert.ok(
+      rescued.every((e) => e.clip && e.clip.length),
+      'rescued snores keep their audio',
+    );
     const starts = events.filter((e) => e.isSnore).map((e) => e.start);
-    assert.deepEqual(starts, starts.slice().sort((a, b) => a - b), 'snores arrive in time order');
+    assert.deepEqual(
+      starts,
+      starts.slice().sort((a, b) => a - b),
+      'snores arrive in time order',
+    );
   }
 });
 
@@ -379,11 +405,19 @@ test('breath-noise rule: hum swells without breath noise stop counting, snores s
       const { events } = run(scenario, options);
       const swells = events.filter((e) => e.start < 30);
       const snores = events.filter((e) => e.start >= 38);
-      return { swellSnores: swells.filter((e) => e.isSnore).length, noBreath: swells.filter((e) => e.reason === 'no-breath').length, snores: snores.filter((e) => e.isSnore).length, swells };
+      return {
+        swellSnores: swells.filter((e) => e.isSnore).length,
+        noBreath: swells.filter((e) => e.reason === 'no-breath').length,
+        snores: snores.filter((e) => e.isSnore).length,
+        swells,
+      };
     };
     const without = count({});
     assert.ok(without.swellSnores >= 4, `without the rule the swells pass as snores (${without.swellSnores}/6 at ${sr} Hz)`);
-    assert.ok(without.swells.every((e) => e.breathRise < 4), 'swells have almost no breath noise');
+    assert.ok(
+      without.swells.every((e) => e.breathRise < 4),
+      'swells have almost no breath noise',
+    );
     const withRule = count({ minBreathRiseDb: 3 });
     assert.ok(withRule.noBreath >= 5, `rule rejects swells: ${withRule.noBreath}/6 at ${sr} Hz`);
     assert.equal(withRule.snores, 6, 'real snores keep counting');
@@ -409,7 +443,10 @@ test('auto sensitivity in a very quiet room full of deep rumble stays sensitive'
     const a = confirmedSnores(night, { sensitivity: 'auto', minBreathRiseDb: 3 });
     auto += a.hits;
     assert.equal(a.falseAlarms, 0);
-    assert.ok(a.det.levels.every((l) => l.triggerDb <= 9), 'trigger capped in a very quiet room');
+    assert.ok(
+      a.det.levels.every((l) => l.triggerDb <= 9),
+      'trigger capped in a very quiet room',
+    );
   }
   assert.ok(auto >= 2 * normal, `auto ${auto} vs normal ${normal}`);
 });
@@ -466,12 +503,23 @@ test('rhythm rule: limits stay 2 and 12 s and rescued sounds never anchor', () =
 
 test('rhythm rule: a long snore still in progress can rescue a rattle 11 s before it, live and offline alike', () => {
   for (const at of [12, 12.5, 13, 13.5]) {
-    const scenario = Synth.compose(16000, 20, [{ type: 'rattle', at: 2 }, { type: 'snore', at, duration: 2 }], 1);
+    const scenario = Synth.compose(
+      16000,
+      20,
+      [
+        { type: 'rattle', at: 2 },
+        { type: 'snore', at, duration: 2 },
+      ],
+      1,
+    );
     const { events } = run(scenario);
     const live = new SessionStats();
     events.forEach((e) => live.add(e));
     assert.equal(events.length, 2);
-    assert.ok(events.every((e) => e.isSnore), `snore at ${at} s: ${events.map((e) => e.reason)}`);
+    assert.ok(
+      events.every((e) => e.isSnore),
+      `snore at ${at} s: ${events.map((e) => e.reason)}`,
+    );
     assert.equal(live.confirmed.length, 2, `snore at ${at} s`);
   }
   // The same night as a downloaded report (made by the external review), re-evaluated offline.
@@ -491,12 +539,23 @@ test('confirmation looks both ways when a rescued sound arrives after later snor
   const stats = new SessionStats();
   const snore = (start, rhythm) => ({ isSnore: true, rhythm, start, end: start + 0.6, duration: 0.6, relDb: 20, clip: null });
   [snore(6), snore(3, true), snore(20)].forEach((e) => stats.add(e));
-  assert.deepEqual(stats.confirmed.map((x) => x.start), [3, 6]);
+  assert.deepEqual(
+    stats.confirmed.map((x) => x.start),
+    [3, 6],
+  );
 });
 
 test('an interruption: later events keep wall time and nothing is decided or confirmed across it', () => {
   const sr = 16000;
-  const before = Synth.compose(sr, 12, [{ type: 'snore', at: 2 }, { type: 'snore', at: 6 }], 3);
+  const before = Synth.compose(
+    sr,
+    12,
+    [
+      { type: 'snore', at: 2 },
+      { type: 'snore', at: 6 },
+    ],
+    3,
+  );
   const after = Synth.compose(sr, 6, [{ type: 'rattle', at: 1 }], 3);
   const events = [];
   const stats = new SessionStats();
@@ -515,12 +574,18 @@ test('an interruption: later events keep wall time and nothing is decided or con
   // 8 s after the snore at 6 s, which would rescue it without the gap.
   assert.equal(rattle.isSnore, false, 'not rescued by a snore from before the gap');
   assert.equal(rattle.clip, null);
-  assert.deepEqual(stats.confirmed.map((e) => Math.round(e.start)), [2, 6]);
+  assert.deepEqual(
+    stats.confirmed.map((e) => Math.round(e.start)),
+    [2, 6],
+  );
 
   // Two snores 4 s apart with a gap between them do not confirm each other.
   const s2 = new SessionStats();
   s2.addGap(10, 11);
   const snore = (start) => ({ isSnore: true, start, end: start + 0.8, duration: 0.8, relDb: 20, clip: null });
   [2, 6, 8, 12].forEach((t) => s2.add(snore(t)));
-  assert.deepEqual(s2.confirmed.map((e) => e.start), [2, 6, 8]);
+  assert.deepEqual(
+    s2.confirmed.map((e) => e.start),
+    [2, 6, 8],
+  );
 });
