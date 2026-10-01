@@ -131,6 +131,24 @@ test('no audio of other sounds remains once the recording ends', () => {
   assert.deepEqual(clips.map((c) => c.reduce((a, b) => a + Math.abs(b), 0)), sums);
 });
 
+test('rhythm intervals are measured between snore starts, whatever order snores arrive in', () => {
+  const snore = (start, duration = 1) => ({ isSnore: true, start, end: start + duration, duration, relDb: 20, clip: null });
+  // Starts exactly 4 s apart: the episode's rhythm is 4 s, not stretched by the last snore's length.
+  const even = new SessionStats();
+  [2, 6, 10].forEach((t) => even.add(snore(t)));
+  const s1 = even.summary(30);
+  assert.equal(s1.episodes[0].interval, 4);
+  assert.equal(s1.episodes[0].duration, 9, 'the episode still lasts until the last snore ends');
+  assert.equal(s1.medianInterval, 4);
+  // A rescued rattle is decided only when a later snore arrives, so events can come as 2, 6, 3, 8.
+  const late = new SessionStats();
+  [2, 6, 3, 8].forEach((t) => late.add(snore(t, 0.6)));
+  const s2 = late.summary(30);
+  assert.deepEqual(late.confirmed.map((x) => x.start), [2, 3, 6, 8]);
+  assert.equal(s2.medianInterval, 2, 'gaps 1, 3, 2 between starts in time order');
+  assert.equal(s2.episodes[0].interval, 2);
+});
+
 test('lower sensitivity ignores faint snores that high sensitivity catches', () => {
   const sr = 16000;
   const plan = [0, 1, 2, 3].map((i) => ({ type: 'snore', at: 2 + i * 4, amp: 0.02 }));

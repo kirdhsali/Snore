@@ -855,6 +855,9 @@
   const WAV_GAP_SEC = 0.4;
 
   /** Where each kept snore starts in the downloaded WAV, in seconds. */
+  // Snores in time order; they can be decided out of order (rhythm rescue).
+  const inTimeOrder = (list) => [...list].sort((a, b) => a.start - b.start);
+
   function wavPositions(snores) {
     const pos = new Map();
     let t = 0;
@@ -871,7 +874,7 @@
 
   el.dlWav.addEventListener('click', () => {
     if (!finished()) return;
-    const snores = session.stats.snores.filter((x) => x.clip);
+    const snores = inTimeOrder(session.stats.snores).filter((x) => x.clip);
     if (!snores.length) return;
     // Volume is evened out per clip so quiet snores are audible; the JSON keeps the real levels.
     const wav = encodeWav(
@@ -885,7 +888,7 @@
   el.dlJson.addEventListener('click', () => {
     if (!finished()) return;
     const s = session;
-    const wavPos = wavPositions(s.stats.snores);
+    const wavPos = wavPositions(inTimeOrder(s.stats.snores));
     const data = {
       app: 'Snorewatch',
       version: VERSION_TEXT,
@@ -894,7 +897,7 @@
       endedAt: new Date(s.endWall).toISOString(),
       sensitivity: s.detector.sensitivity,
       summary: s.summary,
-      snores: s.stats.snores.map((x) => ({
+      snores: inTimeOrder(s.stats.snores).map((x) => ({
         time: at(x.start).toISOString(),
         offsetSec: +x.start.toFixed(2),
         durationSec: +x.duration.toFixed(2),
@@ -949,7 +952,7 @@
               spreadDb: +l.spreadDb.toFixed(2),
               floorDbfs: +l.floorDb.toFixed(1),
             })),
-            snores: sh.stats.snores.map((x) => ({
+            snores: inTimeOrder(sh.stats.snores).map((x) => ({
               offsetSec: +x.start.toFixed(2),
               durationSec: +x.duration.toFixed(2),
               aboveRoomDb: +x.relDb.toFixed(1),
