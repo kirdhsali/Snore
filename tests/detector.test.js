@@ -331,3 +331,49 @@ test('a counting-only detector keeps no audio', () => {
   assert.ok(events.some((e) => e.isSnore));
   assert.ok(events.every((e) => e.clip === null));
 });
+
+test('breath-noise rule: hum swells without breath noise stop counting, snores stay', () => {
+  for (const sr of [48000, 16000]) {
+    const r = Synth.rng(3);
+    const plan = [];
+    for (let i = 0; i < 6; i++) plan.push({ type: 'swell', at: 3 + i * 4 });
+    plan.push(...Synth.snoreRun(40, 6, r));
+    const scenario = Synth.compose(sr, 70, plan, 3);
+    const count = (options) => {
+      const { events } = run(scenario, options);
+      const swells = events.filter((e) => e.start < 30);
+      const snores = events.filter((e) => e.start >= 38);
+      return { swellSnores: swells.filter((e) => e.isSnore).length, noBreath: swells.filter((e) => e.reason === 'no-breath').length, snores: snores.filter((e) => e.isSnore).length, swells };
+    };
+    const without = count({});
+    assert.ok(without.swellSnores >= 4, `without the rule the swells pass as snores (${without.swellSnores}/6 at ${sr} Hz)`);
+    assert.ok(without.swells.every((e) => e.breathRise < 4), 'swells have almost no breath noise');
+    const withRule = count({ minBreathRiseDb: 3 });
+    assert.ok(withRule.noBreath >= 5, `rule rejects swells: ${withRule.noBreath}/6 at ${sr} Hz`);
+    assert.equal(withRule.snores, 6, 'real snores keep counting');
+  }
+});
+
+test('breath-noise rule keeps every snore of the demo night', () => {
+  const { events } = run(Synth.demoScenario(48000), { minBreathRiseDb: 3 });
+  assert.equal(events.filter((e) => e.isSnore).length, 16);
+  assert.ok(events.filter((e) => e.isSnore).every((e) => e.breathRise > 10));
+});
+
+test('auto sensitivity in a very quiet room full of deep rumble stays sensitive', () => {
+  let normal = 0;
+  let auto = 0;
+  for (let seed = 1; seed <= 3; seed++) {
+    const r = Synth.rng(seed);
+    const plan = [];
+    for (let t = 60; t < 280; t += 70) plan.push(...Synth.snoreRun(t, 8, r).map((p) => ({ ...p, amp: 0.0004 * (0.5 + r()) })));
+    const night = Synth.compose(16000, 300, plan, seed, 0.00006, 'deep'); // about -82 dBFS, mostly below 60 Hz
+    normal += confirmedSnores(night, { sensitivity: 'normal' }).hits;
+    // The smaller margin lets rumble flicker through; the breath-noise rule removes it.
+    const a = confirmedSnores(night, { sensitivity: 'auto', minBreathRiseDb: 3 });
+    auto += a.hits;
+    assert.equal(a.falseAlarms, 0);
+    assert.ok(a.det.levels.every((l) => l.triggerDb <= 9), 'trigger capped in a very quiet room');
+  }
+  assert.ok(auto >= 2 * normal, `auto ${auto} vs normal ${normal}`);
+});

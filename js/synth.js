@@ -231,6 +231,41 @@
   }
 
   /**
+   * A hum swell: a deep, smooth rise of low noise (60-150 Hz) without any breath
+   * noise above it, like a lift, ventilation or the building at night.
+   */
+  function swell(sr, rand, opts = {}) {
+    const dur = opts.duration || 0.7 + rand() * 0.8;
+    const amp = opts.amp || 0.3;
+    const n = Math.round(dur * sr);
+    const out = new Float32Array(n);
+    const c = lpCoef(100, sr);
+    const y = [0, 0, 0, 0, 0];
+    for (let i = 0; i < n; i++) {
+      let v = rand() * 2 - 1;
+      for (let k = 0; k < 5; k++) v = y[k] += c * (v - y[k]);
+      out[i] = amp * Math.pow(Math.sin((Math.PI * i) / n), 2) * v;
+    }
+    return out;
+  }
+
+  /**
+   * A very quiet room whose noise is mostly deep rumble below 60 Hz (heating,
+   * the building): measured frame by frame it flickers by several dB.
+   */
+  function deepRoomNoise(sr, n, level, rand) {
+    const out = roomNoise(sr, n, level * 0.4, rand);
+    const c = lpCoef(35, sr);
+    const y = [0, 0];
+    for (let i = 0; i < n; i++) {
+      let v = rand() * 2 - 1;
+      for (let k = 0; k < 2; k++) v = y[k] += c * (v - y[k]);
+      out[i] += v * level * 40;
+    }
+    return out;
+  }
+
+  /**
    * Restless background (wind, a fan changing speed, rain on and off): room
    * noise whose level wanders by several dB over a few seconds.
    */
@@ -246,7 +281,7 @@
     return out;
   }
 
-  const MAKERS = { snore, rattle, rumble, speech, knock, cough, car };
+  const MAKERS = { snore, rattle, rumble, swell, speech, knock, cough, car };
 
   /**
    * Places sounds on a timeline over room noise.
@@ -256,7 +291,12 @@
   function compose(sr, seconds, plan, seed = 1, noiseLevel = 0.002, background = 'still') {
     const rand = rng(seed);
     const n = Math.round(seconds * sr);
-    const samples = background === 'gusty' ? gustyNoise(sr, n, noiseLevel, rand) : roomNoise(sr, n, noiseLevel, rand);
+    const samples =
+      background === 'gusty'
+        ? gustyNoise(sr, n, noiseLevel, rand)
+        : background === 'deep'
+          ? deepRoomNoise(sr, n, noiseLevel, rand)
+          : roomNoise(sr, n, noiseLevel, rand);
     const truth = [];
     for (const item of plan) {
       const buf = MAKERS[item.type](sr, rand, item);
@@ -297,5 +337,5 @@
     return compose(sr, 90, plan, seed);
   }
 
-  return { rng, compose, demoScenario, snoreRun, snore, rattle, rumble, speech, knock, cough, car, roomNoise, gustyNoise };
+  return { rng, compose, demoScenario, snoreRun, snore, rattle, rumble, speech, knock, cough, car, roomNoise, gustyNoise, deepRoomNoise, swell };
 });

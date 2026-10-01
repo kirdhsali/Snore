@@ -87,7 +87,8 @@ function report(file) {
     const a = count(after, (e) => e.reason === k);
     if (a || b) console.log(`  ${REASONS[k].padEnd(34).slice(0, 34)} ${pad(b, 4)}   ${pad(a, 13)}`);
   }
-  if (r.shadow) compareShadow(r, hours);
+  const shadows = r.shadows || (r.shadow ? { auto: r.shadow } : {});
+  for (const [name, sh] of Object.entries(shadows)) compareShadow(r, sh, name, hours);
   console.log('\n  hour    recorded  current   (snore-like sounds per clock hour)');
   const byHour = new Map();
   const hourOf = (e) => new Date(start + e.start * 1000).getHours();
@@ -97,18 +98,19 @@ function report(file) {
   for (const h of order) console.log(`  ${pad(h, 2)}:00  ${pad(byHour.get(h)[0], 8)}  ${pad(byHour.get(h)[1], 7)}`);
 }
 
-/** The recording's own detector against the automatic sensitivity that ran alongside it. */
-function compareShadow(r, hours) {
+/** The recording's own detector against a candidate rule set that ran alongside it. */
+function compareShadow(r, shadow, name, hours) {
   const main = r.snores.filter((x) => x.confirmed);
-  const auto = r.shadow.snores.filter((x) => x.confirmed);
+  const auto = shadow.snores.filter((x) => x.confirmed);
   const near = (a, list) => list.some((b) => Math.abs(a.offsetSec - b.offsetSec) < 0.6);
   const both = main.filter((x) => near(x, auto)).length;
-  const trig = r.shadow.levels.map((l) => l.triggerDb).sort((a, b) => a - b);
+  const trig = shadow.levels.map((l) => l.triggerDb).sort((a, b) => a - b);
   const q = (p) => (trig.length ? trig[Math.floor(p * (trig.length - 1))].toFixed(1) : '-');
-  console.log(`\n  automatic sensitivity (shadow) vs ${r.sensitivity}:`);
-  console.log(`    confirmed snores   ${r.sensitivity} ${main.length} (${(main.length / hours).toFixed(0)}/h)   auto ${auto.length} (${(auto.length / hours).toFixed(0)}/h)`);
-  console.log(`    found by both ${both}, only ${r.sensitivity} ${main.length - both}, only auto ${auto.filter((x) => !near(x, main)).length}`);
-  console.log(`    auto trigger margin over the night: min ${q(0)}, median ${q(0.5)}, max ${q(1)} dB`);
+  const label = `${name}: sensitivity ${shadow.sensitivity}${shadow.minBreathRiseDb != null ? `, breath-noise rule ${shadow.minBreathRiseDb} dB` : ''}`;
+  console.log(`\n  background test ${label} vs ${r.sensitivity}:`);
+  console.log(`    confirmed snores   ${r.sensitivity} ${main.length} (${(main.length / hours).toFixed(0)}/h)   ${name} ${auto.length} (${(auto.length / hours).toFixed(0)}/h)`);
+  console.log(`    found by both ${both}, only ${r.sensitivity} ${main.length - both}, only ${name} ${auto.filter((x) => !near(x, main)).length}`);
+  if (trig.length) console.log(`    trigger margin over the night: min ${q(0)}, median ${q(0.5)}, max ${q(1)} dB`);
 }
 
 const files = process.argv.slice(2);
