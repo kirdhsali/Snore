@@ -71,6 +71,8 @@
   let running = false;
   let starting = false;
   let wakeLock = null;
+  let wakeLockState = 'off'; // 'on', 'failed' or 'unsupported' while recording
+  const STALL_MS = 2000; // no audio for this long while recording counts as an interruption
   let playing = null;
 
   // ---------- formatting ----------
@@ -187,17 +189,30 @@
   }
 
   async function requestWakeLock() {
+    if (!('wakeLock' in navigator)) {
+      wakeLockState = 'unsupported';
+      showRecordingStatus();
+      return;
+    }
     try {
-      if ('wakeLock' in navigator) {
-        wakeLock = await navigator.wakeLock.request('screen');
-        wakeLock.addEventListener('release', () => (wakeLock = null));
-      }
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLockState = 'on';
+      wakeLock.addEventListener('release', () => {
+        wakeLock = null;
+        // The system can drop the lock (e.g. low battery); ask again while the page is visible.
+        if (running && document.visibilityState === 'visible') requestWakeLock();
+      });
     } catch (err) {
       wakeLock = null;
+      wakeLockState = 'failed';
     }
+    if (session) session.wakeLock = wakeLockState;
+    showRecordingStatus();
   }
   document.addEventListener('visibilitychange', () => {
-    if (running && document.visibilityState === 'visible' && !wakeLock) requestWakeLock();
+    if (!running || document.visibilityState !== 'visible') return;
+    if (!wakeLock) requestWakeLock();
+    if (session.gap && session.ctx.state === 'suspended') session.ctx.resume().catch(() => {});
   });
   window.addEventListener('beforeunload', (e) => {
     if (running) {
@@ -264,6 +279,10 @@
         lastVerdict: null,
         newClips: [],
         detector: null,
+        gaps: [], // interruptions: {start, end} in ms since the epoch, plus the reason
+        gap: null, // the interruption going on now
+        lastSampleWall: Date.now(),
+        wakeLock: 'off',
       };
       const det = new SnoreDetector(ctx.sampleRate, {
         sensitivity: el.sensitivity.value,
@@ -284,6 +303,12 @@
       };
       s.tap = await createTap(ctx, input, (samples) => {
         if (!running || session !== s) return;
+        s.lastSampleWall = Date.now();
+        if (s.gap) {
+          // Audio that arrives while the microphone is muted or the audio is suspended is not the room.
+          if (!audioLive(s)) return;
+          endGap(s);
+        }
         det.process(samples);
         for (const sh of Object.values(s.shadows)) sh.detector.process(samples);
       });
@@ -291,13 +316,10 @@
       if (player) player.start();
 
       running = true;
-      requestWakeLock();
+      watchAudio(s);
       showLive();
-      setStatus(
-        source === 'mic'
-          ? 'Recording. Everything stays on this device; only short snore clips are kept. The screen darkens after 20 s; tap it to look. Tap Stop in the morning.'
-          : 'Playing the demo night. The report appears when it ends, or tap Stop.',
-      );
+      showRecordingStatus();
+      requestWakeLock();
       loop();
     } catch (err) {
       console.error(err);
@@ -326,8 +348,11 @@
     // No audio other than the kept snore clips may remain once the night is over.
     s.detector.release();
     for (const sh of Object.values(s.shadows)) sh.detector.release();
-    s.elapsed = s.detector.elapsed;
-    s.endWall = s.startWall + s.elapsed * 1000;
+    s.elapsed = s.detector.elapsed; // seconds of audio actually analysed
+    s.endWall = Date.now();
+    clearInterval(s.watch);
+    s.ctx.onstatechange = null;
+    if (s.gap) endGap(s, s.endWall);
     try {
       s.tap.disconnect();
       if (s.tap.port) s.tap.port.onmessage = null;
@@ -347,6 +372,71 @@
   }
 
   el.rec.addEventListener('click', () => (running ? stop() : start()));
+
+  // ---------- interruptions ----------
+  // The system can pause the microphone (a call, Siri, another app taking the
+  // audio) or stop it. Such gaps are recorded, shown, and never counted as
+  // silence; the app keeps trying to resume.
+  const RECORDING_TEXT = {
+    mic: 'Recording. Everything stays on this device; only short snore clips are kept. The screen darkens after 20 s; tap it to look. Tap Stop in the morning.',
+    demo: 'Playing the demo night. The report appears when it ends, or tap Stop.',
+  };
+
+  function audioLive(s) {
+    return s.ctx.state === 'running' && (!s.stream || s.stream.getAudioTracks().every((t) => t.readyState === 'live' && !t.muted));
+  }
+
+  function watchAudio(s) {
+    s.ctx.onstatechange = () => {
+      if (s.ctx.state !== 'running') beginGap(s, 'suspended');
+    };
+    if (s.stream) {
+      for (const t of s.stream.getAudioTracks()) {
+        t.addEventListener('ended', () => beginGap(s, 'ended'));
+        t.addEventListener('mute', () => beginGap(s, 'muted'));
+      }
+    }
+    s.watch = setInterval(() => {
+      if (!running || session !== s) return;
+      if (!s.gap && Date.now() - s.lastSampleWall > STALL_MS) beginGap(s, 'stalled', s.lastSampleWall);
+      if (s.gap && s.ctx.state === 'suspended') s.ctx.resume().catch(() => {});
+    }, 1000);
+  }
+
+  function beginGap(s, reason, at = Date.now()) {
+    if (!running || session !== s) return;
+    if (s.gap) {
+      if (reason === 'ended') s.gap.reason = 'ended'; // the worst case decides what the status says
+    } else {
+      s.gap = { start: Math.min(at, Date.now()), reason };
+    }
+    if (s.ctx.state === 'suspended') s.ctx.resume().catch(() => {});
+    showRecordingStatus();
+  }
+
+  function endGap(s, at = Date.now()) {
+    s.gaps.push({ start: s.gap.start, end: at, reason: s.gap.reason });
+    s.gap = null;
+    showRecordingStatus();
+  }
+
+  function gapSeconds(s) {
+    return s.gaps.reduce((sum, g) => sum + (g.end - g.start) / 1000, 0);
+  }
+
+  function showRecordingStatus() {
+    if (!running || !session) return;
+    const s = session;
+    if (s.gap && s.gap.reason === 'ended') {
+      setStatus('The system switched the microphone off, so nothing is being recorded. Tap Stop for the report of the night so far.', true);
+    } else if (s.gap) {
+      setStatus('Recording interrupted: the system paused the microphone. Trying to resume…', true);
+    } else if (s.source === 'mic' && (wakeLockState === 'failed' || wakeLockState === 'unsupported')) {
+      setStatus('Recording, but this browser did not let the app keep the screen on. If the screen locks, recording stops: set Auto-Lock to Never for tonight.', true);
+    } else {
+      setStatus(RECORDING_TEXT[s.source]);
+    }
+  }
 
   // ---------- live ----------
   function handleFrame(f) {
@@ -655,7 +745,10 @@
     const start = at(0);
     const end = new Date(s.endWall);
     const day = start.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' });
-    el.reportRange.textContent = `${day}, ${fmtTime(start)} – ${fmtTime(end)} · ${fmtSpan(s.elapsed)}`;
+    const lost = gapSeconds(s);
+    el.reportRange.textContent =
+      `${day}, ${fmtTime(start)} – ${fmtTime(end)} · ${fmtSpan(s.elapsed)}` +
+      (s.gaps.length ? ` recorded · interrupted ${s.gaps.length}× (${fmtSpan(lost)} not recorded)` : '');
     el.verdict.textContent = verdictText(sum);
     for (const sh of Object.values(s.shadows)) sh.summary = sh.stats.summary(s.elapsed);
     el.shadowNote.hidden = false;
@@ -895,6 +988,16 @@
       source: s.source,
       startedAt: new Date(s.startWall).toISOString(),
       endedAt: new Date(s.endWall).toISOString(),
+      wallSeconds: +((s.endWall - s.startWall) / 1000).toFixed(1),
+      capturedSeconds: +s.elapsed.toFixed(1),
+      // Times the system paused or stopped the microphone; nothing was analysed then.
+      interruptions: s.gaps.map((g) => ({
+        start: new Date(g.start).toISOString(),
+        end: new Date(g.end).toISOString(),
+        seconds: +((g.end - g.start) / 1000).toFixed(1),
+        reason: g.reason,
+      })),
+      screenWakeLock: s.wakeLock,
       sensitivity: s.detector.sensitivity,
       summary: s.summary,
       snores: inTimeOrder(s.stats.snores).map((x) => ({
@@ -1015,6 +1118,9 @@
     },
     get pendingCards() {
       return session ? session.newClips.length : 0;
+    },
+    get audio() {
+      return session && { ctx: session.ctx, stream: session.stream, gap: session.gap, gaps: session.gaps.length };
     },
     get sensitivities() {
       return session && { main: session.detector.sensitivity, ...Object.fromEntries(Object.entries(session.shadows).map(([k, sh]) => [k, sh.detector.sensitivity])) };
