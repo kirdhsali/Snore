@@ -1,6 +1,6 @@
 # Snorewatch handover
 
-State at version **1.10.3** (1.9.1 was the documentation and reproducibility checkpoint,
+State at version **1.10.4** (1.9.1 was the documentation and reproducibility checkpoint,
 2026-10-01; later versions fix findings of an external review, see §9).
 Statements marked **[verified]** were checked against this repository or by running
 it; **[assumption]** marks beliefs not proven; **[suspected]** marks probable problems.
@@ -214,3 +214,13 @@ then a report to the owner and a "go" before any restructuring (Phase B).
 | 1.10.1 | R1 part 1: a suspended audio context, a muted or ended microphone, or audio simply stopping left the app saying "Recording"; the end time was computed from analysed audio, so gaps vanished; a refused screen wake lock was silent | Interruptions are detected (context `statechange`, track `mute`/`ended`, no audio for 2 s), shown in the status, and the app keeps trying to resume. Audio arriving during a gap is not analysed. `endedAt` is the real clock; the JSON adds `wallSeconds`, `capturedSeconds`, `interruptions[]` and `screenWakeLock`; the report line says "interrupted N×". A refused or unsupported wake lock is shown. Event times inside the night are still analysed-audio time (fixed in 1.10.2) |
 | 1.10.2 | R1 part 2: after an interruption, event times were analysed-audio time (early by the gap), a sound in progress and rhythm candidates spanned the gap, and snores on both sides could confirm each other | `SnoreDetector.resumeAfterGap(sec)` closes the open sound, rejects waiting candidates, drops the rhythm anchors and times later events after the gap (`clock` = analysed audio + interruptions); `SessionStats.addGap` prevents confirmation across a gap (owner decision). Timelines, share image and HTML report use the night's clock; per-hour figures still use analysed time. JSON interruptions carry `offsetSec` on the snores' clock |
 | 1.10.3 | Workflows and docs: CI had no explicit permissions; deploy and tagging ran without tests for that commit; `WORKING-RULES.md` named lint gates and tag rights that differ from this project; handover claims on retention, wake lock and data format were out of date | `ci.yml` `contents: read`; `pages.yml` and `release.yml` run `npm test` + syntax checks before deploy/tag; `CLAUDE.md`/`AGENTS.md` state that they take precedence and use the new privacy wording; handover status, data format, known issues and next task updated. Repository settings (branch protection, required checks) are for the owner |
+
+## 10. Phase B: readiness for expansion (owner's go 2026-10-01)
+
+Restructuring without behaviour change (plan: B0 button fix, B1 lint/format,
+B2 versioned report format, B3 completed-night record, B4 recording controller,
+B5 split detector.js, B6 storage interface).
+
+| Version | Step | Change |
+| --- | --- | --- |
+| 1.10.4 | B0 (owner's bug report) | "Darken screen" jumped on phones: it shared a wrapping row with the status pill and level text, whose widths change with every sound. It now sits under the Stop button (fixed size), shown only while recording. E2E checks its position at 390 × 844 while the status changes |

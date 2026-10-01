@@ -85,3 +85,9 @@ the old code first and failed there.
 | 1.10.1 | E2E: wake lock refused → warning; microphone track ended → status, report "interrupted 1×", JSON gap `ended` ≥ 1.2 s, wall = analysed + gap, `endedAt` = real clock; demo audio suspended 3 s with resume blocked → "interrupted", app resumes by itself once possible, gap 4 s in the JSON (detection within 1 s) | old code: times out waiting for the status; new: full e2e passed; `npm test` 46/46 |
 | 1.10.2 | New unit test: snores, 1 s gap, rattle after it → rattle timed after the gap, not rescued by a snore 8 s earlier, audio dropped; snores 4 s apart across a gap not confirmed. E2E demo with a 3–4 s suspension: snores after the gap lie after it, none confirmed across it (3 runs) | old code: the new unit test fails (no `resumeAfterGap`); `npm test` 47/47; full e2e passed 3×; demo without gaps unchanged (16 snores) |
 | 1.10.3 | Workflow YAML parsed (jobs: ci `test`; pages `test` → `deploy`; release `test` → `tag`); `npm test`, `node --check`, full e2e | `npm test` 47/47; e2e passed; deploy/tag jobs verified on the merge to `main` |
+
+## Phase B
+
+| Version | Check | Result |
+| --- | --- | --- |
+| 1.10.4 | E2E now runs at 390 × 844 (iPhone-sized); samples the "Darken screen" box 12× over 4.8 s while the pill changes (measuring → listening → sound heard) | old layout: two positions (x 247 and 16); new: one position; full e2e passed; \`npm test\` 47/47 |
