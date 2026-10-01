@@ -22,6 +22,7 @@ function eventsOf(report) {
     peaks: x.bursts,
     subBass: x.subBassShare ?? null,
     fill: x.loudFill ?? null,
+    breathRise: x.breathRiseDb ?? null,
     wasSnore: isSnore,
     wasReason: isSnore ? null : x.reason,
     wasRhythm: !!x.rhythmRescued,
@@ -31,9 +32,11 @@ function eventsOf(report) {
     .sort((a, b) => a.start - b.start);
 }
 
-function reevaluate(events) {
+/** Runs the stored features through the current rules, or through `options` to try a candidate rule set. */
+function reevaluate(events, options = DEFAULTS) {
+  const opts = { ...DEFAULTS, ...options };
   const out = [];
-  const gate = new RhythmGate(DEFAULTS, (ev) => out.push(ev));
+  const gate = new RhythmGate(opts, (ev) => out.push(ev));
   for (const e of events) {
     gate.expire(e.start);
     if (e.lowRatio == null) {
@@ -42,8 +45,8 @@ function reevaluate(events) {
       continue;
     }
     // The live detector flags "too long" while the sound lasts, which can include its fade-out.
-    const v = classify({ ...e, tooLong: e.wasReason === 'too-long' || e.duration > DEFAULTS.maxDuration }, DEFAULTS);
-    const rhythmCandidate = v.reason === 'choppy' && isRhythmCandidate({ ...e, fill: e.fill ?? 1 }, DEFAULTS);
+    const v = classify({ ...e, tooLong: e.wasReason === 'too-long' || e.duration > opts.maxDuration }, opts);
+    const rhythmCandidate = v.reason === 'choppy' && isRhythmCandidate({ ...e, fill: e.fill ?? 1 }, opts);
     gate.decide({ ...e, isSnore: v.isSnore, reason: v.reason, rhythmCandidate });
   }
   gate.flush();
@@ -62,10 +65,12 @@ function report(file) {
   const missing = [];
   if (!events.some((e) => e.subBass != null)) missing.push('subBassShare (rumble filter skipped)');
   if (!events.some((e) => e.fill != null)) missing.push('loudFill (knock check of the rhythm rule skipped)');
+  if (!events.some((e) => e.breathRise != null)) missing.push('breathRiseDb (breath-noise rule cannot be checked)');
   if (!r.ignored.some((x) => x.lowFrequencyShare != null)) missing.push('features of ignored sounds (no rhythm rescue possible)');
 
   console.log(`\n${file}`);
-  console.log(`  ${r.startedAt} · ${hours.toFixed(1)} h · sensitivity ${r.sensitivity} · recorded with ${r.version || 'unknown version'}`);
+  const length = hours >= 1 ? `${hours.toFixed(1)} h` : `${Math.round(hours * 60)} min`;
+  console.log(`  ${r.startedAt} · ${length} · sensitivity ${r.sensitivity} · recorded with ${r.version || 'unknown version'}`);
   if (missing.length) console.log(`  missing: ${missing.join('; ')}`);
   const before = count(events, (e) => e.wasSnore);
   const now = count(after, (e) => e.isSnore);
@@ -113,9 +118,12 @@ function compareShadow(r, shadow, name, hours) {
   if (trig.length) console.log(`    trigger margin over the night: min ${q(0)}, median ${q(0.5)}, max ${q(1)} dB`);
 }
 
-const files = process.argv.slice(2);
-if (!files.length) {
-  console.error('usage: node scripts/evaluate.js report.json [more.json ...]');
-  process.exit(1);
+if (require.main === module) {
+  const files = process.argv.slice(2);
+  if (!files.length) {
+    console.error('usage: node scripts/evaluate.js report.json [more.json ...]');
+    process.exit(1);
+  }
+  files.forEach(report);
 }
-files.forEach(report);
+module.exports = { eventsOf, reevaluate };

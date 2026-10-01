@@ -1,6 +1,6 @@
 # Snorewatch handover
 
-State at version **1.9.5** (1.9.1 was the documentation and reproducibility checkpoint,
+State at version **1.9.6** (1.9.1 was the documentation and reproducibility checkpoint,
 2026-10-01; later versions fix findings of an external review, see §9).
 Statements marked **[verified]** were checked against this repository or by running
 it; **[assumption]** marks beliefs not proven; **[suspected]** marks probable problems.
@@ -150,7 +150,6 @@ schema version field.
 Verified issues:
 - **No persistence:** a tab reload, crash or iOS memory eviction during the night
   loses all data.
-- `npm run evaluate` prints hours with one decimal (a 90 s demo shows "0.0 h"; cosmetic).
 - 6 unused `catch (e)` variables in `js/app.js` (lint noise only).
 - `dist/` builds and the old Claude preview artifact (v1.0) are not maintained.
 
@@ -201,3 +200,4 @@ then a report to the owner and a "go" before any restructuring (Phase B).
 | 1.9.3 | R7: the sensitivity control was only locked for touch/mouse (CSS); a keyboard could change the main detector mid-night while the breath background test kept the old setting. R6: snores found while the screen was black were all queued and drawn as cards on waking, then trimmed to 6 | The select is `disabled` while recording and the mid-night change path is removed; the dark-screen queue keeps only the newest cards that will be shown |
 | 1.9.4 | R4: the local server (`npm start`) served files from sibling folders whose name starts with the project's (`startsWith` without separator), served `.git/`, crashed on a malformed URL and listened on all interfaces | Containment via `path.relative` plus a symlink check, hidden files refused, 400 on malformed URLs, binds 127.0.0.1 unless `HOST` is set (e.g. `HOST=0.0.0.0 npm start` to test from a phone). New `tests/serve.test.js` |
 | 1.9.5 | R5: after Stop the last ~6.5 s of microphone audio (any sound, e.g. speech) stayed in each detector's rolling buffer while the finished session was kept; "Only snores are kept" promised more than a classifier can (clips include a moment around the snore, and mistakes are kept too) | `SnoreDetector.release()` wipes the rolling buffer, frame buffer and last spectrum; Stop calls it for the main detector and both background tests; kept clips are untouched. Wording (owner decision): "Everything stays on this device; only short snore clips are kept", with the caveat on the start page, in the shared report and the README |
+| 1.9.6 | R8: an episode's "Every" divided the episode length (incl. the last snore's duration) by the gaps — starts 4 s apart showed 4.5 s; rhythm rescue delivers snores out of order (2, 6, 3, 8), so the median interval included negative gaps. R9: `evaluate.js` dropped `breathRiseDb`, so the breath-noise rule could not be checked offline | Interval = mean start-to-start gap; `confirmed` is in time order; JSON/WAV list snores in time order. `evaluate.js` maps `breathRiseDb`, warns when it is missing, accepts a candidate rule set (`reevaluate(events, options)`) and is testable; short nights show minutes. Counts unchanged |

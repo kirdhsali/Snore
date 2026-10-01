@@ -713,9 +713,12 @@
       this.clipCount = 0;
     }
 
-    /** Snores with a neighbour in breathing rhythm. */
+    /**
+     * Snores with a neighbour in breathing rhythm, in time order. Events can
+     * arrive out of order: a rhythm candidate is decided when a later snore comes.
+     */
     get confirmed() {
-      return this.snores.filter((s) => s.confirmed);
+      return this.snores.filter((s) => s.confirmed).sort((a, b) => a.start - b.start);
     }
 
     add(ev) {
@@ -765,11 +768,12 @@
       let cur = null;
       for (const s of this.confirmed) {
         if (cur && s.start - cur.end <= this.episodeGapSec) {
-          cur.end = s.end;
+          cur.end = Math.max(cur.end, s.end);
+          cur.lastStart = s.start;
           cur.count++;
           cur.relDbSum += s.relDb;
         } else {
-          cur = { start: s.start, end: s.end, count: 1, relDbSum: s.relDb };
+          cur = { start: s.start, lastStart: s.start, end: s.end, count: 1, relDbSum: s.relDb };
           eps.push(cur);
         }
       }
@@ -781,7 +785,8 @@
           duration: e.end - e.start,
           count: e.count,
           meanRelDb: e.relDbSum / e.count,
-          interval: (e.end - e.start) / Math.max(1, e.count - 1),
+          // Mean time from one snore's start to the next one's.
+          interval: (e.lastStart - e.start) / Math.max(1, e.count - 1),
         }));
     }
 
