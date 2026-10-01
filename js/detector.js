@@ -510,7 +510,6 @@
         this.bgMid += (this.hopSec / tau) * (f.midDb - this.bgMid);
         if ((index - ev.lastLoud) * this.hopSec >= o.hangoverSec) finished = this._finish();
       }
-      this.gate.expire(index * this.hopSec);
       if (this.auto && this.floor !== null && index % Math.round(o.autoUpdateSec / this.hopSec) === 0) {
         this._autoUpdate(index * this.hopSec);
       }
@@ -529,6 +528,9 @@
         });
       }
       if (finished) this.gate.decide(finished);
+      // A sound still in progress may yet be the snore that decides a waiting
+      // candidate, so candidates only expire up to the start of an open sound.
+      this.gate.expire(this.event ? this.event.startFrame * this.hopSec : index * this.hopSec);
     }
 
     _accumulate(f, index) {
@@ -635,8 +637,8 @@
   /**
    * Breathing-rhythm rescue. Receives classified events in time order and
    * passes them on: snores and clear rejections at once, rhythm candidates
-   * (choppy but snore-like) once a snore 2-12 s before or after decides them.
-   * Only snores accepted on their own count as anchors.
+   * (choppy but snore-like) once a snore starting 2-12 s before or after them
+   * decides them. Only snores accepted on their own count as anchors.
    * Used by the live detector and by scripts/evaluate.js.
    */
   class RhythmGate {
@@ -644,33 +646,38 @@
       this.opts = Object.assign({}, DEFAULTS, options);
       this.emit = emit;
       this.candidates = [];
-      this.lastSnoreStart = -Infinity;
+      this.anchors = []; // starts of recent snores accepted on their own
+    }
+
+    _inRhythm(a, b) {
+      const gap = Math.abs(a - b);
+      return gap >= this.opts.rhythmMinSec && gap <= this.opts.rhythmMaxSec;
     }
 
     decide(ev) {
-      const o = this.opts;
       if (ev.isSnore) {
-        // A snore confirms earlier candidates one breath before it; others are rejected.
-        for (const c of this.candidates.splice(0)) {
-          const gap = ev.start - c.start;
-          if (gap >= o.rhythmMinSec && gap <= o.rhythmMaxSec) this._accept(c);
-          else this._reject(c);
-        }
+        // A snore accepts the waiting candidates it is in rhythm with. One that
+        // is too close keeps waiting: a later snore may still be in rhythm with it.
+        this.candidates = this.candidates.filter((c) => {
+          if (!this._inRhythm(ev.start, c.start)) return true;
+          this._accept(c);
+          return false;
+        });
         this._pass(ev);
       } else if (ev.rhythmCandidate) {
-        const gap = ev.start - this.lastSnoreStart;
-        if (gap >= o.rhythmMinSec && gap <= o.rhythmMaxSec) this._accept(ev);
+        if (this.anchors.some((a) => this._inRhythm(ev.start, a))) this._accept(ev);
         else this.candidates.push(ev);
       } else {
         this._pass(ev);
       }
     }
 
-    /** Rejects candidates that no snore followed within the rhythm window. */
+    /** Rejects candidates that no snore can follow any more: `now` is past their window. */
     expire(now) {
       while (this.candidates.length && now - this.candidates[0].start > this.opts.rhythmMaxSec) {
         this._reject(this.candidates.shift());
       }
+      while (this.anchors.length && now - this.anchors[0] > this.opts.rhythmMaxSec) this.anchors.shift();
     }
 
     flush() {
@@ -692,7 +699,7 @@
 
     _pass(ev) {
       // Only snores that passed on their own anchor the rhythm, so rescues cannot chain through noise.
-      if (ev.isSnore && !ev.rhythm) this.lastSnoreStart = Math.max(this.lastSnoreStart, ev.start);
+      if (ev.isSnore && !ev.rhythm) this.anchors.push(ev.start);
       this.emit(ev);
     }
   }
@@ -702,6 +709,10 @@
    * `snores` holds every detected snore; the figures count only confirmed
    * ones (another snore 2-12 s before or after), isolated ones are "possible".
    */
+  // How much later than its start an event can reach the statistics: a rhythm
+  // candidate waits up to rhythmMaxSec for a snore, which then has to end.
+  const LATE_ARRIVAL_SEC = 30;
+
   class SessionStats {
     constructor(options = {}) {
       this.maxClips = options.maxClips || 1500;
@@ -724,10 +735,12 @@
     add(ev) {
       if (ev.isSnore) {
         ev.confirmed = false;
+        // Neighbours before or after: a rescued sound arrives only once a later
+        // snore decided it, i.e. after snores that started later than itself.
         for (let i = this.snores.length - 1; i >= 0; i--) {
-          const gap = ev.start - this.snores[i].start;
-          if (gap > this.rhythmMaxSec) break;
-          if (gap >= this.rhythmMinSec) {
+          const gap = Math.abs(ev.start - this.snores[i].start);
+          if (ev.start - this.snores[i].start > this.rhythmMaxSec + LATE_ARRIVAL_SEC) break;
+          if (gap >= this.rhythmMinSec && gap <= this.rhythmMaxSec) {
             ev.confirmed = true;
             this.snores[i].confirmed = true;
           }

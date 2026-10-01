@@ -1,0 +1,63 @@
+{
+  "app": "Snorewatch",
+  "version": "1.9.1 (review synthetic)",
+  "startedAt": "2026-10-01T00:00:00Z",
+  "sensitivity": "normal",
+  "summary": {
+    "elapsed": 20,
+    "snoreCount": 0,
+    "snoresPerHour": 0,
+    "snoreSeconds": 0,
+    "snorePercent": 0,
+    "meanRelDb": 0,
+    "maxRelDb": 0,
+    "medianInterval": null,
+    "intensity": {
+      "light": 0,
+      "moderate": 0,
+      "loud": 0
+    },
+    "possibleCount": 1,
+    "rhythmCount": 0,
+    "ignoredCount": 1,
+    "ignoredByReason": {
+      "choppy": 1
+    },
+    "episodes": [],
+    "longestEpisode": 0
+  },
+  "snores": [
+    {
+      "offsetSec": 13.120000000000001,
+      "durationSec": 1.7919999999999998,
+      "aboveRoomDb": 30.423729881667125,
+      "peakDbfs": -25.37769484857856,
+      "lowFrequencyShare": 0.9869930036561326,
+      "highFrequencyShare": 0.006426992325267921,
+      "centroidHz": 198.40668414032342,
+      "bursts": 1,
+      "subBassShare": 0.177437618460809,
+      "loudFill": 0.9285714285714286,
+      "breathRiseDb": 27.49220641171828,
+      "rhythmRescued": false,
+      "reason": null
+    }
+  ],
+  "ignored": [
+    {
+      "offsetSec": 2.112,
+      "durationSec": 1.472,
+      "aboveRoomDb": 31.21845701444423,
+      "peakDbfs": -24.46864550243779,
+      "lowFrequencyShare": 0.9968557084230213,
+      "highFrequencyShare": 0.002029755501769396,
+      "centroidHz": 114.95413614474873,
+      "bursts": 4,
+      "subBassShare": 0.30945581961575014,
+      "loudFill": 0.8260869565217391,
+      "breathRiseDb": 19.061400859097642,
+      "rhythmRescued": false,
+      "reason": "choppy"
+    }
+  ]
+}
