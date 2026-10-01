@@ -5,9 +5,11 @@ recording; while it runs you see a live loudness strip with snores highlighted,
 live statistics, and each extracted snore as a waveform. When you stop, you get
 a report.
 
-**Only snores are kept.** Audio is analyzed on the device and never uploaded.
+**Only snore clips are kept.** Audio is analyzed on the device and never uploaded.
 Sounds that are not snores (talking, knocking, traffic, coughs) are discarded
 within a few seconds; only snore clips stay in memory until you close the page.
+A clip includes a moment before and after the snore, so it can contain other
+sounds right around it, and a sound the rules mistook for a snore is kept too.
 
 No build step and no runtime dependencies: plain HTML, CSS and JavaScript.
 
@@ -167,8 +169,8 @@ Report, after Stop:
    before or after it. Isolated snore-like sounds (a footstep, a door, a single
    cough) are listed as “possible” and not counted.
 4. Only snores keep their audio (downsampled to 8 kHz, 16-bit). A rolling buffer
-   of a few seconds exists only to capture the start of a snore and is
-   continuously overwritten.
+   of a few seconds exists only to capture the start of a snore; it is
+   continuously overwritten and wiped when the recording stops.
 
 ### Checked against public data
 
