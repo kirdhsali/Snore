@@ -160,6 +160,7 @@ async function main() {
 
     console.log('Failed restart: the previous night stays downloadable…');
     await page.evaluate(() => {
+      window.__realGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
       navigator.mediaDevices.getUserMedia = () => Promise.reject(new DOMException('denied', 'NotAllowedError'));
     });
     await page.click('#rec');
@@ -172,6 +173,36 @@ async function main() {
     assert.equal(kept.snores.length, report.snores.length);
     const [wavAgain] = await Promise.all([page.waitForEvent('download'), page.click('#dl-wav')]);
     assert.equal(fs.readFileSync(await wavAgain.path()).toString('ascii', 0, 4), 'RIFF');
+    await page.evaluate(() => (navigator.mediaDevices.getUserMedia = window.__realGetUserMedia));
+
+    console.log('Screen lock refused, then the microphone switched off by the system: both shown, the gap is in the report…');
+    await page.evaluate(() => {
+      window.__wakeLockRequest = navigator.wakeLock && navigator.wakeLock.request;
+      if (navigator.wakeLock) navigator.wakeLock.request = () => Promise.reject(new DOMException('refused', 'NotAllowedError'));
+    });
+    await page.click('#rec');
+    await page.waitForFunction(() => window.__snorewatch.running, null, { timeout: 10000 });
+    await page.waitForFunction(() => /did not let the app keep the screen on/.test(document.querySelector('#status').textContent), null, { timeout: 5000 });
+    await sleep(2000);
+    await page.evaluate(() => {
+      const track = window.__snorewatch.audio.stream.getAudioTracks()[0];
+      track.stop(); // stop() alone fires no event; the system's switch-off does
+      track.dispatchEvent(new Event('ended'));
+    });
+    await page.waitForFunction(() => /switched the microphone off/.test(document.querySelector('#status').textContent), null, { timeout: 5000 });
+    await sleep(1500);
+    await page.click('#rec');
+    await page.waitForSelector('#report:not([hidden])');
+    assert.match(await page.textContent('#report-range'), /interrupted 1×/);
+    const [offDl] = await Promise.all([page.waitForEvent('download'), page.click('#dl-json')]);
+    const off = JSON.parse(fs.readFileSync(await offDl.path(), 'utf8'));
+    assert.equal(off.interruptions.length, 1);
+    assert.equal(off.interruptions[0].reason, 'ended');
+    assert.match(off.screenWakeLock, /failed|unsupported/);
+    await page.evaluate(() => navigator.wakeLock && (navigator.wakeLock.request = window.__wakeLockRequest));
+    assert.ok(off.interruptions[0].seconds >= 1.2, `gap ${off.interruptions[0].seconds} s`);
+    assert.ok(Math.abs(off.wallSeconds - off.capturedSeconds - off.interruptions[0].seconds) < 0.6, JSON.stringify(off));
+    assert.ok(Math.abs(Date.parse(off.endedAt) - Date.parse(off.startedAt) - off.wallSeconds * 1000) < 60, 'end time is the real clock');
 
     console.log('Demo mode (#demo in the address): playing 12 s of the simulated night…');
     assert.ok(await page.isHidden('#demo-badge'), 'no demo label while recording from the microphone');
@@ -180,12 +211,38 @@ async function main() {
     assert.equal(await page.$('input[type="file"]'), null, 'no file upload any more');
     await page.click('#rec');
     await page.waitForFunction(() => window.__snorewatch.running, null, { timeout: 10000 });
-    await sleep(12000);
+    await sleep(4000);
+    console.log('  audio suspended by the system for 3 s…');
+    // Like an iPhone call: the audio is suspended and cannot be resumed until it ends.
+    await page.evaluate(async () => {
+      const ctx = window.__snorewatch.audio.ctx;
+      window.__resume = ctx.resume.bind(ctx);
+      ctx.resume = () => Promise.resolve();
+      await ctx.suspend();
+    });
+    await page.waitForFunction(() => /interrupted/.test(document.querySelector('#status').textContent), null, { timeout: 5000 });
+    assert.ok(await page.evaluate(() => window.__snorewatch.running), 'still recording');
+    await sleep(3000);
+    await page.evaluate(() => {
+      const ctx = window.__snorewatch.audio.ctx;
+      ctx.resume = window.__resume;
+    });
+    // The app keeps trying to resume on its own.
+    await page.waitForFunction(() => !window.__snorewatch.audio.gap && window.__snorewatch.audio.gaps === 1, null, { timeout: 5000 });
+    assert.doesNotMatch(await page.textContent('#status'), /interrupted/);
+    await sleep(5000);
     await page.click('#rec');
     await page.waitForSelector('#report:not([hidden])');
     const demo = await page.evaluate(() => window.__snorewatch.summary());
     console.log(`  demo: ${demo.snoreCount} snores after ${demo.elapsed.toFixed(1)} s`);
     assert.ok(demo.snoreCount >= 1, 'demo produced snores');
+    assert.match(await page.textContent('#report-range'), /interrupted 1×/);
+    const [demoDl] = await Promise.all([page.waitForEvent('download'), page.click('#dl-json')]);
+    const demoJson = JSON.parse(fs.readFileSync(await demoDl.path(), 'utf8'));
+    const gap = demoJson.interruptions[0];
+    console.log(`  gap ${gap.seconds} s (${gap.reason}); ${demoJson.capturedSeconds} s analysed of ${demoJson.wallSeconds} s`);
+    assert.ok(gap.seconds >= 2.5 && gap.seconds <= 6, `gap ${gap.seconds} s`);
+    assert.ok(Math.abs(demoJson.wallSeconds - demoJson.capturedSeconds - gap.seconds) < 0.6, 'missing time is the gap, not silence');
 
     assert.deepEqual(errors, [], 'no page errors');
     console.log('E2E passed');
