@@ -1,6 +1,6 @@
 # Snorewatch handover
 
-State at version **1.9.3** (1.9.1 was the documentation and reproducibility checkpoint,
+State at version **1.9.4** (1.9.1 was the documentation and reproducibility checkpoint,
 2026-10-01; later versions fix findings of an external review, see §9).
 Statements marked **[verified]** were checked against this repository or by running
 it; **[assumption]** marks beliefs not proven; **[suspected]** marks probable problems.
@@ -146,10 +146,6 @@ schema version field.
 ## 7. Known issues, shortcuts, assumptions, untested areas
 
 Verified issues:
-- **Dev server path traversal:** `scripts/serve.js` serves files from sibling
-  directories whose path starts with the project path, e.g. `/..%2FSnore-x/file`
-  (the `startsWith(root)` check lacks a separator), and listens on all interfaces.
-  Only affects `npm start`, not the deployed site.
 - **No persistence:** a tab reload, crash or iOS memory eviction during the night
   loses all data.
 - `npm run evaluate` prints hours with one decimal (a 90 s demo shows "0.0 h"; cosmetic).
@@ -201,3 +197,4 @@ then a report to the owner and a "go" before any restructuring (Phase B).
 | --- | --- | --- |
 | 1.9.2 | R2: a failed Start (e.g. microphone blocked) after a finished night discarded the session, so the still visible report's JSON/WAV/copy buttons threw | The new session is only adopted once its audio runs; on failure the previous night stays; downloads check for a finished night. E2E covers it |
 | 1.9.3 | R7: the sensitivity control was only locked for touch/mouse (CSS); a keyboard could change the main detector mid-night while the breath background test kept the old setting. R6: snores found while the screen was black were all queued and drawn as cards on waking, then trimmed to 6 | The select is `disabled` while recording and the mid-night change path is removed; the dark-screen queue keeps only the newest cards that will be shown |
+| 1.9.4 | R4: the local server (`npm start`) served files from sibling folders whose name starts with the project's (`startsWith` without separator), served `.git/`, crashed on a malformed URL and listened on all interfaces | Containment via `path.relative` plus a symlink check, hidden files refused, 400 on malformed URLs, binds 127.0.0.1 unless `HOST` is set (e.g. `HOST=0.0.0.0 npm start` to test from a phone). New `tests/serve.test.js` |
