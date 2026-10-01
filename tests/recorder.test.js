@@ -162,3 +162,37 @@ test('interruptions: suspended audio, silence from the system and a switched-off
   assert.ok(Math.abs(night.clockSeconds - night.capturedSeconds - lost) < 1e-9);
   assert.ok(states.includes('interrupted'));
 });
+
+test("resume is tried for 'suspended' and iOS 'interrupted' audio, not for 'closed' or a switched-off microphone", async () => {
+  async function attempts(ctxState, { endTrack = false, failResume = false } = {}) {
+    const b = fakeBrowser();
+    let calls = 0;
+    b.env.AudioContext.prototype.resume = function () {
+      calls++;
+      return failResume ? Promise.reject(new Error('needs a gesture')) : Promise.resolve();
+    };
+    const rec = createRecorder({ env: b.env });
+    await rec.start();
+    calls = 0; // only attempts during the gap count
+    if (endTrack) {
+      b.track.readyState = 'ended';
+      b.track.dispatch('ended');
+    }
+    rec.session.ctx.state = ctxState;
+    rec.session.ctx.onstatechange();
+    assert.equal(rec.state, 'interrupted');
+    for (let i = 0; i < 3; i++) {
+      b.advance(1000);
+      b.tick();
+    }
+    b.env.document.dispatch('visibilitychange');
+    await Promise.resolve();
+    rec.stop();
+    return calls;
+  }
+  assert.ok((await attempts('suspended')) >= 4);
+  assert.ok((await attempts('interrupted')) >= 4, 'the iOS state is resumed too');
+  assert.ok((await attempts('interrupted', { failResume: true })) >= 4, 'a refused resume is retried, not thrown');
+  assert.equal(await attempts('closed'), 0);
+  assert.equal(await attempts('interrupted', { endTrack: true }), 0);
+});

@@ -147,7 +147,7 @@
       env.document.addEventListener('visibilitychange', () => {
         if (!live() || env.document.visibilityState !== 'visible') return;
         if (!wakeLock) requestWakeLock();
-        if (session.gap && session.ctx.state === 'suspended') session.ctx.resume().catch(() => {});
+        if (session.gap) tryResume(session);
       });
     }
 
@@ -157,6 +157,16 @@
     // the recorder keeps trying to resume.
     function audioLive(s) {
       return s.ctx.state === 'running' && (!s.stream || s.stream.getAudioTracks().every((t) => t.readyState === 'live' && !t.muted));
+    }
+
+    // 'suspended' and iOS Safari's 'interrupted' both need an explicit resume();
+    // 'closed' and a switched-off microphone track cannot come back.
+    function tryResume(s) {
+      const st = s.ctx.state;
+      if (st === 'running' || st === 'closed' || (s.gap && s.gap.reason === 'ended')) return;
+      try {
+        Promise.resolve(s.ctx.resume()).catch(() => {});
+      } catch {}
     }
 
     function watchAudio(s) {
@@ -172,7 +182,7 @@
       s.watch = env.setInterval(() => {
         if (!live() || session !== s) return;
         if (!s.gap && env.now() - s.lastSampleWall > STALL_MS) beginGap(s, 'stalled', s.lastSampleWall);
-        if (s.gap && s.ctx.state === 'suspended') s.ctx.resume().catch(() => {});
+        if (s.gap) tryResume(s);
       }, 1000);
     }
 
@@ -183,7 +193,7 @@
       } else {
         s.gap = { start: Math.min(at, env.now()), reason, clock: s.detector.clock };
       }
-      if (s.ctx.state === 'suspended') s.ctx.resume().catch(() => {});
+      tryResume(s);
       if (state === 'interrupted')
         notify(opts.onState, state, api); // the reason may have changed
       else setState('interrupted');
