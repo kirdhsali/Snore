@@ -79,6 +79,18 @@
     return ticks;
   }
 
+  /**
+   * What was actually recorded. `elapsed` is the night on its clock (start to end);
+   * `captured` the analysed time and `gaps` the interruptions ({start, end} in
+   * seconds on that clock). Older callers pass neither: the night was continuous.
+   */
+  function coverage(d) {
+    const gaps = d.gaps || [];
+    const captured = d.captured == null ? d.elapsed : d.captured;
+    const span = gaps.length ? `${fmtSpan(captured)} of ${fmtSpan(d.elapsed)} recorded · interrupted ${gaps.length}×` : fmtSpan(d.elapsed);
+    return { gaps, captured, span };
+  }
+
   /** The busiest half hour (or tenth of a short session): {start, end, count}. */
   function busiest(snores, elapsed) {
     if (!snores.length) return null;
@@ -142,7 +154,7 @@
 
   /**
    * Paints the share image.
-   * d: { startWall, elapsed, snores: [{start, duration, relDb, score}], summary,
+   * d: { startWall, elapsed, captured, gaps (see coverage), snores: [{start, duration, relDb, score}], summary,
    *      version, sensitivity }
    */
   function drawShareCard(canvas, d) {
@@ -150,6 +162,7 @@
     canvas.height = CARD_H;
     const ctx = canvas.getContext('2d');
     const sum = d.summary;
+    const cov = coverage(d);
     const pad = 72;
 
     const bg = ctx.createLinearGradient(0, 0, 0, CARD_H);
@@ -194,10 +207,10 @@
     ctx.fillText(fmtDate(d.startWall), CARD_W - pad, 94);
 
     ctx.textAlign = 'left';
-    ctx.fillText(`${fmtTime(d.startWall)} – ${fmtTime(d.startWall + d.elapsed * 1000)} · ${fmtSpan(d.elapsed)}`, pad, 160);
+    ctx.fillText(`${fmtTime(d.startWall)} – ${fmtTime(d.startWall + d.elapsed * 1000)} · ${cov.span}`, pad, 160);
 
-    // Hero number
-    const shortSession = d.elapsed < 600;
+    // Hero number: the short-recording wording depends on the time actually recorded
+    const shortSession = cov.captured < 600;
     const hero = shortSession ? String(sum.snoreCount) : round(sum.snoresPerHour);
     ctx.fillStyle = INK.fg;
     ctx.font = `700 190px ${DISPLAY}`;
@@ -207,7 +220,7 @@
     ctx.font = `500 40px ${DISPLAY}`;
     ctx.fillText(shortSession ? (sum.snoreCount === 1 ? 'snore' : 'snores') : 'snores', pad + heroW + 24, 318);
     ctx.fillStyle = INK.fg2;
-    ctx.fillText(shortSession ? `in ${fmtSpan(d.elapsed)}` : 'per hour', pad + heroW + 24, 368);
+    ctx.fillText(shortSession ? `in ${fmtSpan(cov.captured)}` : 'per hour', pad + heroW + 24, 368);
 
     const peak = busiest(d.snores, d.elapsed);
     ctx.font = `400 28px ${BODY}`;
@@ -253,6 +266,27 @@
       ctx.fillStyle = INK.muted;
       ctx.fillText(tk.label, x, plot.y + plot.h + 16);
       lastRight = x + w / 2;
+    }
+
+    // Interruptions: hatched, so a missing stretch never reads as a quiet one
+    for (const g of cov.gaps) {
+      const x0 = xOf(g.start);
+      const x1 = Math.max(x0 + 2, xOf(g.end));
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x0, plot.y, x1 - x0, plot.h);
+      ctx.clip();
+      ctx.fillStyle = 'rgba(255,255,255,0.05)';
+      ctx.fillRect(x0, plot.y, x1 - x0, plot.h);
+      ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+      ctx.lineWidth = 2;
+      for (let x = x0 - plot.h; x < x1; x += 14) {
+        ctx.beginPath();
+        ctx.moveTo(x, plot.y + plot.h);
+        ctx.lineTo(x + plot.h, plot.y);
+        ctx.stroke();
+      }
+      ctx.restore();
     }
 
     // Snoring episodes: faint nebula bands with a solid foot on the baseline
@@ -313,11 +347,18 @@
     ctx.fillRect(lx, ly - 2, 28, 4);
     ctx.fillStyle = INK.fg2;
     ctx.fillText('snoring episode', lx + 40, ly);
+    if (cov.gaps.length) {
+      const gx = lx + 40 + ctx.measureText('snoring episode').width + 40;
+      ctx.fillStyle = 'rgba(255,255,255,0.14)';
+      ctx.fillRect(gx, ly - 10, 28, 20);
+      ctx.fillStyle = INK.fg2;
+      ctx.fillText('not recorded', gx + 40, ly);
+    }
 
     // Key figures
     const tiles = [
       ['Snores', round(sum.snoreCount), sum.possibleCount ? `+${round(sum.possibleCount)} possible` : 'in breathing rhythm'],
-      ['Snoring time', fmtSpan(sum.snoreSeconds), `${round(sum.snorePercent, 1)}% of the night`],
+      ['Snoring time', fmtSpan(sum.snoreSeconds), `${round(sum.snorePercent, 1)}% of the recording`],
       ['Loudest', sum.snoreCount ? `+${round(sum.maxRelDb)} dB` : '–', 'above room noise'],
       ['Episodes', round(sum.episodes.length), sum.longestEpisode ? `longest ${fmtSpan(sum.longestEpisode)}` : ''],
     ];
@@ -413,6 +454,12 @@
     const slot = (W - pl) / n;
     const bw = Math.max(1, Math.min(24, slot - 2));
     let out = `<svg class="timeline" viewBox="0 0 ${W} ${H}" role="img" aria-label="Snores per ${esc(fmtSpan(size))}">`;
+    const xAt = (t) => pl + ((W - pl) * Math.min(Math.max(t, 0), d.elapsed)) / Math.max(1, d.elapsed);
+    for (const g of d.gaps || []) {
+      const x0 = xAt(g.start);
+      const w = Math.max(1, xAt(g.end) - x0);
+      out += `<rect class="gap" x="${x0.toFixed(1)}" y="${pt}" width="${w.toFixed(1)}" height="${ph}"><title>not recorded</title></rect>`;
+    }
     for (let i = 0; i <= 4; i++) {
       const v = (max / 4) * i;
       const y = (pt + ph * (1 - v / max)).toFixed(1);
@@ -462,7 +509,7 @@ section{background:var(--surface);border:1px solid var(--line);border-radius:14p
 .tile span,.tile small{color:var(--fg2);font-size:13px}
 .timeline{width:100%;height:auto;display:block}
 .timeline .grid{stroke:var(--line)}.timeline .base{stroke:var(--muted)}
-.timeline .bar{fill:var(--snore)}
+.timeline .bar{fill:var(--snore)}.timeline .gap{fill:var(--line);opacity:.7}
 .timeline text{fill:var(--muted);font-size:11px}
 .timeline .ytick{text-anchor:end;dominant-baseline:middle}.timeline .xtick{text-anchor:middle}
 .sub{color:var(--muted);font-size:13px;margin:-6px 0 10px}
@@ -483,11 +530,12 @@ tr:last-child td{border-bottom:0}
 
   /**
    * Builds the report file.
-   * d: { startWall, elapsed, snores, summary, version, sensitivity, sourceLabel,
+   * d: { startWall, elapsed, captured, gaps, snores, summary, version, sensitivity, sourceLabel,
    *      reasons (key -> label), heroImage (data URI or null), samples: {loud, random} }
    */
   function buildReportHtml(d) {
     const sum = d.summary;
+    const cov = coverage(d);
     const end = d.startWall + d.elapsed * 1000;
     const long = d.elapsed >= 3600;
     const at = (t) => fmtTime(d.startWall + t * 1000, !long);
@@ -498,11 +546,19 @@ tr:last-child td{border-bottom:0}
         s,
       )}"></audio></div>`;
     const verdict = sum.snoreCount
-      ? `${sum.snoreCount} snores in ${fmtSpan(d.elapsed)}${d.elapsed >= 600 ? `, about ${round(sum.snoresPerHour)} per hour` : ''}. Snoring filled ${round(
+      ? `${sum.snoreCount} snores in ${fmtSpan(cov.captured)}${cov.gaps.length ? ' recorded' : ''}${
+          cov.captured >= 600 ? `, about ${round(sum.snoresPerHour)} per hour` : ''
+        }. Snoring filled ${round(
           sum.snorePercent,
           1,
         )}% of the recording${sum.longestEpisode ? ` and the longest episode lasted ${fmtSpan(sum.longestEpisode)}` : ''}.`
       : 'No snoring was detected.';
+    const lost = cov.gaps.reduce((t, g) => t + g.end - g.start, 0);
+    const interrupted = cov.gaps.length
+      ? `The recording was interrupted ${cov.gaps.length}× (${fmtSpan(lost)} not recorded: ${cov.gaps
+          .map((g) => `${at(g.start)}–${at(g.end)}`)
+          .join(', ')}). Snores in those times are missing; per-hour figures use the recorded time only.`
+      : '';
     const possible = sum.possibleCount
       ? `${sum.possibleCount} isolated snore-like sounds without a neighbour in breathing rhythm were not counted.`
       : '';
@@ -531,15 +587,16 @@ tr:last-child td{border-bottom:0}
 <header>
 <p class="eyebrow">Snorewatch report · ${esc(d.sourceLabel)}</p>
 <h1>${esc(fmtDate(d.startWall))}</h1>
-<p class="meta">${esc(fmtTime(d.startWall))} – ${esc(fmtTime(end))} · ${esc(fmtSpan(d.elapsed))} · sensitivity ${esc(d.sensitivity)} · version ${esc(d.version)}</p>
+<p class="meta">${esc(fmtTime(d.startWall))} – ${esc(fmtTime(end))} · ${esc(cov.span)} · sensitivity ${esc(d.sensitivity)} · version ${esc(d.version)}</p>
 </header>
 ${nClips ? '<p class="tip">This file contains ' + nClips + ' snore recordings you can play. If they do not play, open the file in a web browser (on iPhone: “Open in Safari”).</p>' : ''}
 <p class="verdict">${esc(verdict)}</p>
+${interrupted ? `<p class="tip interrupted">${esc(interrupted)}</p>` : ''}
 ${possible ? `<p class="note">${esc(possible)}</p>` : ''}
 ${d.heroImage ? `<img class="hero" src="${d.heroImage}" alt="The night as a star map: each snore is a dot, placed by time and loudness">` : ''}
 <div class="tiles">
 ${tile('Snores', round(sum.snoreCount), sum.possibleCount ? `+${round(sum.possibleCount)} possible, not counted` : sum.medianInterval ? `typically every ${round(sum.medianInterval, 1)} s` : '')}
-${tile('Snores per hour', d.elapsed >= 600 ? round(sum.snoresPerHour) : '–', d.elapsed < 600 ? 'recording too short' : '')}
+${tile('Snores per hour', cov.captured >= 600 ? round(sum.snoresPerHour) : '–', cov.captured < 600 ? 'recording too short' : '')}
 ${tile('Snoring time', fmtSpan(sum.snoreSeconds), `${round(sum.snorePercent, 1)}% of the recording`)}
 ${tile('Loudest snore', sum.snoreCount ? `+${round(sum.maxRelDb)} dB` : '–', sum.snoreCount ? `average +${round(sum.meanRelDb)} dB above room noise` : '')}
 ${tile('Snoring episodes', round(sum.episodes.length), sum.longestEpisode ? `longest ${fmtSpan(sum.longestEpisode)}` : '')}
@@ -586,5 +643,5 @@ ${ignored ? `<table><tbody>${ignored}</tbody></table>` : '<p class="note">No oth
 `;
   }
 
-  return { CARD_W, CARD_H, drawShareCard, buildReportHtml, pickSamples, timeTicks, busiest, waveSvg, fmtSpan };
+  return { CARD_W, CARD_H, drawShareCard, buildReportHtml, pickSamples, timeTicks, busiest, coverage, waveSvg, fmtSpan };
 });

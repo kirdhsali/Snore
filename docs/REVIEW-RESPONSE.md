@@ -51,7 +51,7 @@ Before any fix it printed: C1 `suspended 6` / `interrupted 0` resume calls; C5
 | --- | --- | --- |
 | C1 | High: an audio context in the iOS state `interrupted` was never resumed | **Fixed** in 1.12.1 (#29); simulated, device untested |
 | C2 | Medium: the dark night screen kept saying "Recording" after the microphone ended | **Fixed** in 1.12.2 (#30) |
-| C3 | Medium: share image and HTML report showed an interrupted night as continuous | Open, planned as 1.12.3 |
+| C3 | Medium: share image and HTML report showed an interrupted night as continuous | **Fixed** in 1.12.3 (#31); rates unchanged (recorded time) |
 | C4 | Medium: night store hands out shared nested data; a clip survives its event turning rejected; night record only shallowly frozen | **Deliberately deferred** to the 2.x storage work (module not loaded by the page) |
 | C5 | Low: a slow wake-lock request could hold the screen on after Stop | Open, planned as 1.12.4 |
 | C6 | Low: auto-sensitivity history after a gap uses sample time, events use the gap-aware clock (also the live pill) | **Deliberately deferred** to 2.x (no effect on counts) |
