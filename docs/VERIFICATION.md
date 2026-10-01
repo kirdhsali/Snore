@@ -1,5 +1,33 @@
 # Verification record
 
+## Checkpoint 1.12.4 (answer to the second review, 2026-10-01)
+
+**Tested code revision:** `077174be1a8bce2fe8c207e13a097ad5cb7824c2` (`main` after PR #32, version 1.12.4; tested on the identical PR tree).
+The docs PR that adds this section changes no application or test code. The
+1.12.0 section below stays as the record of the reviewed checkpoint `a87c1f3`.
+Environment as for 1.12.0 (Node v22.22.0, npm 10.9.4, Chromium 141.0.7390.37 via
+`CHROMIUM_PATH`, Playwright download blocked here).
+
+| Command | Result |
+| --- | --- |
+| `npm ci --no-audit --no-fund` | passed, 82 packages |
+| `npm test` | **passed**, 63/63 (three new: C1 resume, C5 wake lock, C3 share) |
+| `npm run lint` | **passed** |
+| `node --check` over `js/ scripts/ tests/` | **passed**, 24 files |
+| `npm run build` / `npm audit` | **passed** (164 KB each) / 0 vulnerabilities |
+| `CHROMIUM_PATH=… npm run test:e2e` | **passed**, now also: night screen "Recording · …" → "Microphone off · tap, then Stop" when the mic is switched off in the dark; the shared report of that night says "recorded · interrupted 1×" |
+| Full demo night (review's `full-demo.cjs`, unchanged) | **unchanged**: 16 confirmed, 0 possible, 5 ignored; background tests 16/16; no page errors |
+| `node docs/review-probes/controller-store-probes.cjs "$PWD"` (second review's Appendix B) | C1 `suspended 6` / `interrupted 6` (was 0); C5 `completed off 1` (was `on 0`); C4 `false 1 999` and C6 `3660 30.016` unchanged (deferred). Its C3 line calls the HTML builder without the new fields and so still prints the old verdict; with the fields the app now passes: "6 snores in 30 s recorded." |
+| `node docs/review-probes/server-probes-adapted.cjs "$PWD"` | unchanged (403/404/400, server keeps running) |
+| `CHROMIUM_PATH=… node docs/review-probes/browser-probes-adapted.cjs "$PWD"` | unchanged: suspended / wake lock refused / ended track shown, failed restart keeps the night |
+
+Detection, thresholds and defaults are untouched in 1.12.1–1.12.4, so
+`npm run eval:public` was not re-run; the unchanged demo night confirms it.
+
+**Not run / not available:** as for 1.12.0. In particular the iOS `interrupted`
+state, the night screen during a real call and the wake-lock race are verified with
+simulated browser objects only, **not on an iPhone**.
+
 ## Checkpoint 1.12.0 (review and handover, 2026-10-01)
 
 **Tested code revision:** `827d6ca7bfd80a1e4f7461f584ba4cf19ad84232` (`main` after
@@ -66,7 +94,7 @@ path with status 403 but the body "Bad request" (cosmetic).
 
 1. **Start screen.** Open the app (`npm start` → `http://localhost:8080`, or the Pages URL).
    Expect: Start button, Sensitivity *Normal*, "Before you sleep" checklist, footer
-   `Snorewatch 1.12.0 (dev)` locally or `(<commit>)` on Pages.
+   `Snorewatch 1.12.4 (dev)` locally or `(<commit>)` on Pages.
 2. **Demo night.** Open `/#demo`. Expect a *Demo* label. Tap Start and wait 90 s (or
    tap Stop). Expect orange bars in the live strip and clip cards; at the end the
    verdict reads "16 snores …" and "5 other sounds were ignored"; the background
@@ -156,7 +184,7 @@ the old code first and failed there.
 | 1.10.2 | New unit test: snores, 1 s gap, rattle after it → rattle timed after the gap, not rescued by a snore 8 s earlier, audio dropped; snores 4 s apart across a gap not confirmed. E2E demo with a 3–4 s suspension: snores after the gap lie after it, none confirmed across it (3 runs) | old code: the new unit test fails (no `resumeAfterGap`); `npm test` 47/47; full e2e passed 3×; demo without gaps unchanged (16 snores) |
 | 1.10.3 | Workflow YAML parsed (jobs: ci `test`; pages `test` → `deploy`; release `test` → `tag`); `npm test`, `node --check`, full e2e | `npm test` 47/47; e2e passed; deploy/tag jobs verified on the merge to `main` |
 
-### Per-step records, Phase B (1.10.4–1.12.0)
+### Per-step records, Phase B and second review (1.10.4–1.12.4)
 
 | Version | Check | Result |
 | --- | --- | --- |
