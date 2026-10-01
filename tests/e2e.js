@@ -204,7 +204,7 @@ async function main() {
     assert.ok(Math.abs(off.wallSeconds - off.capturedSeconds - off.interruptions[0].seconds) < 0.6, JSON.stringify(off));
     assert.ok(Math.abs(Date.parse(off.endedAt) - Date.parse(off.startedAt) - off.wallSeconds * 1000) < 60, 'end time is the real clock');
 
-    console.log('Demo mode (#demo in the address): playing 12 s of the simulated night…');
+    console.log('Demo mode (#demo in the address): playing about 20 s of the simulated night…');
     assert.ok(await page.isHidden('#demo-badge'), 'no demo label while recording from the microphone');
     await page.evaluate(() => (location.hash = 'demo'));
     await page.waitForSelector('#demo-badge:not([hidden])');
@@ -230,19 +230,30 @@ async function main() {
     // The app keeps trying to resume on its own.
     await page.waitForFunction(() => !window.__snorewatch.audio.gap && window.__snorewatch.audio.gaps === 1, null, { timeout: 5000 });
     assert.doesNotMatch(await page.textContent('#status'), /interrupted/);
-    await sleep(5000);
+    await sleep(9000); // at least two snores after the gap, which cannot be confirmed by those before it
     await page.click('#rec');
     await page.waitForSelector('#report:not([hidden])');
     const demo = await page.evaluate(() => window.__snorewatch.summary());
-    console.log(`  demo: ${demo.snoreCount} snores after ${demo.elapsed.toFixed(1)} s`);
+    console.log(`  demo: ${demo.snoreCount} snores (${demo.possibleCount} possible) after ${demo.elapsed.toFixed(1)} s`);
     assert.ok(demo.snoreCount >= 1, 'demo produced snores');
     assert.match(await page.textContent('#report-range'), /interrupted 1×/);
     const [demoDl] = await Promise.all([page.waitForEvent('download'), page.click('#dl-json')]);
     const demoJson = JSON.parse(fs.readFileSync(await demoDl.path(), 'utf8'));
     const gap = demoJson.interruptions[0];
     console.log(`  gap ${gap.seconds} s (${gap.reason}); ${demoJson.capturedSeconds} s analysed of ${demoJson.wallSeconds} s`);
+    console.log(`  snores at ${demoJson.snores.map((x) => `${x.offsetSec} s${x.confirmed ? '' : ' (possible)'}`).join(', ')}; gap from ${gap.offsetSec} s`);
     assert.ok(gap.seconds >= 2.5 && gap.seconds <= 6, `gap ${gap.seconds} s`);
     assert.ok(Math.abs(demoJson.wallSeconds - demoJson.capturedSeconds - gap.seconds) < 0.6, 'missing time is the gap, not silence');
+    // Snores after the gap are timed on the night's clock, so the last ones lie beyond the analysed seconds.
+    const lastSnore = Math.max(...demoJson.snores.map((x) => x.offsetSec));
+    const gapAt = gap.offsetSec;
+    if (lastSnore > gapAt) assert.ok(lastSnore >= gapAt + gap.seconds - 0.5, `snore at ${lastSnore} s after the gap at ${gapAt} s`);
+    // No snore is confirmed by one on the other side of the gap.
+    const sameSide = (a, b) => (a.offsetSec < gapAt) === (b.offsetSec < gapAt);
+    for (const x of demoJson.snores) {
+      const partner = demoJson.snores.some((y) => y !== x && sameSide(x, y) && Math.abs(x.offsetSec - y.offsetSec) >= 2 && Math.abs(x.offsetSec - y.offsetSec) <= 12);
+      assert.equal(x.confirmed, partner, `snore at ${x.offsetSec} s: ${JSON.stringify(demoJson.snores.map((y) => [y.offsetSec, y.durationSec, y.confirmed]))} gap ${gapAt}+${gap.seconds}`);
+    }
 
     assert.deepEqual(errors, [], 'no page errors');
     console.log('E2E passed');

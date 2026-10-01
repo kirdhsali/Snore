@@ -307,6 +307,7 @@
       this.pending = new Float32Array(this.frameSize);
       this.pendingLen = 0;
       this.frameIndex = 0;
+      this.timeOffset = 0; // seconds of interruptions so far (see resumeAfterGap)
 
       // Rolling buffer of downsampled audio, only long enough to cut out the
       // snore that is currently happening. Older audio is overwritten.
@@ -389,6 +390,24 @@
 
     get elapsed() {
       return (this.frameIndex * this.frameSize + this.pendingLen) / this.sampleRate;
+    }
+
+    /** Time since the start of the recording including interruptions: the time base of all events. */
+    get clock() {
+      return this.elapsed + this.timeOffset;
+    }
+
+    /**
+     * Continues after an interruption of `gapSec` with no audio. The sound that
+     * was going on is closed, sounds waiting for a snore in rhythm are rejected
+     * and earlier snores no longer anchor the rhythm: nothing is decided across
+     * a gap. Later events are timed after the gap. Returns the events decided.
+     */
+    resumeAfterGap(gapSec) {
+      if (this.event) this.gate.decide(this._finish());
+      this.gate.breakRhythm();
+      this.timeOffset += Math.max(0, gapSec);
+      return this._takeEmitted();
     }
 
     get calibrating() {
@@ -530,7 +549,7 @@
       if (finished) this.gate.decide(finished);
       // A sound still in progress may yet be the snore that decides a waiting
       // candidate, so candidates only expire up to the start of an open sound.
-      this.gate.expire(this.event ? this.event.startFrame * this.hopSec : index * this.hopSec);
+      this.gate.expire((this.event ? this.event.startFrame * this.hopSec : index * this.hopSec) + this.timeOffset);
     }
 
     _accumulate(f, index) {
@@ -556,11 +575,13 @@
       this.event = null;
       this.lastEventEndFrame = ev.lastLoud;
       const hop = this.hopSec;
-      const start = ev.startFrame * hop;
-      const end = (ev.lastLoud + 1) * hop;
-      const duration = end - start;
+      const audioStart = ev.startFrame * hop;
+      const audioEnd = (ev.lastLoud + 1) * hop;
+      const duration = audioEnd - audioStart;
+      const start = audioStart + this.timeOffset;
+      const end = audioEnd + this.timeOffset;
       const w = ev.w || 1;
-      const audio = ev.tooLong ? null : this._ringSegment(start - o.preRollSec, end + o.postRollSec);
+      const audio = ev.tooLong ? null : this._ringSegment(audioStart - o.preRollSec, audioEnd + o.postRollSec);
       const features = {
         lowRatio: ev.low / w,
         highRatio: ev.high / w,
@@ -684,6 +705,12 @@
       for (const c of this.candidates.splice(0)) this._reject(c);
     }
 
+    /** After an interruption: nothing waits and nothing anchors across it. */
+    breakRhythm() {
+      this.flush();
+      this.anchors = [];
+    }
+
     _accept(ev) {
       ev.isSnore = true;
       ev.reason = null;
@@ -721,7 +748,19 @@
       this.rhythmMaxSec = options.rhythmMaxSec || DEFAULTS.rhythmMaxSec;
       this.snores = [];
       this.ignored = [];
+      this.gaps = []; // interruptions {start, end} in event time; no confirmation across them
       this.clipCount = 0;
+    }
+
+    /** Records an interruption; snores on either side of it do not confirm each other. */
+    addGap(start, end) {
+      this.gaps.push({ start, end });
+    }
+
+    _acrossGap(a, b) {
+      const lo = Math.min(a, b);
+      const hi = Math.max(a, b);
+      return this.gaps.some((g) => g.start >= lo && g.start < hi);
     }
 
     /**
@@ -740,7 +779,7 @@
         for (let i = this.snores.length - 1; i >= 0; i--) {
           const gap = Math.abs(ev.start - this.snores[i].start);
           if (ev.start - this.snores[i].start > this.rhythmMaxSec + LATE_ARRIVAL_SEC) break;
-          if (gap >= this.rhythmMinSec && gap <= this.rhythmMaxSec) {
+          if (gap >= this.rhythmMinSec && gap <= this.rhythmMaxSec && !this._acrossGap(ev.start, this.snores[i].start)) {
             ev.confirmed = true;
             this.snores[i].confirmed = true;
           }

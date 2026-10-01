@@ -493,3 +493,34 @@ test('confirmation looks both ways when a rescued sound arrives after later snor
   [snore(6), snore(3, true), snore(20)].forEach((e) => stats.add(e));
   assert.deepEqual(stats.confirmed.map((x) => x.start), [3, 6]);
 });
+
+test('an interruption: later events keep wall time and nothing is decided or confirmed across it', () => {
+  const sr = 16000;
+  const before = Synth.compose(sr, 12, [{ type: 'snore', at: 2 }, { type: 'snore', at: 6 }], 3);
+  const after = Synth.compose(sr, 6, [{ type: 'rattle', at: 1 }], 3);
+  const events = [];
+  const stats = new SessionStats();
+  const det = new SnoreDetector(sr, { onEvent: (e) => (events.push(e), stats.add(e)) });
+  for (let i = 0; i < before.samples.length; i += 1024) det.process(before.samples.subarray(i, i + 1024));
+  // 1 s without audio (e.g. a call), then the room again.
+  const gapStart = det.clock;
+  stats.addGap(gapStart, gapStart + 1);
+  det.resumeAfterGap(1);
+  assert.ok(Math.abs(det.clock - det.elapsed - 1) < 1e-9);
+  for (let i = 0; i < after.samples.length; i += 1024) det.process(after.samples.subarray(i, i + 1024));
+  det.flush();
+  const rattle = events.find((e) => e.start > gapStart);
+  assert.ok(rattle, 'rattle heard after the gap');
+  assert.ok(Math.abs(rattle.start - (12 + 1 + 1)) < 0.3, `timed after the gap: ${rattle.start}`);
+  // 8 s after the snore at 6 s, which would rescue it without the gap.
+  assert.equal(rattle.isSnore, false, 'not rescued by a snore from before the gap');
+  assert.equal(rattle.clip, null);
+  assert.deepEqual(stats.confirmed.map((e) => Math.round(e.start)), [2, 6]);
+
+  // Two snores 4 s apart with a gap between them do not confirm each other.
+  const s2 = new SessionStats();
+  s2.addGap(10, 11);
+  const snore = (start) => ({ isSnore: true, start, end: start + 0.8, duration: 0.8, relDb: 20, clip: null });
+  [2, 6, 8, 12].forEach((t) => s2.add(snore(t)));
+  assert.deepEqual(s2.confirmed.map((e) => e.start), [2, 6, 8]);
+});

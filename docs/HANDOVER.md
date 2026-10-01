@@ -1,6 +1,6 @@
 # Snorewatch handover
 
-State at version **1.10.1** (1.9.1 was the documentation and reproducibility checkpoint,
+State at version **1.10.2** (1.9.1 was the documentation and reproducibility checkpoint,
 2026-10-01; later versions fix findings of an external review, see §9).
 Statements marked **[verified]** were checked against this repository or by running
 it; **[assumption]** marks beliefs not proven; **[suspected]** marks probable problems.
@@ -163,8 +163,8 @@ Shortcuts and assumptions:
   (no snoring clips lost); not yet run live on a real night.
 - **[suspected]** Running three detectors may cost noticeable CPU/battery on a
   phone over a full night (v1.9 adds the third; not measured on a device).
-- Event times come from the audio sample count, not the wall clock; since 1.10.1 the
-  night's start/end and interruptions use the real clock (event times across gaps: 1.10.2).
+- Event times come from the audio sample count plus the length of interruptions
+  (1.10.2), not directly from the wall clock; start, end and interruptions use the real clock.
 - No Content-Security-Policy; Google Fonts request reveals the visitor's IP to Google.
 - No linter, formatter or type checker configured.
 
@@ -204,3 +204,4 @@ then a report to the owner and a "go" before any restructuring (Phase B).
 | 1.9.6 | R8: an episode's "Every" divided the episode length (incl. the last snore's duration) by the gaps — starts 4 s apart showed 4.5 s; rhythm rescue delivers snores out of order (2, 6, 3, 8), so the median interval included negative gaps. R9: `evaluate.js` dropped `breathRiseDb`, so the breath-noise rule could not be checked offline | Interval = mean start-to-start gap; `confirmed` is in time order; JSON/WAV list snores in time order. `evaluate.js` maps `breathRiseDb`, warns when it is missing, accepts a candidate rule set (`reevaluate(events, options)`) and is testable; short nights show minutes. Counts unchanged |
 | 1.10.0 | R3 (counting change, owner-approved rule): the rhythm rescue missed sounds the documented 2–12 s rule covers — a waiting rattle expired while a long snore that started 11 s later was still in progress; a snore too close (< 2 s) rejected a candidate that a later snore would have rescued; a candidate was checked only against the latest snore. Live and offline evaluation disagreed. The statistics also missed confirmations between a late-decided sound and snores that arrived before it | `RhythmGate` keeps all recent anchors, leaves too-close candidates waiting, and the live detector expires candidates only up to the start of a sound still in progress; `SessionStats` confirms in both directions. Limits (2 s, 12 s) unchanged; rescued sounds still never anchor |
 | 1.10.1 | R1 part 1: a suspended audio context, a muted or ended microphone, or audio simply stopping left the app saying "Recording"; the end time was computed from analysed audio, so gaps vanished; a refused screen wake lock was silent | Interruptions are detected (context `statechange`, track `mute`/`ended`, no audio for 2 s), shown in the status, and the app keeps trying to resume. Audio arriving during a gap is not analysed. `endedAt` is the real clock; the JSON adds `wallSeconds`, `capturedSeconds`, `interruptions[]` and `screenWakeLock`; the report line says "interrupted N×". A refused or unsupported wake lock is shown. Event times inside the night are still analysed-audio time (fixed in 1.10.2) |
+| 1.10.2 | R1 part 2: after an interruption, event times were analysed-audio time (early by the gap), a sound in progress and rhythm candidates spanned the gap, and snores on both sides could confirm each other | `SnoreDetector.resumeAfterGap(sec)` closes the open sound, rejects waiting candidates, drops the rhythm anchors and times later events after the gap (`clock` = analysed audio + interruptions); `SessionStats.addGap` prevents confirmation across a gap (owner decision). Timelines, share image and HTML report use the night's clock; per-hour figures still use analysed time. JSON interruptions carry `offsetSec` on the snores' clock |
