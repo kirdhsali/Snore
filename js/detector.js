@@ -186,12 +186,13 @@
       const im = this.im;
       let sumSq = 0;
       let crossings = 0;
-      let prev = frame[0];
+      let wasUp = frame[0] >= 0;
       for (let i = 0; i < n; i++) {
         const x = frame[i];
         sumSq += x * x;
-        if ((x >= 0) !== (prev >= 0)) crossings++;
-        prev = x;
+        const up = x >= 0;
+        if (up !== wasUp) crossings++;
+        wasUp = up;
         re[i] = x * this.window[i];
         im[i] = 0;
       }
@@ -614,7 +615,8 @@
         clipRate: this.clipRate,
       };
       // Candidates keep their audio only while they wait; it is dropped if no snore confirms them.
-      if ((result.isSnore || result.rhythmCandidate) && o.keepClips) result.clip = Int16Array.from(audio, (x) => Math.max(-32768, Math.min(32767, Math.round(x * 32767))));
+      if ((result.isSnore || result.rhythmCandidate) && o.keepClips)
+        result.clip = Int16Array.from(audio, (x) => Math.max(-32768, Math.min(32767, Math.round(x * 32767))));
       return result;
     }
 

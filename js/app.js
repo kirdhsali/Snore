@@ -202,7 +202,7 @@
         // The system can drop the lock (e.g. low battery); ask again while the page is visible.
         if (running && document.visibilityState === 'visible') requestWakeLock();
       });
-    } catch (err) {
+    } catch {
       wakeLock = null;
       wakeLockState = 'failed';
     }
@@ -227,7 +227,7 @@
     stopClip();
     try {
       if (navigator.audioSession) navigator.audioSession.type = 'auto';
-    } catch (e) {}
+    } catch {}
     const source = currentSource();
     starting = true;
     el.rec.disabled = true;
@@ -295,7 +295,11 @@
       // They keep no audio and change nothing on screen; their counts go into the data file.
       const shadow = (options) => {
         const stats = new SessionStats();
-        return { options, stats, detector: new SnoreDetector(ctx.sampleRate, { ...options, keepClips: false, onEvent: (e) => stats.add(e) }) };
+        return {
+          options,
+          stats,
+          detector: new SnoreDetector(ctx.sampleRate, { ...options, keepClips: false, onEvent: (e) => stats.add(e) }),
+        };
       };
       s.shadows = {
         breath: shadow({ sensitivity: el.sensitivity.value, minBreathRiseDb: BREATH_RULE_DB }),
@@ -357,12 +361,12 @@
     try {
       s.tap.disconnect();
       if (s.tap.port) s.tap.port.onmessage = null;
-    } catch (e) {}
+    } catch {}
     if (s.player) {
       s.player.onended = null;
       try {
         s.player.stop();
-      } catch (e) {}
+      } catch {}
     }
     if (s.stream) s.stream.getTracks().forEach((t) => t.stop());
     s.ctx.close().catch(() => {});
@@ -441,7 +445,10 @@
     } else if (s.gap) {
       setStatus('Recording interrupted: the system paused the microphone. Trying to resume…', true);
     } else if (s.source === 'mic' && (wakeLockState === 'failed' || wakeLockState === 'unsupported')) {
-      setStatus('Recording, but this browser did not let the app keep the screen on. If the screen locks, recording stops: set Auto-Lock to Never for tonight.', true);
+      setStatus(
+        'Recording, but this browser did not let the app keep the screen on. If the screen locks, recording stops: set Auto-Lock to Never for tonight.',
+        true,
+      );
     } else {
       setStatus(RECORDING_TEXT[s.source]);
     }
@@ -622,8 +629,17 @@
     const sum = s.stats.summary(s.detector.elapsed);
     el.liveTiles.innerHTML = [
       tile('Recording time', fmtClock(sum.elapsed), s.source === 'mic' ? `since ${fmtTime(at(0))}` : SOURCE_NAMES[s.source]),
-      tile('Snores', fmtNum(sum.snoreCount), possibleNote(sum) || (sum.medianInterval ? `about every ${sum.medianInterval.toFixed(1)} s` : 'in breathing rhythm'), true),
-      tile('Snores per hour', sum.elapsed >= 30 ? fmtNum(sum.snoresPerHour) : '–', sum.elapsed < 600 ? 'estimate, still settling' : 'average so far'),
+      tile(
+        'Snores',
+        fmtNum(sum.snoreCount),
+        possibleNote(sum) || (sum.medianInterval ? `about every ${sum.medianInterval.toFixed(1)} s` : 'in breathing rhythm'),
+        true,
+      ),
+      tile(
+        'Snores per hour',
+        sum.elapsed >= 30 ? fmtNum(sum.snoresPerHour) : '–',
+        sum.elapsed < 600 ? 'estimate, still settling' : 'average so far',
+      ),
       tile('Snoring time', fmtSpan(sum.snoreSeconds), `${fmtNum(sum.snorePercent, 1)}% of the recording`),
       tile('Loudest snore', sum.snoreCount ? `+${fmtNum(sum.maxRelDb)}<small>dB</small>` : '–', 'above room noise'),
       tile('Ignored sounds', fmtNum(sum.ignoredCount), 'heard, not kept'),
@@ -715,7 +731,7 @@
     if (wasThis) return; // second tap stops
     try {
       if (!running && navigator.audioSession) navigator.audioSession.type = 'playback';
-    } catch (e) {}
+    } catch {}
     const wav = encodeWav([normalizeClip(ev.clip)], ev.clipRate, 0);
     const url = URL.createObjectURL(new Blob([wav], { type: 'audio/wav' }));
     const audio = new Audio(url);
@@ -770,10 +786,19 @@
     }: ${fmtNum(sum.snoreCount)}). Details are in the data file.`;
 
     el.reportTiles.innerHTML = [
-      tile('Snores', fmtNum(sum.snoreCount), possibleNote(sum) || (sum.medianInterval ? `typically every ${sum.medianInterval.toFixed(1)} s` : ''), true),
+      tile(
+        'Snores',
+        fmtNum(sum.snoreCount),
+        possibleNote(sum) || (sum.medianInterval ? `typically every ${sum.medianInterval.toFixed(1)} s` : ''),
+        true,
+      ),
       tile('Snores per hour', s.elapsed >= 30 ? fmtNum(sum.snoresPerHour) : '–', s.elapsed < 600 ? 'short recording, rough estimate' : ''),
       tile('Snoring time', fmtSpan(sum.snoreSeconds), `${fmtNum(sum.snorePercent, 1)}% of the recording`),
-      tile('Loudest snore', sum.snoreCount ? `+${fmtNum(sum.maxRelDb)}<small>dB</small>` : '–', sum.snoreCount ? `average +${fmtNum(sum.meanRelDb)} dB above room noise` : ''),
+      tile(
+        'Loudest snore',
+        sum.snoreCount ? `+${fmtNum(sum.maxRelDb)}<small>dB</small>` : '–',
+        sum.snoreCount ? `average +${fmtNum(sum.meanRelDb)} dB above room noise` : '',
+      ),
       tile('Snoring episodes', fmtNum(sum.episodes.length), sum.longestEpisode ? `longest ${fmtSpan(sum.longestEpisode)}` : ''),
       tile('Ignored sounds', fmtNum(sum.ignoredCount), 'not recorded'),
     ].join('');
@@ -803,7 +828,10 @@
       : '<tbody><tr><td class="empty">No snoring episodes.</td></tr></tbody>';
 
     el.reportClips.innerHTML = '';
-    const loudest = s.stats.confirmed.filter((x) => x.clip).sort((a, b) => b.relDb - a.relDb).slice(0, 8);
+    const loudest = s.stats.confirmed
+      .filter((x) => x.clip)
+      .sort((a, b) => b.relDb - a.relDb)
+      .slice(0, 8);
     if (loudest.length) loudest.forEach((ev) => el.reportClips.append(clipCard(ev, false)));
     else el.reportClips.innerHTML = '<p class="empty">No snores were recorded.</p>';
 
@@ -1098,7 +1126,7 @@
       let ok = false;
       try {
         ok = document.execCommand('copy');
-      } catch (e) {}
+      } catch {}
       ta.remove();
       if (ok) done();
       else setStatus('Copying is blocked here. Select the text of the report instead.', true);
@@ -1135,7 +1163,12 @@
       return session && { ctx: session.ctx, stream: session.stream, gap: session.gap, gaps: session.gaps.length };
     },
     get sensitivities() {
-      return session && { main: session.detector.sensitivity, ...Object.fromEntries(Object.entries(session.shadows).map(([k, sh]) => [k, sh.detector.sensitivity])) };
+      return (
+        session && {
+          main: session.detector.sensitivity,
+          ...Object.fromEntries(Object.entries(session.shadows).map(([k, sh]) => [k, sh.detector.sensitivity])),
+        }
+      );
     },
   };
 

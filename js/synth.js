@@ -337,5 +337,21 @@
     return compose(sr, 90, plan, seed);
   }
 
-  return { rng, compose, demoScenario, snoreRun, snore, rattle, rumble, speech, knock, cough, car, roomNoise, gustyNoise, deepRoomNoise, swell };
+  return {
+    rng,
+    compose,
+    demoScenario,
+    snoreRun,
+    snore,
+    rattle,
+    rumble,
+    speech,
+    knock,
+    cough,
+    car,
+    roomNoise,
+    gustyNoise,
+    deepRoomNoise,
+    swell,
+  };
 });

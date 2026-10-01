@@ -23,9 +23,31 @@ const DIR = process.env.ESC50_DIR || path.join(os.homedir(), '.cache', 'snorewat
 const PEAK_DB = -50;
 // Sounds that can plausibly happen in a bedroom at night.
 const NIGHT = [
-  'breathing', 'coughing', 'sneezing', 'laughing', 'crying_baby', 'footsteps', 'door_wood_creaks', 'door_wood_knock',
-  'clock_tick', 'clock_alarm', 'mouse_click', 'keyboard_typing', 'water_drops', 'drinking_sipping', 'toilet_flush',
-  'washing_machine', 'vacuum_cleaner', 'wind', 'rain', 'thunderstorm', 'dog', 'cat', 'crickets', 'engine', 'car_horn',
+  'breathing',
+  'coughing',
+  'sneezing',
+  'laughing',
+  'crying_baby',
+  'footsteps',
+  'door_wood_creaks',
+  'door_wood_knock',
+  'clock_tick',
+  'clock_alarm',
+  'mouse_click',
+  'keyboard_typing',
+  'water_drops',
+  'drinking_sipping',
+  'toilet_flush',
+  'washing_machine',
+  'vacuum_cleaner',
+  'wind',
+  'rain',
+  'thunderstorm',
+  'dog',
+  'cat',
+  'crickets',
+  'engine',
+  'car_horn',
 ];
 
 function ensureDataset() {
@@ -78,7 +100,11 @@ function inRoom({ sampleRate: sr, x }, seed) {
 
 function main() {
   ensureDataset();
-  const rows = fs.readFileSync(path.join(DIR, 'meta', 'esc50.csv'), 'utf8').trim().split('\n').slice(1);
+  const rows = fs
+    .readFileSync(path.join(DIR, 'meta', 'esc50.csv'), 'utf8')
+    .trim()
+    .split('\n')
+    .slice(1);
   // Current rules and the candidate breath-noise rule (tested in the background in the app).
   const variants = { 'current rules': {}, 'with breath-noise rule': { minBreathRiseDb: 3 } };
   const results = {};
@@ -102,7 +128,6 @@ function main() {
 }
 
 function printResults(title, byClass) {
-
   const sum = (classes, key) => classes.reduce((a, k) => a + byClass[k][key], 0);
   const pct = (a, b) => `${((100 * a) / b).toFixed(1)}%`;
   const snoring = byClass.snoring;
@@ -113,14 +138,21 @@ function printResults(title, byClass) {
 
   console.log(`\nESC-50, ${title}\n`);
   console.log('                                 any snore-like sound   confirmed snore*');
-  console.log(`  snoring clips recognised       ${`${snoring.detected}/${snoring.n}`.padEnd(8)} ${pct(snoring.detected, snoring.n).padStart(6)}        ${`${snoring.confirmed}/${snoring.n}`.padEnd(7)} ${pct(snoring.confirmed, snoring.n).padStart(6)}`);
-  console.log(`  night sounds counted as snore  ${`${sum(night, 'detected')}/${nNight}`.padEnd(8)} ${pct(sum(night, 'detected'), nNight).padStart(6)}        ${`${sum(night, 'confirmed')}/${nNight}`.padEnd(7)} ${pct(sum(night, 'confirmed'), nNight).padStart(6)}`);
-  console.log(`  all other sounds               ${`${sum(other, 'detected')}/${nOther}`.padEnd(8)} ${pct(sum(other, 'detected'), nOther).padStart(6)}        ${`${sum(other, 'confirmed')}/${nOther}`.padEnd(7)} ${pct(sum(other, 'confirmed'), nOther).padStart(6)}`);
+  console.log(
+    `  snoring clips recognised       ${`${snoring.detected}/${snoring.n}`.padEnd(8)} ${pct(snoring.detected, snoring.n).padStart(6)}        ${`${snoring.confirmed}/${snoring.n}`.padEnd(7)} ${pct(snoring.confirmed, snoring.n).padStart(6)}`,
+  );
+  console.log(
+    `  night sounds counted as snore  ${`${sum(night, 'detected')}/${nNight}`.padEnd(8)} ${pct(sum(night, 'detected'), nNight).padStart(6)}        ${`${sum(night, 'confirmed')}/${nNight}`.padEnd(7)} ${pct(sum(night, 'confirmed'), nNight).padStart(6)}`,
+  );
+  console.log(
+    `  all other sounds               ${`${sum(other, 'detected')}/${nOther}`.padEnd(8)} ${pct(sum(other, 'detected'), nOther).padStart(6)}        ${`${sum(other, 'confirmed')}/${nOther}`.padEnd(7)} ${pct(sum(other, 'confirmed'), nOther).padStart(6)}`,
+  );
   console.log('  * a second snore 2-12 s away within the same 5 s clip; strict, since most clips hold one or two snores');
   console.log(`\n  missed snoring clips by reason: ${JSON.stringify(snoring.missed)}`);
   console.log('\n  night sounds counted as snore (clips of 40):');
   for (const k of night.sort((a, b) => byClass[b].detected - byClass[a].detected)) {
-    if (byClass[k].detected) console.log(`    ${k.padEnd(18)} ${String(byClass[k].detected).padStart(2)}  (confirmed ${byClass[k].confirmed})`);
+    if (byClass[k].detected)
+      console.log(`    ${k.padEnd(18)} ${String(byClass[k].detected).padStart(2)}  (confirmed ${byClass[k].confirmed})`);
   }
 }
 
