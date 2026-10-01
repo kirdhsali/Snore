@@ -49,7 +49,7 @@ Before any fix it printed: C1 `suspended 6` / `interrupted 0` resume calls; C5
 
 | ID | Finding | Status |
 | --- | --- | --- |
-| C1 | High: an audio context in the iOS state `interrupted` was never resumed | Open, planned as 1.12.1 |
+| C1 | High: an audio context in the iOS state `interrupted` was never resumed | **Fixed** in 1.12.1 (#29); simulated, device untested |
 | C2 | Medium: the dark night screen kept saying "Recording" after the microphone ended | Open, planned as 1.12.2 |
 | C3 | Medium: share image and HTML report showed an interrupted night as continuous | Open, planned as 1.12.3 |
 | C4 | Medium: night store hands out shared nested data; a clip survives its event turning rejected; night record only shallowly frozen | **Deliberately deferred** to the 2.x storage work (module not loaded by the page) |
