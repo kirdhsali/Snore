@@ -1,6 +1,6 @@
 # Snorewatch handover
 
-State at version **1.11.3** (1.9.1 was the documentation and reproducibility checkpoint,
+State at version **1.12.0** (1.9.1 was the documentation and reproducibility checkpoint,
 2026-10-01; later versions fix findings of an external review, see §9).
 Statements marked **[verified]** were checked against this repository or by running
 it; **[assumption]** marks beliefs not proven; **[suspected]** marks probable problems.
@@ -90,6 +90,7 @@ js/app.js       the page: subscribes to the recorder (onState/onFrame/onEvent/on
 | `js/detector.js` | FFT, `FrameAnalyzer`, `SnoreDetector`, `RhythmGate`, `classify`, defaults. UMD facade: browser global `SnoreCore`, Node `require`; re-exports the two modules below |
 | `js/stats.js` | `SessionStats` (confirmation, episodes, intervals, buckets) and the 2–12 s rhythm window (`SnoreStats`); loads before `detector.js` |
 | `js/wav.js` | `encodeWav`, `normalizeClip` (`SnoreWav`); loads before `detector.js` |
+| `js/night-store.js` | Storage interface for saved nights (`SnoreStore`): create / appendEvents / appendClip / finalize / list / load / delete, in-memory implementation; only accepted snores may keep audio. Not wired into the page yet (an IndexedDB store and history screen are the next owner decision) |
 | `js/synth.js` | Seeded synthetic sounds (snore, rattle, rumble, swell, speech, knock, cough, car; still/gusty/deep rooms). Used by demo and tests |
 | `js/charts.js` | Canvas drawing (live strip, timeline, clip waveform) |
 | `js/share.js` | Star-map image, script-free HTML report builder (also runs in Node) |
@@ -196,9 +197,10 @@ Untested:
 
 ## 8. Next intended task
 
-Phase A of the review fixes is complete (§9). Phase B (restructuring for saved
-nights, history and a native app; no behaviour change) waits for the owner's
-"go". Independently: collect 2–3 real nights with 1.10 or later (JSON, optionally the zipped WAV), run
+Phases A and B of the review work are complete (§9, §10). Next steps that each need
+an owner decision: an IndexedDB night store with incremental saving and recovery
+(implements `js/night-store.js`), a history screen with a retention policy, and a
+native iPhone recording prototype (replaces the browser side of `js/recorder.js`). Independently: collect 2–3 real nights with 1.10 or later (JSON, optionally the zipped WAV), run
 `npm run evaluate` on each, compare Normal vs `breath` vs `auto`, and decide whether
 "Auto + breath-noise rule" becomes the default (v2.0). Check against `npm run
 eval:public` before switching. Keep the owner informed and ask before changing
@@ -240,3 +242,4 @@ B5 split detector.js, B6 storage interface).
 | 1.11.1 | B3 | A finished night is one frozen record (`finishNight`, since 1.11.2 in `js/recorder.js`): id, wall times, time zone, sample rate, gaps, configuration snapshot, summary, events (with detector ids, also on ignored sounds), background tests. The report, share image/HTML, downloads and "copy summary" read only this record; the recorder (`session`) exists only while recording, so a new or failed start cannot change a finished night. ESLint caught a name clash in the share code during this move |
 | 1.11.2 | B4 | Recording controller `js/recorder.js`: microphone or demo, audio tap, detectors and background tests, interruptions, wake lock and the finished night record, with explicit states (idle → requesting → recording ⇄ interrupted → stopping → completed). `js/app.js` is the page only (subscribes via onState/onFrame/onEvent/onWakeLock, ~880 instead of ~1100 lines). Browser APIs are injected, so `tests/recorder.test.js` runs the state machine in Node with fakes |
 | 1.11.3 | B5 | `js/detector.js` split by responsibility: session statistics → `js/stats.js` (with the 2–12 s rhythm window as the single source), WAV helpers → `js/wav.js`. `SnoreCore` stays the one entry point and re-exports both, so scripts, tests, the page and the standalone build are unchanged. Pure moves |
+| 1.12.0 | B6 | Storage interface `js/night-store.js` (create / appendEvents / appendClip / finalize / list / load / delete, all async) with an in-memory implementation. Events are stored without audio; only accepted snores may keep a clip; an unfinished night stays listed (`complete: false`) for recovery. Not wired into the page yet |
