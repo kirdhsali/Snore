@@ -40,6 +40,7 @@ Optional environment variables (examples; none are required):
 
 ```bash
 PORT=8080                              # port for npm start
+HOST=0.0.0.0                           # let other devices reach npm start (default: this computer only)
 CHROMIUM_PATH=/path/to/chromium        # use an existing Chromium for npm run test:e2e
 ESC50_DIR=/path/to/ESC-50              # existing ESC-50 checkout for npm run eval:public
 ```
