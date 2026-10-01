@@ -122,25 +122,39 @@
     }
 
     // ----- screen wake lock -----
+    // A request belongs to the night that asked for it: a lock that arrives after Stop,
+    // or for an earlier night, is let go at once, and only the current lock's release counts.
     async function requestWakeLock() {
+      const owner = session;
+      const current = () => live() && session === owner;
       const nav = env.navigator;
       if (!nav || !('wakeLock' in nav)) {
         wakeLockState = 'unsupported';
       } else {
+        let lock;
         try {
-          wakeLock = await nav.wakeLock.request('screen');
+          lock = await nav.wakeLock.request('screen');
+        } catch {
+          if (!current()) return;
+          if (!wakeLock) wakeLockState = 'failed';
+        }
+        if (lock) {
+          if (!current()) {
+            Promise.resolve(lock.release()).catch(() => {});
+            return;
+          }
+          if (wakeLock && wakeLock !== lock) Promise.resolve(wakeLock.release()).catch(() => {});
+          wakeLock = lock;
           wakeLockState = 'on';
-          wakeLock.addEventListener('release', () => {
+          lock.addEventListener('release', () => {
+            if (wakeLock !== lock) return;
             wakeLock = null;
             // The system can drop the lock (e.g. low battery); ask again while the page is visible.
-            if (live() && env.document && env.document.visibilityState === 'visible') requestWakeLock();
+            if (current() && env.document && env.document.visibilityState === 'visible') requestWakeLock();
           });
-        } catch {
-          wakeLock = null;
-          wakeLockState = 'failed';
         }
       }
-      if (session) session.wakeLock = wakeLockState;
+      if (owner) owner.wakeLock = wakeLockState;
       notify(opts.onWakeLock, wakeLockState);
     }
     if (env.document) {
@@ -344,7 +358,7 @@
       }
       if (s.stream) s.stream.getTracks().forEach((t) => t.stop());
       s.ctx.close().catch(() => {});
-      if (wakeLock) wakeLock.release().catch(() => {});
+      if (wakeLock) Promise.resolve(wakeLock.release()).catch(() => {});
       wakeLock = null;
       wakeLockState = 'off';
       session = null;
