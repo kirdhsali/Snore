@@ -295,7 +295,7 @@
       showLive();
       setStatus(
         source === 'mic'
-          ? 'Recording. Only snores are kept. The screen darkens after 20 s; tap it to look. Tap Stop in the morning.'
+          ? 'Recording. Everything stays on this device; only short snore clips are kept. The screen darkens after 20 s; tap it to look. Tap Stop in the morning.'
           : 'Playing the demo night. The report appears when it ends, or tap Stop.',
       );
       loop();
@@ -323,6 +323,9 @@
     const s = session;
     s.detector.flush(); // decides open sounds; they arrive through handleEvent
     for (const sh of Object.values(s.shadows)) sh.detector.flush();
+    // No audio other than the kept snore clips may remain once the night is over.
+    s.detector.release();
+    for (const sh of Object.values(s.shadows)) sh.detector.release();
     s.elapsed = s.detector.elapsed;
     s.endWall = s.startWall + s.elapsed * 1000;
     try {

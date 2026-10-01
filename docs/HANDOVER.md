@@ -1,6 +1,6 @@
 # Snorewatch handover
 
-State at version **1.9.4** (1.9.1 was the documentation and reproducibility checkpoint,
+State at version **1.9.5** (1.9.1 was the documentation and reproducibility checkpoint,
 2026-10-01; later versions fix findings of an external review, see §9).
 Statements marked **[verified]** were checked against this repository or by running
 it; **[assumption]** marks beliefs not proven; **[suspected]** marks probable problems.
@@ -31,8 +31,10 @@ Main user journeys:
 - One-button UI; live visual and live statistics; report on stop. **[verified]**
 - **No other sounds than snores may be kept.** Non-snore audio exists only in a
   rolling buffer of about 6.5 s and as a short-lived candidate (≤ 12 s) for the
-  rhythm rule; ignored sounds keep features only, never audio. **[verified in code
-  and tests]**
+  rhythm rule; ignored sounds keep features only, never audio; the buffers are
+  wiped on Stop (1.9.5). Kept clips include 0.25 s before and 0.15 s after the
+  snore and can be misclassified sounds, so the UI promises "only short snore
+  clips", not "only snores". **[verified in code and tests]**
 - Everything runs on the device; no backend, no uploads, no accounts. **[verified]**
 - Static site, no build step, no runtime dependencies; deployed by GitHub Pages.
 - iOS stops the microphone for web pages when the screen locks or the tab goes to
@@ -198,3 +200,4 @@ then a report to the owner and a "go" before any restructuring (Phase B).
 | 1.9.2 | R2: a failed Start (e.g. microphone blocked) after a finished night discarded the session, so the still visible report's JSON/WAV/copy buttons threw | The new session is only adopted once its audio runs; on failure the previous night stays; downloads check for a finished night. E2E covers it |
 | 1.9.3 | R7: the sensitivity control was only locked for touch/mouse (CSS); a keyboard could change the main detector mid-night while the breath background test kept the old setting. R6: snores found while the screen was black were all queued and drawn as cards on waking, then trimmed to 6 | The select is `disabled` while recording and the mid-night change path is removed; the dark-screen queue keeps only the newest cards that will be shown |
 | 1.9.4 | R4: the local server (`npm start`) served files from sibling folders whose name starts with the project's (`startsWith` without separator), served `.git/`, crashed on a malformed URL and listened on all interfaces | Containment via `path.relative` plus a symlink check, hidden files refused, 400 on malformed URLs, binds 127.0.0.1 unless `HOST` is set (e.g. `HOST=0.0.0.0 npm start` to test from a phone). New `tests/serve.test.js` |
+| 1.9.5 | R5: after Stop the last ~6.5 s of microphone audio (any sound, e.g. speech) stayed in each detector's rolling buffer while the finished session was kept; "Only snores are kept" promised more than a classifier can (clips include a moment around the snore, and mistakes are kept too) | `SnoreDetector.release()` wipes the rolling buffer, frame buffer and last spectrum; Stop calls it for the main detector and both background tests; kept clips are untouched. Wording (owner decision): "Everything stays on this device; only short snore clips are kept", with the caveat on the start page, in the shared report and the README |

@@ -427,6 +427,22 @@
       return this._takeEmitted();
     }
 
+    /**
+     * Wipes the audio this detector still holds (rolling buffer, current frame,
+     * last spectrum) after the recording has ended. Clips already cut out of
+     * accepted snores are separate arrays and stay.
+     */
+    release() {
+      this.ring.fill(0);
+      this.ringWritten = 0;
+      this.pending.fill(0);
+      this.pendingLen = 0;
+      this.decimAcc = 0;
+      this.decimCount = 0;
+      this.analyzer.re.fill(0);
+      this.analyzer.im.fill(0);
+    }
+
     _takeEmitted() {
       const out = this.emitted;
       this.emitted = [];

@@ -1,8 +1,8 @@
 {
   "name": "snorewatch",
-  "version": "1.9.4",
+  "version": "1.9.5",
   "private": true,
-  "description": "Record and analyze snoring in the browser. Only snores are kept.",
+  "description": "Record and analyze snoring in the browser. Only snore clips are kept.",
   "license": "MIT",
   "scripts": {
     "start": "node scripts/serve.js",

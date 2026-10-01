@@ -113,6 +113,24 @@ test('audio is kept for snores only', () => {
   }
 });
 
+test('no audio of other sounds remains once the recording ends', () => {
+  // Speech near the end of a recording is still in the rolling buffer when Stop is pressed.
+  const scenario = Synth.compose(16000, 12, [{ type: 'speech', at: 8 }], 1);
+  const { det, events } = run(scenario);
+  assert.ok(events.length && events.every((e) => !e.isSnore && e.clip === null), 'speech is rejected without audio');
+  assert.ok(det.ring.some((x) => x !== 0), 'buffer held the speech before release');
+  det.release();
+  assert.ok(det.ring.every((x) => x === 0), 'rolling buffer wiped');
+  assert.ok(det.pending.every((x) => x === 0), 'frame buffer wiped');
+  assert.ok(det.analyzer.re.every((x) => x === 0) && det.analyzer.im.every((x) => x === 0), 'last spectrum wiped');
+  // Kept snore clips are separate arrays and survive the release.
+  const demo = run(Synth.demoScenario(16000));
+  const clips = demo.events.filter((e) => e.isSnore).map((e) => e.clip);
+  const sums = clips.map((c) => c.reduce((a, b) => a + Math.abs(b), 0));
+  demo.det.release();
+  assert.deepEqual(clips.map((c) => c.reduce((a, b) => a + Math.abs(b), 0)), sums);
+});
+
 test('lower sensitivity ignores faint snores that high sensitivity catches', () => {
   const sr = 16000;
   const plan = [0, 1, 2, 3].map((i) => ({ type: 'snore', at: 2 + i * 4, amp: 0.02 }));
