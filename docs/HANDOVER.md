@@ -108,6 +108,7 @@ expansion without behaviour change. Details per finding, with tests and results:
 | 1.12.0 | #26 | B6: storage interface `js/night-store.js` (not wired in) |
 | (1.12.0) | #27 | CI job names `CI tests` / `Tests before deploy` / `Tests before release` for the ruleset |
 | 1.12.1 | #29 | C1 (second review): `interrupted` audio context (iOS) is resumed like `suspended` |
+| 1.12.2 | #30 | C2: the dark night screen follows the recorder ("Interrupted · trying to resume", "Microphone off · tap, then Stop") |
 
 ## 4. Architecture
 
