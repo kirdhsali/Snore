@@ -7,7 +7,18 @@ on:
 permissions:
   contents: write
 jobs:
+  # The same fast checks as CI, so nothing untested is published even if CI was skipped.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm test
+      - run: for f in js/*.js scripts/*.js tests/*.js; do node --check "$f"; done
   tag:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
