@@ -792,6 +792,7 @@
       } else {
         // Only the verdict and sound features are kept for ignored sounds, never audio.
         this.ignored.push({
+          id: ev.id,
           start: ev.start,
           duration: ev.duration,
           reason: ev.reason,

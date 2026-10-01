@@ -68,7 +68,9 @@
   };
   const SOURCE_NAMES = { mic: 'Microphone recording', demo: 'Demo night (simulated sounds)' };
 
-  let session = null; // current or last session
+  let session = null; // the recording in progress
+  let night = null; // the last finished night (see finishNight); the report, sharing and downloads read only this
+  let clockStart = 0; // wall time (ms) of second 0 of the night on screen, live or in the report
   let running = false;
   let starting = false;
   let wakeLock = null;
@@ -96,7 +98,7 @@
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: withSeconds ? '2-digit' : undefined });
   }
   function at(sec) {
-    return new Date(session.startWall + sec * 1000);
+    return new Date(clockStart + sec * 1000);
   }
   function fmtNum(v, digits = 0) {
     return v.toLocaleString(undefined, { maximumFractionDigits: digits, minimumFractionDigits: digits });
@@ -237,9 +239,8 @@
     const AC = window.AudioContext || window.webkitAudioContext;
     let ctx = null;
     let stream = null;
-    // The new session stays separate until it really runs, so a failed start
-    // keeps the previous report and its downloads working.
-    const previous = session;
+    // The new session only becomes current once its audio runs; the last
+    // finished night lives on in `night`, so a failed start cannot touch it.
     let s = null;
     try {
       if (!AC) throw new Error('This browser cannot process audio. Try a current Chrome, Firefox or Safari.');
@@ -318,6 +319,7 @@
         for (const sh of Object.values(s.shadows)) sh.detector.process(samples);
       });
       session = s;
+      clockStart = s.startWall;
       if (player) player.start();
 
       running = true;
@@ -330,7 +332,8 @@
       console.error(err);
       if (stream) stream.getTracks().forEach((t) => t.stop());
       if (ctx) ctx.close().catch(() => {});
-      session = previous;
+      if (session === s) session = null;
+      if (night) clockStart = night.startWall;
       let msg = err && err.message ? err.message : String(err);
       if (err && (err.name === 'NotAllowedError' || err.name === 'SecurityError')) {
         msg = 'Microphone access was blocked. Allow it in the browser’s site settings, then tap Start again.';
@@ -359,6 +362,7 @@
     s.ctx.onstatechange = null;
     if (s.gap) endGap(s, s.endWall);
     s.wallElapsed = s.elapsed + gapSeconds(s); // the night's clock: analysed audio plus interruptions
+    night = finishNight(s);
     try {
       s.tap.disconnect();
       if (s.tap.port) s.tap.port.onmessage = null;
@@ -374,7 +378,48 @@
     if (wakeLock) wakeLock.release().catch(() => {});
     wakeLock = null;
     endNight();
+    session = null;
     showReport();
+  }
+
+  /**
+   * The finished night as one record, separate from the recorder: the report,
+   * sharing and downloads read only this, so a new recording (or a failed
+   * start) cannot change it. Field names follow js/report-format.js.
+   */
+  function finishNight(s) {
+    const config = (det) => Object.fromEntries(Object.entries(det.opts).filter(([, v]) => typeof v !== 'function'));
+    return Object.freeze({
+      id: `night-${new Date(s.startWall).toISOString()}`,
+      version: VERSION_TEXT,
+      source: s.source,
+      startWall: s.startWall,
+      endWall: s.endWall,
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      sampleRate: s.ctx.sampleRate,
+      capturedSeconds: s.elapsed, // audio actually analysed
+      clockSeconds: s.wallElapsed, // the events' clock: analysed audio plus interruptions
+      gaps: s.gaps.slice(),
+      screenWakeLock: s.wakeLock,
+      sensitivity: s.detector.sensitivity,
+      config: config(s.detector),
+      summary: s.stats.summary(s.elapsed),
+      stats: s.stats, // derived views of the events: confirmed snores, timeline buckets
+      snores: s.stats.snores,
+      ignored: s.stats.ignored,
+      shadows: Object.fromEntries(
+        Object.entries(s.shadows).map(([name, sh]) => [
+          name,
+          Object.freeze({
+            options: { ...sh.options },
+            config: config(sh.detector),
+            summary: sh.stats.summary(s.elapsed),
+            levels: sh.detector.levels,
+            snores: sh.stats.snores,
+          }),
+        ]),
+      ),
+    });
   }
 
   el.rec.addEventListener('click', () => (running ? stop() : start()));
@@ -494,7 +539,7 @@
     el.sensitivity.disabled = true;
     el.liveClips.innerHTML = '<p class="empty">Snores appear here as soon as they are detected.</p>';
     renderLiveTiles();
-    renderTimeline(el.liveTimeline, el.liveBucket, session.detector.clock);
+    renderTimeline(session.stats, el.liveTimeline, el.liveBucket, session.detector.clock);
     scheduleDark();
   }
 
@@ -588,7 +633,7 @@
     if (!now || now - lastSlow > 1000) {
       lastSlow = now || 0;
       renderLiveTiles();
-      renderTimeline(el.liveTimeline, el.liveBucket, s.detector.clock, el.liveTip);
+      renderTimeline(s.stats, el.liveTimeline, el.liveBucket, s.detector.clock, el.liveTip);
     }
     requestAnimationFrame(loop);
   }
@@ -654,11 +699,10 @@
     return BUCKETS.find((b) => elapsed / b <= 60) || 3600;
   }
 
-  function renderTimeline(canvas, subEl, elapsed, tipEl) {
-    const s = session;
+  function renderTimeline(stats, canvas, subEl, elapsed, tipEl) {
     const size = bucketSize(elapsed);
     // Show at least 12 slots so a short session doesn't draw one giant column.
-    const buckets = s.stats.buckets(Math.max(elapsed, size * 12), size);
+    const buckets = stats.buckets(Math.max(elapsed, size * 12), size);
     const long = elapsed >= 3600;
     const label = (i) => (long ? fmtTime(at(i * size)) : fmtClock(i * size));
     subEl.textContent = `Snores per ${
@@ -755,9 +799,9 @@
 
   // ---------- report ----------
   function showReport() {
-    const s = session;
-    const sum = s.stats.summary(s.elapsed);
-    s.summary = sum;
+    const n = night;
+    const sum = n.summary;
+    clockStart = n.startWall;
     el.live.hidden = true;
     el.goDark.hidden = true;
     el.report.hidden = false;
@@ -769,21 +813,20 @@
     el.sensitivity.disabled = false;
     setStatus('Recording stopped. Your report is below. Tap Start for a new recording.');
 
-    el.reportSource.textContent = SOURCE_NAMES[s.source];
+    el.reportSource.textContent = SOURCE_NAMES[n.source];
     const start = at(0);
-    const end = new Date(s.endWall);
+    const end = new Date(n.endWall);
     const day = start.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' });
-    const lost = gapSeconds(s);
+    const lost = gapSeconds(n);
     el.reportRange.textContent =
-      `${day}, ${fmtTime(start)} – ${fmtTime(end)} · ${fmtSpan(s.elapsed)}` +
-      (s.gaps.length ? ` recorded · interrupted ${s.gaps.length}× (${fmtSpan(lost)} not recorded)` : '');
+      `${day}, ${fmtTime(start)} – ${fmtTime(end)} · ${fmtSpan(n.capturedSeconds)}` +
+      (n.gaps.length ? ` recorded · interrupted ${n.gaps.length}× (${fmtSpan(lost)} not recorded)` : '');
     el.verdict.textContent = verdictText(sum);
-    for (const sh of Object.values(s.shadows)) sh.summary = sh.stats.summary(s.elapsed);
     el.shadowNote.hidden = false;
     el.shadowNote.textContent = `Background tests, not counted yet: with the breath-noise rule ${fmtNum(
-      s.shadows.breath.summary.snoreCount,
-    )} snores; with automatic sensitivity and the breath-noise rule ${fmtNum(s.shadows.auto.summary.snoreCount)} (this recording, ${
-      s.detector.sensitivity
+      n.shadows.breath.summary.snoreCount,
+    )} snores; with automatic sensitivity and the breath-noise rule ${fmtNum(n.shadows.auto.summary.snoreCount)} (this recording, ${
+      n.sensitivity
     }: ${fmtNum(sum.snoreCount)}). Details are in the data file.`;
 
     el.reportTiles.innerHTML = [
@@ -793,7 +836,11 @@
         possibleNote(sum) || (sum.medianInterval ? `typically every ${sum.medianInterval.toFixed(1)} s` : ''),
         true,
       ),
-      tile('Snores per hour', s.elapsed >= 30 ? fmtNum(sum.snoresPerHour) : '–', s.elapsed < 600 ? 'short recording, rough estimate' : ''),
+      tile(
+        'Snores per hour',
+        n.capturedSeconds >= 30 ? fmtNum(sum.snoresPerHour) : '–',
+        n.capturedSeconds < 600 ? 'short recording, rough estimate' : '',
+      ),
       tile('Snoring time', fmtSpan(sum.snoreSeconds), `${fmtNum(sum.snorePercent, 1)}% of the recording`),
       tile(
         'Loudest snore',
@@ -804,7 +851,7 @@
       tile('Ignored sounds', fmtNum(sum.ignoredCount), 'not recorded'),
     ].join('');
 
-    requestAnimationFrame(() => renderTimeline(el.reportTimeline, el.reportBucket, s.wallElapsed, el.reportTip));
+    requestAnimationFrame(() => renderTimeline(n.stats, el.reportTimeline, el.reportBucket, n.clockSeconds, el.reportTip));
 
     const inten = [
       ['Light, < +15 dB', sum.intensity.light],
@@ -821,7 +868,7 @@
       ? `<thead><tr><th>Start</th><th>Length</th><th>Snores</th><th>Every</th><th>Avg loudness</th></tr></thead><tbody>${sum.episodes
           .map(
             (e) =>
-              `<tr><td>${fmtTime(at(e.start), s.elapsed < 3600)}</td><td>${fmtSpan(e.duration)}</td><td>${e.count}</td><td>${e.interval.toFixed(
+              `<tr><td>${fmtTime(at(e.start), n.clockSeconds < 3600)}</td><td>${fmtSpan(e.duration)}</td><td>${e.count}</td><td>${e.interval.toFixed(
                 1,
               )} s</td><td>+${e.meanRelDb.toFixed(0)} dB</td></tr>`,
           )
@@ -829,15 +876,15 @@
       : '<tbody><tr><td class="empty">No snoring episodes.</td></tr></tbody>';
 
     el.reportClips.innerHTML = '';
-    const loudest = s.stats.confirmed
+    const loudest = n.stats.confirmed
       .filter((x) => x.clip)
       .sort((a, b) => b.relDb - a.relDb)
       .slice(0, 8);
     if (loudest.length) loudest.forEach((ev) => el.reportClips.append(clipCard(ev, false)));
     else el.reportClips.innerHTML = '<p class="empty">No snores were recorded.</p>';
 
-    el.dlWav.disabled = !s.stats.snores.some((x) => x.clip);
-    prepareShare(s);
+    el.dlWav.disabled = !n.snores.some((x) => x.clip);
+    prepareShare(n);
     el.report.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
   }
 
@@ -850,7 +897,7 @@
    * shows, so the share buttons can open the share sheet right away (iPhones
    * only allow that directly inside the tap).
    */
-  async function prepareShare(s) {
+  async function prepareShare(n) {
     shareFiles = null;
     el.shareImage.disabled = true;
     el.shareReport.disabled = true;
@@ -863,21 +910,21 @@
         ]);
       }
       const data = {
-        startWall: s.startWall,
-        elapsed: s.wallElapsed, // the image and report draw the night on its clock
-        snores: s.stats.confirmed,
-        summary: s.summary,
-        version: VERSION_TEXT,
-        sensitivity: s.detector.sensitivity,
-        sourceLabel: SOURCE_NAMES[s.source],
+        startWall: n.startWall,
+        elapsed: n.clockSeconds, // the image and report draw the night on its clock
+        snores: n.stats.confirmed,
+        summary: n.summary,
+        version: n.version,
+        sensitivity: n.sensitivity,
+        sourceLabel: SOURCE_NAMES[n.source],
         reasons: REASONS,
       };
       const canvas = Share.drawShareCard(document.createElement('canvas'), data);
       const png = await new Promise((r) => canvas.toBlob(r, 'image/png'));
       data.heroImage = canvas.toDataURL('image/jpeg', 0.82);
-      data.samples = Share.pickSamples(s.stats.confirmed, 8, 5);
+      data.samples = Share.pickSamples(n.stats.confirmed, 8, 5);
       const html = Share.buildReportHtml(data);
-      if (session !== s) return;
+      if (night !== n) return;
       shareFiles = {
         image: new File([png], `snore-night_${stamp()}.png`, { type: 'image/png' }),
         report: new File([html], `snore-report_${stamp()}.html`, { type: 'text/html' }),
@@ -887,13 +934,13 @@
       el.sharePreview.src = sharePreviewUrl;
       el.shareImage.disabled = false;
       el.shareReport.disabled = false;
-      const n = data.samples.loud.length + data.samples.random.length;
+      const playable = data.samples.loud.length + data.samples.random.length;
       if (EMBED) {
         el.shareHint.textContent = 'Open the app from its own address to share the image or the full report.';
         return;
       }
       el.shareHint.textContent = `The report is one file (${Math.max(1, Math.round(shareFiles.report.size / 1024))} KB)${
-        n ? ` with ${n} snores to play` : ''
+        playable ? ` with ${playable} snores to play` : ''
       }. It opens in any browser; on iPhone choose “Open in Safari” to play the sounds.`;
     } catch (err) {
       console.error(err);
@@ -954,8 +1001,7 @@
   }
 
   function summaryText() {
-    const s = session;
-    const sum = s.summary;
+    const sum = night.summary;
     return [
       `Snorewatch report – ${el.reportSource.textContent}`,
       el.reportRange.textContent,
@@ -1002,12 +1048,12 @@
     return pos;
   }
 
-  // Downloads and the summary always describe a finished night.
-  const finished = () => session && session.summary;
+  // Downloads and the summary always describe the last finished night.
+  const finished = () => night !== null;
 
   el.dlWav.addEventListener('click', () => {
     if (!finished()) return;
-    const snores = inTimeOrder(session.stats.snores).filter((x) => x.clip);
+    const snores = inTimeOrder(night.snores).filter((x) => x.clip);
     if (!snores.length) return;
     // Volume is evened out per clip so quiet snores are audible; the JSON keeps the real levels.
     const wav = encodeWav(
@@ -1020,27 +1066,7 @@
 
   el.dlJson.addEventListener('click', () => {
     if (!finished()) return;
-    const s = session;
-    const data = Report.toReport({
-      version: VERSION_TEXT,
-      source: s.source,
-      startWall: s.startWall,
-      endWall: s.endWall,
-      capturedSeconds: s.elapsed,
-      gaps: s.gaps,
-      screenWakeLock: s.wakeLock,
-      sensitivity: s.detector.sensitivity,
-      summary: s.summary,
-      snores: s.stats.snores,
-      ignored: s.stats.ignored,
-      wavStarts: wavPositions(inTimeOrder(s.stats.snores)),
-      shadows: Object.fromEntries(
-        Object.entries(s.shadows).map(([name, sh]) => [
-          name,
-          { options: sh.options, summary: sh.summary, levels: sh.detector.levels, snores: sh.stats.snores },
-        ]),
-      ),
-    });
+    const data = Report.toReport({ ...night, wavStarts: wavPositions(inTimeOrder(night.snores)) });
     download(`snore-report_${stamp()}.json`, new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
   });
 
@@ -1079,7 +1105,7 @@
     get running() {
       return running;
     },
-    summary: () => (session ? session.stats.summary(running ? session.detector.elapsed : session.elapsed) : null),
+    summary: () => (running ? session.stats.summary(session.detector.elapsed) : night && night.summary),
     stop,
     get dark() {
       return dark;
@@ -1093,6 +1119,18 @@
     },
     get pendingCards() {
       return session ? session.newClips.length : 0;
+    },
+    get night() {
+      return (
+        night && {
+          id: night.id,
+          frozen: Object.isFrozen(night),
+          sampleRate: night.sampleRate,
+          timeZone: night.timeZone,
+          clockSeconds: night.clockSeconds,
+          snores: night.snores.length,
+        }
+      );
     },
     get audio() {
       return session && { ctx: session.ctx, stream: session.stream, gap: session.gap, gaps: session.gaps.length };
