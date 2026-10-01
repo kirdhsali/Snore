@@ -15,9 +15,49 @@ No build step and no runtime dependencies: plain HTML, CSS and JavaScript.
 
 | Way | How |
 | --- | --- |
-| Quickest | Open `index.html#demo` in Chrome/Edge/Firefox and tap **Start** (simulated night). |
-| With your microphone | `npm start`, then open <http://localhost:8080>. Microphones need https or localhost. |
 | On your phone | Open <https://kirdhsali.github.io/Snore/> (GitHub Pages, see below). |
+| On a computer | `npm start`, then open <http://localhost:8080>. Microphones need https or localhost. |
+| Demo, no microphone | Add `#demo` to either address, or open `index.html#demo` directly as a file, and tap **Start**. |
+
+## Run from a fresh checkout
+
+Requirements: **Node.js ≥ 18** (CI uses 22) and npm; Git. The app itself has no
+dependencies and no build step. The browser test needs Playwright (pinned in
+`package-lock.json`) and a Chromium build. There is **no database and no
+backend**: all data lives in the browser tab and disappears when it is closed.
+
+```bash
+git clone https://github.com/kirdhsali/Snore.git
+cd Snore
+npm start                        # serves the app on http://localhost:8080
+npm test                         # unit tests, no install needed
+npm ci                           # installs Playwright for the browser test
+npx playwright install chromium  # downloads the browser (needs internet)
+npm run test:e2e                 # real page in Chromium with a fake microphone
+```
+
+Optional environment variables (examples; none are required):
+
+```bash
+PORT=8080                              # port for npm start
+CHROMIUM_PATH=/path/to/chromium        # use an existing Chromium for npm run test:e2e
+ESC50_DIR=/path/to/ESC-50              # existing ESC-50 checkout for npm run eval:public
+```
+
+No secrets, API keys or credentials are needed anywhere. `npm start` is a
+development server only (see `docs/HANDOVER.md`, known issues).
+
+### Settings outside Git (GitHub repository)
+
+Needed once per repository for deployment; they are not stored in the code:
+
+1. **Settings → General → Default branch:** `main` (only the default branch deploys).
+2. **Settings → Pages → Build and deployment → Source:** *GitHub Actions*.
+3. **Settings → Environments → `github-pages` → Deployment branches and tags:** allow `main`.
+4. **Settings → Actions → General → Workflow permissions:** must allow
+   `contents: write` requested by `release.yml` (used to create version tags).
+
+The site is then served at `https://<owner>.github.io/<repository>/`.
 
 ### Microphone and demo
 
@@ -96,7 +136,7 @@ Report, after Stop:
    minimum level is often what decides; use High there.
 3. Each finished event is classified. A **snore** is a burst of 0.25–4 s with
    ≥ 55 % of its energy below 800 Hz, ≤ 20 % between 1–4 kHz and a centroid
-   under 1 kHz. Otherwise it is ignored as *too short* (clicks, knocks),
+   under 500 Hz. Otherwise it is ignored as *too short* (clicks, knocks),
    *too long* (traffic, music, fans switching on), *deep rumble* (more than 85 %
    of the energy below 60 Hz: trucks, the building, heating), *too bright*
    (speech, coughs), *not low enough*, or *choppy* (several bursts: syllables,
@@ -155,8 +195,8 @@ night, wake up gasping or are very tired during the day, see a doctor.
 ## Development
 
 ```bash
-npm test            # unit tests for detector + stats (Node ≥ 18, no install needed)
-npm install         # only for the browser test
+npm test            # unit tests for detector, stats and share (Node ≥ 18, no install needed)
+npm ci              # only for the browser test (Playwright, pinned in package-lock.json)
 npx playwright install chromium
 npm run test:e2e    # real page in Chromium with a fake microphone playing the demo night
 npm run sample      # regenerate samples/snore-demo.wav
@@ -164,7 +204,11 @@ npm run build       # dist/snorewatch.html: everything inlined into one file
 npm run evaluate -- snore-report.json   # re-evaluate a downloaded night with the current rules
 npm run eval:public # check against ESC-50, a public set of 2,000 labelled sounds (downloads ~600 MB once)
 npm start           # local server on http://localhost:8080 (PORT to change)
+for f in js/*.js scripts/*.js tests/*.js; do node --check "$f"; done   # syntax check
 ```
+
+No linter, formatter or type checker is configured. Agent instructions:
+`CLAUDE.md` / `AGENTS.md`; general working rules: `docs/WORKING-RULES.md`.
 
 | File | Purpose |
 | --- | --- |
@@ -174,8 +218,11 @@ npm start           # local server on http://localhost:8080 (PORT to change)
 | `js/charts.js` | canvas drawing for the live strip, timeline and waveforms |
 | `js/share.js` | share image (star map) and the self-contained report file |
 | `js/version.js` | version shown in the footer |
-| `js/app.js` | audio input (microphone / demo / file), live view and report |
+| `js/app.js` | audio input (microphone, `#demo`), live view, night screen, report, sharing, background tests |
+| `scripts/` | dev server, evaluation scripts, sample generator, single-file build |
 | `tests/` | unit tests (`node --test`) and the browser test |
+| `docs/HANDOVER.md` | state of the project, decisions, known issues, next task |
+| `docs/VERIFICATION.md` | verification commands, results and a manual smoke test |
 
 ### How changes are made
 
