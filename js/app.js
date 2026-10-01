@@ -353,6 +353,7 @@
     clearInterval(s.watch);
     s.ctx.onstatechange = null;
     if (s.gap) endGap(s, s.endWall);
+    s.wallElapsed = s.elapsed + gapSeconds(s); // the night's clock: analysed audio plus interruptions
     try {
       s.tap.disconnect();
       if (s.tap.port) s.tap.port.onmessage = null;
@@ -408,15 +409,23 @@
     if (s.gap) {
       if (reason === 'ended') s.gap.reason = 'ended'; // the worst case decides what the status says
     } else {
-      s.gap = { start: Math.min(at, Date.now()), reason };
+      s.gap = { start: Math.min(at, Date.now()), reason, clock: s.detector.clock };
     }
     if (s.ctx.state === 'suspended') s.ctx.resume().catch(() => {});
     showRecordingStatus();
   }
 
   function endGap(s, at = Date.now()) {
-    s.gaps.push({ start: s.gap.start, end: at, reason: s.gap.reason });
+    const g = s.gap;
+    const sec = Math.max(0, (at - g.start) / 1000);
+    s.gaps.push({ start: g.start, end: at, reason: g.reason, clock: g.clock });
     s.gap = null;
+    // Events are timed on the night's clock: after the gap they continue `sec` later,
+    // and nothing is decided or confirmed across it.
+    for (const { detector, stats } of [s, ...Object.values(s.shadows)]) {
+      stats.addGap(g.clock, g.clock + sec);
+      if (running) detector.resumeAfterGap(sec);
+    }
     showRecordingStatus();
   }
 
@@ -476,7 +485,7 @@
     el.sensitivity.disabled = true;
     el.liveClips.innerHTML = '<p class="empty">Snores appear here as soon as they are detected.</p>';
     renderLiveTiles();
-    renderTimeline(el.liveTimeline, el.liveBucket, session.detector.elapsed);
+    renderTimeline(el.liveTimeline, el.liveBucket, session.detector.clock);
     scheduleDark();
   }
 
@@ -570,7 +579,7 @@
     if (!now || now - lastSlow > 1000) {
       lastSlow = now || 0;
       renderLiveTiles();
-      renderTimeline(el.liveTimeline, el.liveBucket, s.detector.elapsed, el.liveTip);
+      renderTimeline(el.liveTimeline, el.liveBucket, s.detector.clock, el.liveTip);
     }
     requestAnimationFrame(loop);
   }
@@ -767,7 +776,7 @@
       tile('Ignored sounds', fmtNum(sum.ignoredCount), 'not recorded'),
     ].join('');
 
-    requestAnimationFrame(() => renderTimeline(el.reportTimeline, el.reportBucket, s.elapsed, el.reportTip));
+    requestAnimationFrame(() => renderTimeline(el.reportTimeline, el.reportBucket, s.wallElapsed, el.reportTip));
 
     const inten = [
       ['Light, < +15 dB', sum.intensity.light],
@@ -824,7 +833,7 @@
       }
       const data = {
         startWall: s.startWall,
-        elapsed: s.elapsed,
+        elapsed: s.wallElapsed, // the image and report draw the night on its clock
         snores: s.stats.confirmed,
         summary: s.summary,
         version: VERSION_TEXT,
@@ -995,6 +1004,7 @@
         start: new Date(g.start).toISOString(),
         end: new Date(g.end).toISOString(),
         seconds: +((g.end - g.start) / 1000).toFixed(1),
+        offsetSec: +g.clock.toFixed(2), // on the same clock as the snores' offsetSec
         reason: g.reason,
       })),
       screenWakeLock: s.wakeLock,
