@@ -1,6 +1,6 @@
 # Snorewatch handover
 
-State at version **1.11.0** (1.9.1 was the documentation and reproducibility checkpoint,
+State at version **1.11.1** (1.9.1 was the documentation and reproducibility checkpoint,
 2026-10-01; later versions fix findings of an external review, see §9).
 Statements marked **[verified]** were checked against this repository or by running
 it; **[assumption]** marks beliefs not proven; **[suspected]** marks probable problems.
@@ -86,7 +86,7 @@ mic ─► AudioWorklet tap (mono, 2048-sample chunks; ScriptProcessor fallback)
 | `js/charts.js` | Canvas drawing (live strip, timeline, clip waveform) |
 | `js/share.js` | Star-map image, script-free HTML report builder (also runs in Node) |
 | `js/report-format.js` | The data file (JSON): `toReport` for the download, `fromReport` reads every schema version (UMD: `SnoreReport`) |
-| `js/app.js` | Audio plumbing, UI, sessions, night screen, downloads, sharing, shadows |
+| `js/app.js` | Audio plumbing, UI, sessions, night screen, downloads, sharing, shadows. On Stop it builds one frozen night record (`finishNight`): id, wall times, time zone, sample rate, gaps, configuration, summary, events, background tests; the report, sharing and downloads read only that record |
 | `scripts/serve.js` | Zero-dependency local static server (`npm start`) |
 | `scripts/evaluate.js` | Re-evaluate a downloaded night JSON with current rules; compares shadows |
 | `scripts/eval-public.js` | ESC-50 benchmark (downloads on demand outside the repo) |
@@ -228,3 +228,4 @@ B5 split detector.js, B6 storage interface).
 | 1.10.4 | B0 (owner's bug report) | "Darken screen" jumped on phones: it shared a wrapping row with the status pill and level text, whose widths change with every sound. It now sits under the Stop button (fixed size), shown only while recording. E2E checks its position at 390 × 844 while the status changes |
 | 1.10.5 | B1 | ESLint (recommended correctness rules) and Prettier (JavaScript only, single quotes, width 140) as dev dependencies; `npm run lint` in CI, `npm run format` to fix. The 7 unused `catch` bindings became `catch {}`; the code was formatted once (about 330 lines in 10 files). Linting needs Node ≥ 20.19; the app and unit tests still run on Node 18 |
 | 1.11.0 | B2 | One versioned data file: `js/report-format.js` writes (`toReport`, used by the download) and reads (`fromReport`, used by `evaluate.js`) it; `schemaVersion: 2`, every earlier field kept, 1.8 (`shadow`) and 1.9 files still read. `evaluate.js` now respects recorded interruptions (no rescue or confirmation across a gap, as live) and refuses files from a newer schema |
+| 1.11.1 | B3 | A finished night is one frozen record (`finishNight` in `js/app.js`): id, wall times, time zone, sample rate, gaps, configuration snapshot, summary, events (with detector ids, also on ignored sounds), background tests. The report, share image/HTML, downloads and "copy summary" read only this record; the recorder (`session`) exists only while recording, so a new or failed start cannot change a finished night. ESLint caught a name clash in the share code during this move |

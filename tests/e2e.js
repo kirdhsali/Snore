@@ -120,6 +120,10 @@ async function main() {
     const [jsonDl] = await Promise.all([page.waitForEvent('download'), page.click('#dl-json')]);
     const report = JSON.parse(fs.readFileSync(await jsonDl.path(), 'utf8'));
     assert.equal(report.schemaVersion, 2, 'data file carries its schema version');
+    const first = await page.evaluate(() => window.__snorewatch.night);
+    assert.ok(first.frozen && /^night-/.test(first.id), `finished night is one frozen record: ${JSON.stringify(first)}`);
+    assert.equal(first.snores, report.snores.length);
+    assert.ok(first.sampleRate > 0 && first.timeZone);
     assert.equal(report.sensitivity, 'normal');
     assert.equal(report.shadows.breath.sensitivity, 'normal');
     assert.ok(await page.isEnabled('#sensitivity'), 'sensitivity can be changed again after Stop');
@@ -193,6 +197,7 @@ async function main() {
     const kept = JSON.parse(fs.readFileSync(await again.path(), 'utf8'));
     assert.equal(kept.startedAt, report.startedAt, 'JSON still describes the previous night');
     assert.equal(kept.snores.length, report.snores.length);
+    assert.equal((await page.evaluate(() => window.__snorewatch.night)).id, first.id, 'the failed start did not replace the night');
     const [wavAgain] = await Promise.all([page.waitForEvent('download'), page.click('#dl-wav')]);
     assert.equal(fs.readFileSync(await wavAgain.path()).toString('ascii', 0, 4), 'RIFF');
     await page.evaluate(() => (navigator.mediaDevices.getUserMedia = window.__realGetUserMedia));
