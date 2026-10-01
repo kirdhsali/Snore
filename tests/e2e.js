@@ -143,6 +143,21 @@ async function main() {
     console.log(`  image ${Math.round(png.length / 1024)} KB, report ${Math.round(html.length / 1024)} KB with ${nAudio} snores; first plays ${clipSeconds.toFixed(2)} s`);
     assert.ok(nAudio >= 6, 'report embeds the snores');
 
+    console.log('Failed restart: the previous night stays downloadable…');
+    await page.evaluate(() => {
+      navigator.mediaDevices.getUserMedia = () => Promise.reject(new DOMException('denied', 'NotAllowedError'));
+    });
+    await page.click('#rec');
+    await page.waitForFunction(() => /blocked/.test(document.querySelector('#status').textContent), null, { timeout: 5000 });
+    assert.equal(await page.evaluate(() => window.__snorewatch.running), false);
+    assert.ok(await page.isVisible('#report'), 'previous report still shown');
+    const [again] = await Promise.all([page.waitForEvent('download'), page.click('#dl-json')]);
+    const kept = JSON.parse(fs.readFileSync(await again.path(), 'utf8'));
+    assert.equal(kept.startedAt, report.startedAt, 'JSON still describes the previous night');
+    assert.equal(kept.snores.length, report.snores.length);
+    const [wavAgain] = await Promise.all([page.waitForEvent('download'), page.click('#dl-wav')]);
+    assert.equal(fs.readFileSync(await wavAgain.path()).toString('ascii', 0, 4), 'RIFF');
+
     console.log('Demo mode (#demo in the address): playing 12 s of the simulated night…');
     assert.ok(await page.isHidden('#demo-badge'), 'no demo label while recording from the microphone');
     await page.evaluate(() => (location.hash = 'demo'));

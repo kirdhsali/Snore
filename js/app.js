@@ -223,6 +223,10 @@
     const AC = window.AudioContext || window.webkitAudioContext;
     let ctx = null;
     let stream = null;
+    // The new session stays separate until it really runs, so a failed start
+    // keeps the previous report and its downloads working.
+    const previous = session;
+    let s = null;
     try {
       if (!AC) throw new Error('This browser cannot process audio. Try a current Chrome, Firefox or Safari.');
       // Create the context inside the click so browsers let it start.
@@ -247,7 +251,7 @@
       if (ctx.state === 'suspended') await ctx.resume();
 
       const stats = new SessionStats();
-      session = {
+      s = {
         source,
         startWall: Date.now(),
         endWall: null,
@@ -268,23 +272,24 @@
         onFrame: handleFrame,
         onEvent: handleEvent,
       });
-      session.detector = det;
-      session.frameCap = Math.ceil(LIVE_SECONDS / det.hopSec);
+      s.detector = det;
+      s.frameCap = Math.ceil(LIVE_SECONDS / det.hopSec);
       // Background tests of candidate rules: extra detectors on the same audio.
       // They keep no audio and change nothing on screen; their counts go into the data file.
       const shadow = (options) => {
         const stats = new SessionStats();
         return { options, stats, detector: new SnoreDetector(ctx.sampleRate, { ...options, keepClips: false, onEvent: (e) => stats.add(e) }) };
       };
-      session.shadows = {
+      s.shadows = {
         breath: shadow({ sensitivity: el.sensitivity.value, minBreathRiseDb: BREATH_RULE_DB }),
         auto: shadow({ sensitivity: 'auto', minBreathRiseDb: BREATH_RULE_DB }),
       };
-      session.tap = await createTap(ctx, input, (samples) => {
-        if (!running) return;
+      s.tap = await createTap(ctx, input, (samples) => {
+        if (!running || session !== s) return;
         det.process(samples);
-        for (const sh of Object.values(session.shadows)) sh.detector.process(samples);
+        for (const sh of Object.values(s.shadows)) sh.detector.process(samples);
       });
+      session = s;
       if (player) player.start();
 
       running = true;
@@ -300,7 +305,7 @@
       console.error(err);
       if (stream) stream.getTracks().forEach((t) => t.stop());
       if (ctx) ctx.close().catch(() => {});
-      session = null;
+      session = previous;
       let msg = err && err.message ? err.message : String(err);
       if (err && (err.name === 'NotAllowedError' || err.name === 'SecurityError')) {
         msg = 'Microphone access was blocked. Allow it in the browser’s site settings, then tap Start again.';
@@ -853,7 +858,11 @@
     return pos;
   }
 
+  // Downloads and the summary always describe a finished night.
+  const finished = () => session && session.summary;
+
   el.dlWav.addEventListener('click', () => {
+    if (!finished()) return;
     const snores = session.stats.snores.filter((x) => x.clip);
     if (!snores.length) return;
     // Volume is evened out per clip so quiet snores are audible; the JSON keeps the real levels.
@@ -866,6 +875,7 @@
   });
 
   el.dlJson.addEventListener('click', () => {
+    if (!finished()) return;
     const s = session;
     const wavPos = wavPositions(s.stats.snores);
     const data = {
@@ -946,6 +956,7 @@
   });
 
   el.copy.addEventListener('click', () => {
+    if (!finished()) return;
     const text = summaryText();
     const done = () => {
       el.copy.textContent = 'Copied';
