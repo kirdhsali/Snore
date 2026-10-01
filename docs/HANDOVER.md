@@ -1,6 +1,7 @@
 # Snorewatch handover
 
-State at version **1.9.1** (documentation and reproducibility checkpoint, 2026-10-01).
+State at version **1.9.2** (1.9.1 was the documentation and reproducibility checkpoint,
+2026-10-01; later versions fix findings of an external review, see §9).
 Statements marked **[verified]** were checked against this repository or by running
 it; **[assumption]** marks beliefs not proven; **[suspected]** marks probable problems.
 Verification commands and results: [`docs/VERIFICATION.md`](VERIFICATION.md).
@@ -185,3 +186,17 @@ Collect 2–3 real nights with v1.9 (JSON, optionally the zipped WAV), run
 "Auto + breath-noise rule" becomes the default (v2.0). Check against `npm run
 eval:public` before switching. Keep the owner informed and ask before changing
 the counting rules.
+
+## 9. External review of 1.9.1 and fixes (Phase A)
+
+An independent review of v1.9.1 (2026-10-01) reported nine findings R1–R9; all
+were checked against the code and confirmed. Owner decisions (2026-10-01): fix the
+rhythm rescue to the documented 2–12 s start-to-start rule (before/after numbers
+before merge); sensitivity truly locked while recording; on a microphone
+interruption show it, try to resume, use real clock times, list the gaps and never
+confirm snores across a gap; precise privacy wording. Plan: one small PR per fix,
+then a report to the owner and a "go" before any restructuring (Phase B).
+
+| Version | Finding | Fix |
+| --- | --- | --- |
+| 1.9.2 | R2: a failed Start (e.g. microphone blocked) after a finished night discarded the session, so the still visible report's JSON/WAV/copy buttons threw | The new session is only adopted once its audio runs; on failure the previous night stays; downloads check for a finished night. E2E covers it |

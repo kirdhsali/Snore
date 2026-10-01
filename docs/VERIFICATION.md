@@ -66,3 +66,14 @@ install and `npm run test:e2e` on every push and pull request.
    + 5 random) and opens offline.
 8. **Permission denied.** Block the microphone and tap Start. Expect the red message
    "Microphone access was blocked …".
+
+## Phase A review fixes
+
+Each fix is checked with `npm test`, `node --check` on all files and
+`CHROMIUM_PATH=/opt/pw-browsers/chromium-1194/chrome-linux/chrome npm run test:e2e`
+(Node 22.22.0, Playwright Chromium 1194). New regression tests were run against
+the old code first and failed there.
+
+| Version | Check | Result |
+| --- | --- | --- |
+| 1.9.2 | E2E "failed restart": finished 30 s night, `getUserMedia` rejected with `NotAllowedError`, Start, then JSON + WAV download | old code: download never happens (page error); new code: JSON has the previous `startedAt` and snores, WAV valid; full e2e passed; `npm test` 36/36 |
