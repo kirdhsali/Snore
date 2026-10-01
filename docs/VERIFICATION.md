@@ -1,50 +1,72 @@
 # Verification record
 
-Run on 2026-10-01 for version **1.9.1** (this checkpoint), in a Linux container with
-Node v22.22.2, npm 10.9.7, Playwright 1.63.0 (from `package-lock.json`) and a
-preinstalled Chromium headless shell passed via `CHROMIUM_PATH`.
+## Checkpoint 1.12.0 (review and handover, 2026-10-01)
 
-## Automated checks
+**Tested code revision:** `827d6ca7bfd80a1e4f7461f584ba4cf19ad84232` (`main` after
+PR #27; version 1.12.0). The review branch adds documentation on top
+(`docs/HANDOVER.md`, `docs/REVIEW-RESPONSE.md`, this file, `docs/review-probes/`) and
+one tooling line (`eslint.config.js` also lints `*.cjs`, so the probe scripts are
+checked); `git diff 827d6ca -- js scripts tests index.html css package.json
+package-lock.json .github` is empty, i.e. application and test code are unchanged.
+
+**Environment:** Linux 6.18 container; Node v22.22.0, npm 10.9.4; Playwright 1.63.0
+(from `package-lock.json`); ESLint 10.11.0; Prettier 3.9.9. Browser: preinstalled
+Chromium **141.0.7390.37** at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`,
+passed via `CHROMIUM_PATH`, because `npx playwright install chromium` failed here
+(`Download failure, code=1`: this container's network policy blocks the download).
+ESC-50 checkout `33c8ce9eb2cf0b1c2f8bcf322eb349b6be34dbb6` (outside the repository,
+same commit as the original review).
 
 | Command | Result |
 | --- | --- |
-| `npm ci --no-audit --no-fund` | exit 0, 2 packages |
-| `npm audit` | exit 0, 0 vulnerabilities (possible since the lockfile was added) |
-| `for f in js/*.js scripts/*.js tests/*.js; do node --check "$f"; done` | exit 0, 14 files |
-| `npm test` | exit 0, 36 tests, 36 pass, 0 fail |
-| `CHROMIUM_PATH=… npm run test:e2e` | exit 0: fake microphone 30 s → 6 snores, report, both background tests 6, clip plays (peak 0.70), PNG + HTML report download and play, `#demo` 3 snores in 12 s |
-| `npm run build` | exit 0, `dist/snorewatch.html` and `dist/snorewatch-embed.html` (136 KB each; not deployed) |
-| `ESC50_DIR=… npm run eval:public` | exit 0: snoring clips 29/40; night sounds counted 100/1000 (current rules), 87/1000 (breath rule) |
-| Demo night end to end in Chromium (`/#demo`, 90 s) + `npm run evaluate -- demo-report.json` | 16 snores, 5 ignored; background tests 16/16; evaluate exit 0 |
+| `git status --short --branch`, `git diff --stat`, `git diff --cached --stat` | clean working tree before the checks |
+| `npm ci --no-audit --no-fund` | passed, 82 packages |
+| `npm test` | **passed**, 60/60 (detector, share, serve, evaluate, report-format, recorder, night-store) |
+| `npm run lint` | **passed** (ESLint clean, Prettier clean) |
+| `for f in js/*.js scripts/*.js tests/*.js; do node --check "$f"; done` | **passed**, 24 files |
+| `npm run build` | **passed**, `dist/snorewatch.html` and `dist/snorewatch-embed.html` (160 KB each; not committed) |
+| `npm audit` | **passed**, 0 vulnerabilities (dev dependencies only) |
+| `npx playwright install chromium` | **blocked** (download failure, network policy); replaced by `CHROMIUM_PATH` above |
+| `CHROMIUM_PATH=… npm run test:e2e` | **passed**: 390 × 844; fake mic 30 s → 6 snores, background tests 6/6; Darken screen fixed in place; keyboard lock; night screen; playback (peak 0.70); PNG + HTML report; failed restart keeps JSON and WAV; wake lock refused + mic switched off shown and gap in JSON; demo suspended 3 s → gap 4 s, nothing confirmed across it |
+| Full demo night in the browser (review's `full-demo.cjs`, unchanged), JSON download | **passed**: 16 snores, 0 possible, 5 ignored (too-bright 3, choppy 1, too-long 1); background tests breath 16, auto 16; `schemaVersion` 2; no page errors |
+| `npm run evaluate -- <that download>.json` | **passed**: 16 → 16 snore-like, 16 → 16 confirmed; both background tests found the same 16 |
+| `npm run evaluate -- tests/fixtures/rhythm-boundary-report.json` | 1 → 2 snore-like sounds (the rhythm fix, R3) |
+| `ESC50_DIR=… npm run eval:public` | **passed**: snoring clips 29/40 any, 13/40 confirmed; night sounds 100/1000 any, 23/1000 confirmed; breath rule 87/1000 and 19/1000 |
+| `node <bundle>/core-probes.cjs "$PWD"` (review's probe, unchanged) | rhythm cases all confirmed; boundary audio live 2 = offline 2 at 12/12.5/13/13.5 s; intervals 4 s and median 2 s; demo 16/16/5 (details in `REVIEW-RESPONSE.md`) |
+| Speech night: ring after `flush()` vs after `release()` (`node -e` with `js/detector.js`, see below) | 51 600 non-zero samples after `flush()`, **0 after `release()`** (the Stop path) |
+| `node docs/review-probes/server-probes-adapted.cjs "$PWD"` | traversal 403, `/.git/HEAD` 404, malformed 400, server still running (next request 200) |
+| `CHROMIUM_PATH=… node docs/review-probes/browser-probes-adapted.cjs "$PWD"` | suspended → "Recording interrupted…", end time within 2 ms of the real stop, gap 2.3 s recorded; failed restart keeps the same night; wake-lock denial shown; keyboard cannot change sensitivity; ended track shown; 4000 dark-screen snores → 6 queued, 6 cards, 47 ms |
 
-CI (`.github/workflows/ci.yml`) runs `npm test`, `npm ci`, Playwright Chromium
-install and `npm run test:e2e` on every push and pull request.
+R5 check command:
+```bash
+node -e "const C=require('./js/detector.js'),S=require('./js/synth.js');const sc=S.compose(16000,12,[{type:'speech',at:8}],1);const d=new C.SnoreDetector(16000);d.process(sc.samples);d.flush();const nz=()=>d.ring.reduce((n,x)=>n+(x!==0),0);console.log(nz());d.release();console.log(nz())"
+```
 
-## Not run or not available
+**Counts against the original baseline (v1.9.1):** demo night unchanged
+(16 confirmed, 5 ignored); ESC-50 confirmed night sounds 22 → 23 / 1000 and
+18 → 19 with the breath rule; snoring clips unchanged. The change comes from the
+owner-approved rhythm fix in 1.10.0 (R3); it is explained in `REVIEW-RESPONSE.md`.
 
-- **Lint / format / type check:** none configured. An ad-hoc ESLint run with core
-  correctness rules (`no-undef`, `no-unused-vars`, `no-unreachable`, …) found only
-  6 unused `catch (e)` variables in `js/app.js` and one false positive (`URL` in
-  `scripts/serve.js`, a Node global missing from the ad-hoc config).
-- **Other browsers:** Safari/WebKit and Firefox are not automated; iPhone behaviour
-  is known only from the owner's nights (Safari, iOS).
-- **Device checks:** iOS share sheet, iOS clip playback after the v1.2 fix, CPU and
-  battery with three detectors (v1.9) over a full night.
+**CI and deployment:** on `main` at `827d6ca`, the workflows `CI` (`CI tests`),
+`Deploy to GitHub Pages` and `Tag release` passed; the deployed site is that commit
+(footer `Snorewatch 1.12.0 (827d6ca)`). Not checked from this container: the live
+site itself (outbound requests to `kirdhsali.github.io` are blocked here).
 
-## Extra checks made for the handover
+**Found during verification (not fixed here):** `scripts/serve.js` answers a refused
+path with status 403 but the body "Bad request" (cosmetic).
 
-- Dev server path handling: `GET /..%2FSnore-probe/probe.txt` returned a file from a
-  sibling directory (`Snore-probe`) → known issue, see `docs/HANDOVER.md` §7.
-- `file:///…/index.html#demo` in Chromium: AudioWorklet is blocked for `file://`,
-  the ScriptProcessor fallback took over and the demo recorded snores.
-- `samples/snore-demo.wav` was stale (old synthetic snores; current detector found
-  6/16). Regenerated with `npm run sample`; now 16/16 snores, 5 ignored.
+**Not run / not available:**
+- **Physical iPhone: not tested in this session.** No overnight run, no real call,
+  Siri or screen-lock interruption, no share sheet or clip playback check, no
+  battery, CPU or memory measurement over a full night.
+- Safari/WebKit and Firefox: not automated.
+- Long-night memory (byte budget, WAV export peak memory): not measured.
 
 ## Manual smoke test (synthetic data only)
 
 1. **Start screen.** Open the app (`npm start` → `http://localhost:8080`, or the Pages URL).
    Expect: Start button, Sensitivity *Normal*, "Before you sleep" checklist, footer
-   `Snorewatch 1.9.1 (dev)` locally or `(<commit>)` on Pages.
+   `Snorewatch 1.12.0 (dev)` locally or `(<commit>)` on Pages.
 2. **Demo night.** Open `/#demo`. Expect a *Demo* label. Tap Start and wait 90 s (or
    tap Stop). Expect orange bars in the live strip and clip cards; at the end the
    verdict reads "16 snores …" and "5 other sounds were ignored"; the background
@@ -66,8 +88,56 @@ install and `npm run test:e2e` on every push and pull request.
    + 5 random) and opens offline.
 8. **Permission denied.** Block the microphone and tap Start. Expect the red message
    "Microphone access was blocked …".
+9. **Darken screen and interruptions (phone).** While recording, "Darken screen"
+   sits under Stop and does not move. Receive a call or invoke Siri: expect
+   "Recording interrupted …", then automatic resume; the report says "interrupted 1×"
+   and the JSON lists the gap. **Not yet done on a physical iPhone.**
 
-## Phase A review fixes
+## History
+
+### Checkpoint 1.9.1 (before the review)
+
+Run on 2026-10-01 for version **1.9.1**, in a Linux container with
+Node v22.22.2, npm 10.9.7, Playwright 1.63.0 (from `package-lock.json`) and a
+preinstalled Chromium headless shell passed via `CHROMIUM_PATH`.
+
+#### Automated checks
+
+| Command | Result |
+| --- | --- |
+| `npm ci --no-audit --no-fund` | exit 0, 2 packages |
+| `npm audit` | exit 0, 0 vulnerabilities (possible since the lockfile was added) |
+| `for f in js/*.js scripts/*.js tests/*.js; do node --check "$f"; done` | exit 0, 14 files |
+| `npm test` | exit 0, 36 tests, 36 pass, 0 fail |
+| `CHROMIUM_PATH=… npm run test:e2e` | exit 0: fake microphone 30 s → 6 snores, report, both background tests 6, clip plays (peak 0.70), PNG + HTML report download and play, `#demo` 3 snores in 12 s |
+| `npm run build` | exit 0, `dist/snorewatch.html` and `dist/snorewatch-embed.html` (136 KB each; not deployed) |
+| `ESC50_DIR=… npm run eval:public` | exit 0: snoring clips 29/40; night sounds counted 100/1000 (current rules), 87/1000 (breath rule) |
+| Demo night end to end in Chromium (`/#demo`, 90 s) + `npm run evaluate -- demo-report.json` | 16 snores, 5 ignored; background tests 16/16; evaluate exit 0 |
+
+CI (`.github/workflows/ci.yml`) runs `npm test`, `npm ci`, Playwright Chromium
+install and `npm run test:e2e` on every push and pull request.
+
+#### Not run or not available
+
+- **Lint / format / type check:** none configured. An ad-hoc ESLint run with core
+  correctness rules (`no-undef`, `no-unused-vars`, `no-unreachable`, …) found only
+  6 unused `catch (e)` variables in `js/app.js` and one false positive (`URL` in
+  `scripts/serve.js`, a Node global missing from the ad-hoc config).
+- **Other browsers:** Safari/WebKit and Firefox are not automated; iPhone behaviour
+  is known only from the owner's nights (Safari, iOS).
+- **Device checks:** iOS share sheet, iOS clip playback after the v1.2 fix, CPU and
+  battery with three detectors (v1.9) over a full night.
+
+#### Extra checks made for the handover
+
+- Dev server path handling: `GET /..%2FSnore-probe/probe.txt` returned a file from a
+  sibling directory (`Snore-probe`) → known issue, see `docs/HANDOVER.md` §7.
+- `file:///…/index.html#demo` in Chromium: AudioWorklet is blocked for `file://`,
+  the ScriptProcessor fallback took over and the demo recorded snores.
+- `samples/snore-demo.wav` was stale (old synthetic snores; current detector found
+  6/16). Regenerated with `npm run sample`; now 16/16 snores, 5 ignored.
+
+### Per-step records, Phase A (1.9.2–1.10.3)
 
 Each fix is checked with `npm test`, `node --check` on all files and
 `CHROMIUM_PATH=/opt/pw-browsers/chromium-1194/chrome-linux/chrome npm run test:e2e`
@@ -86,11 +156,11 @@ the old code first and failed there.
 | 1.10.2 | New unit test: snores, 1 s gap, rattle after it → rattle timed after the gap, not rescued by a snore 8 s earlier, audio dropped; snores 4 s apart across a gap not confirmed. E2E demo with a 3–4 s suspension: snores after the gap lie after it, none confirmed across it (3 runs) | old code: the new unit test fails (no `resumeAfterGap`); `npm test` 47/47; full e2e passed 3×; demo without gaps unchanged (16 snores) |
 | 1.10.3 | Workflow YAML parsed (jobs: ci `test`; pages `test` → `deploy`; release `test` → `tag`); `npm test`, `node --check`, full e2e | `npm test` 47/47; e2e passed; deploy/tag jobs verified on the merge to `main` |
 
-## Phase B
+### Per-step records, Phase B (1.10.4–1.12.0)
 
 | Version | Check | Result |
 | --- | --- | --- |
-| 1.10.4 | E2E now runs at 390 × 844 (iPhone-sized); samples the "Darken screen" box 12× over 4.8 s while the pill changes (measuring → listening → sound heard) | old layout: two positions (x 247 and 16); new: one position; full e2e passed; \`npm test\` 47/47 |
+| 1.10.4 | E2E now runs at 390 × 844 (iPhone-sized); samples the "Darken screen" box 12× over 4.8 s while the pill changes (measuring → listening → sound heard) | old layout: two positions (x 247 and 16); new: one position; full e2e passed; `npm test` 47/47 |
 | 1.10.5 | `npm run lint` (ESLint 10 + Prettier 3.9), detector events on the demo night at 48/44.1/16 kHz × 3 seeds compared field by field with `main` | lint clean; events identical; `npm test` 47/47; full e2e passed; `npm run build` OK |
 | 1.11.0 | New `tests/report-format.test.js`: demo night with a 5 s gap through `toReport` → JSON → `fromReport` (events, flags, gap, background test); all fields of a 1.9.1 file still written; 1.8 and 1.9 fixtures (synthetic) read; foreign/newer files refused; re-evaluation does not rescue across a gap. E2E: download has `schemaVersion: 2`. `npm run evaluate` on the 1.9 demo fixture: 16/16 as before | `npm test` 52/52; lint clean; full e2e passed |
 | 1.11.1 | E2E: after Stop the night is one frozen record with id, sample rate and time zone, its snore count matches the download; a failed restart keeps the same night id; all report, share and download steps unchanged | `npm test` 52/52; lint clean; full e2e passed |

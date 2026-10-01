@@ -33,7 +33,8 @@ git clone https://github.com/kirdhsali/Snore.git
 cd Snore
 npm start                        # serves the app on http://localhost:8080
 npm test                         # unit tests, no install needed
-npm ci                           # installs Playwright for the browser test
+npm ci                           # installs the dev tools: Playwright, ESLint, Prettier
+npm run lint                     # ESLint + Prettier check (Node ≥ 20.19)
 npx playwright install chromium  # downloads the browser (needs internet)
 npm run test:e2e                 # real page in Chromium with a fake microphone
 ```
@@ -48,7 +49,7 @@ ESC50_DIR=/path/to/ESC-50              # existing ESC-50 checkout for npm run ev
 ```
 
 No secrets, API keys or credentials are needed anywhere. `npm start` is a
-development server only (see `docs/HANDOVER.md`, known issues).
+development server only; it serves the project's own files to this computer.
 
 ### Settings outside Git (GitHub repository)
 
@@ -59,6 +60,9 @@ Needed once per repository for deployment; they are not stored in the code:
 3. **Settings → Environments → `github-pages` → Deployment branches and tags:** allow `main`.
 4. **Settings → Actions → General → Workflow permissions:** must allow
    `contents: write` requested by `release.yml` (used to create version tags).
+5. **Settings → Rules → Rulesets** (set for this repository): on the default
+   branch, require a pull request (0 approvals) and the status check `CI tests`,
+   block deletions and force pushes, no bypass list.
 
 The site is then served at `https://<owner>.github.io/<repository>/`.
 
@@ -168,7 +172,7 @@ Report, after Stop:
    charts and share outputs count a snore only when another snore lies 2–12 s
    before or after it. Isolated snore-like sounds (a footstep, a door, a single
    cough) are listed as “possible” and not counted.
-4. Only snores keep their audio (downsampled to 8 kHz, 16-bit). A rolling buffer
+4. Only sounds classified as snores keep their audio (downsampled to 8 kHz, 16-bit). A rolling buffer
    of a few seconds exists only to capture the start of a snore; it is
    continuously overwritten and wiped when the recording stops.
 
@@ -198,8 +202,9 @@ night, wake up gasping or are very tired during the day, see a doctor.
 ## Development
 
 ```bash
-npm test            # unit tests for detector, stats and share (Node ≥ 18, no install needed)
-npm ci              # only for the browser test (Playwright, pinned in package-lock.json)
+npm test            # unit tests (Node ≥ 18, no install needed)
+npm ci              # dev tools for the browser test and linting (pinned in package-lock.json)
+npm run lint        # ESLint + Prettier check (Node ≥ 20.19); npm run format fixes formatting
 npx playwright install chromium
 npm run test:e2e    # real page in Chromium with a fake microphone playing the demo night
 npm run sample      # regenerate samples/snore-demo.wav
@@ -210,29 +215,36 @@ npm start           # local server on http://localhost:8080 (PORT to change)
 for f in js/*.js scripts/*.js tests/*.js; do node --check "$f"; done   # syntax check
 ```
 
-No linter, formatter or type checker is configured. Agent instructions:
-`CLAUDE.md` / `AGENTS.md`; general working rules: `docs/WORKING-RULES.md`.
+ESLint (correctness rules) and Prettier (JavaScript only) run in CI; there is no
+type checker. Agent instructions: `CLAUDE.md` / `AGENTS.md`; general working rules:
+`docs/WORKING-RULES.md`.
 
 | File | Purpose |
 | --- | --- |
 | `index.html`, `css/style.css` | page and styles (dark by default for night use) |
-| `js/detector.js` | FFT, features, snore detector, session statistics, WAV encoder |
+| `js/detector.js` | FFT, features, snore detector, rhythm rule; one entry point (`SnoreCore`) that also exports the two below |
+| `js/stats.js` | session statistics: confirmed snores, episodes, intervals, timeline |
+| `js/wav.js` | WAV encoder and clip loudness |
 | `js/synth.js` | synthetic snores and distractor sounds for demo mode and tests |
 | `js/charts.js` | canvas drawing for the live strip, timeline and waveforms |
 | `js/share.js` | share image (star map) and the self-contained report file |
 | `js/version.js` | version shown in the footer |
-| `js/app.js` | audio input (microphone, `#demo`), live view, night screen, report, sharing, background tests |
+| `js/recorder.js` | recording: microphone or `#demo`, detectors and background tests, interruptions, wake lock, the finished night |
+| `js/report-format.js` | the downloaded data file (JSON), writing and reading every version |
+| `js/night-store.js` | interface for saving nights on the device (not used by the page yet) |
+| `js/app.js` | the page: live view, night screen, report, sharing, downloads |
 | `scripts/` | dev server, evaluation scripts, sample generator, single-file build |
 | `tests/` | unit tests (`node --test`) and the browser test |
 | `docs/HANDOVER.md` | state of the project, decisions, known issues, next task |
 | `docs/VERIFICATION.md` | verification commands, results and a manual smoke test |
+| `docs/REVIEW-RESPONSE.md` | answer to the review of v1.9.1, finding by finding |
 
 ### How changes are made
 
 - `main` is the live version: every push to `main` deploys to GitHub Pages.
 - Changes are made on a separate branch and go to `main` through a pull
-  request. CI (unit tests and the browser test) runs on the pull request; it is
-  merged only when CI is green.
+  request. CI (unit tests, lint and the browser test, check `CI tests`) runs on the
+  pull request; it is merged only when CI is green.
 - To go back, revert the pull request's merge commit on `main`; the older
   version is redeployed automatically. Every released version is also tagged.
 

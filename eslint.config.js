@@ -8,7 +8,7 @@ module.exports = [
   { ignores: ['dist/', 'node_modules/'] },
   js.configs.recommended,
   {
-    files: ['**/*.js'],
+    files: ['**/*.js', '**/*.cjs'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'script',
