@@ -213,6 +213,9 @@ async function main() {
       timeout: 5000,
     });
     await sleep(2000);
+    await page.evaluate(() => window.__snorewatch.setDarkDelay(300)); // the switch-off happens with the screen dark
+    await page.waitForFunction(() => window.__snorewatch.dark, null, { timeout: 5000 });
+    assert.match(await page.textContent('#night-meta'), /^Recording · /);
     await page.evaluate(() => {
       const track = window.__snorewatch.audio.stream.getAudioTracks()[0];
       track.stop(); // stop() alone fires no event; the system's switch-off does
@@ -221,6 +224,9 @@ async function main() {
     await page.waitForFunction(() => /switched the microphone off/.test(document.querySelector('#status').textContent), null, {
       timeout: 5000,
     });
+    assert.match(await page.textContent('#night-meta'), /^Microphone off/, 'the dark screen says the microphone is off');
+    await page.evaluate(() => window.__snorewatch.setDarkDelay(600000));
+    await page.click('#night');
     await sleep(1500);
     await page.click('#rec');
     await page.waitForSelector('#report:not([hidden])');

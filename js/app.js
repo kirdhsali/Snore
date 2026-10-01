@@ -209,6 +209,7 @@
 
   function showRecordingStatus() {
     if (!running || !session) return;
+    if (dark) nightText();
     const s = session;
     const wakeLockState = recorder.wakeLockState;
     if (s.gap && s.gap.reason === 'ended') {
@@ -310,11 +311,23 @@
     clearTimeout(darkTimer);
   }
 
+  /** The night screen's line follows the recorder, so a dark screen never claims a recording that has stopped. */
+  function nightText() {
+    if (!session) return;
+    const n = session.stats.summary(session.detector.elapsed).snoreCount;
+    const count = `${fmtNum(n)} snore${n === 1 ? '' : 's'}`;
+    const g = session.gap;
+    el.nightMeta.textContent = !g
+      ? `Recording · ${count}`
+      : g.reason === 'ended'
+        ? 'Microphone off · tap, then Stop'
+        : `Interrupted · trying to resume · ${count}`;
+  }
+
   /** Dim clock and count, moved a little each minute so nothing burns into an OLED screen. */
   function updateNight() {
-    const n = session.stats.summary(session.detector.elapsed).snoreCount;
     el.nightClock.textContent = fmtTime(new Date());
-    el.nightMeta.textContent = `Recording · ${fmtNum(n)} snore${n === 1 ? '' : 's'}`;
+    nightText();
     el.nightInfo.style.left = `${8 + Math.random() * 40}%`;
     el.nightInfo.style.top = `${10 + Math.random() * 65}%`;
   }
