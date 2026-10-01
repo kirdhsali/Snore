@@ -21,7 +21,7 @@ Status values: fixed · partly fixed · unresolved · deliberately deferred · d
 
 | ID | Topic | Status |
 | --- | --- | --- |
-| R1 | Interruptions, real-clock gaps, wake-lock failure | **Fixed** in the browser; untested on a physical iPhone |
+| R1 | Interruptions, real-clock gaps, wake-lock failure | **Partly fixed** (second review): tested paths work; C1–C3 below remained; untested on a physical iPhone |
 | R2 | Failed restart broke the previous night's exports | **Fixed** |
 | R3 | Rhythm rescue timing, too-close and earlier anchors, live/offline | **Fixed** (owner-approved counting change) |
 | R4 | Dev server traversal, hidden files, crash, all interfaces | **Fixed** (one cosmetic leftover) |
@@ -35,9 +35,36 @@ Status values: fixed · partly fixed · unresolved · deliberately deferred · d
 | — | Browser/device coverage | **Unresolved**: Chromium only; no physical iPhone run |
 | — | Workflow permissions, deploy/tag gating | **Fixed** |
 
+## Second review of a87c1f3
+
+An independent review of the checkpoint `a87c1f3` (1.12.0), saved as
+[`reviews/2026-10-01-a87c1f3-review.md`](reviews/2026-10-01-a87c1f3-review.md),
+confirmed R2–R5 and R7–R9, R6 as partly fixed, no counting or WAV regression (27
+demo combinations identical), and the benchmark. It rated R1 partly fixed and added
+C1–C6. Its Appendix B reproduces C1 and C3–C6; the unchanged script is
+[`review-probes/controller-store-probes.cjs`](review-probes/controller-store-probes.cjs).
+Before any fix it printed: C1 `suspended 6` / `interrupted 0` resume calls; C5
+`completed on 0`; C3 a 3600 s gap in the JSON but the HTML verdict "6 snores in 1 h
+0 min, about 721 per hour" with no gap; C4 `false 1 999`; C6 `3660 30.016`.
+
+| ID | Finding | Status |
+| --- | --- | --- |
+| C1 | High: an audio context in the iOS state `interrupted` was never resumed | Open, planned as 1.12.1 |
+| C2 | Medium: the dark night screen kept saying "Recording" after the microphone ended | Open, planned as 1.12.2 |
+| C3 | Medium: share image and HTML report showed an interrupted night as continuous | Open, planned as 1.12.3 |
+| C4 | Medium: night store hands out shared nested data; a clip survives its event turning rejected; night record only shallowly frozen | **Deliberately deferred** to the 2.x storage work (module not loaded by the page) |
+| C5 | Low: a slow wake-lock request could hold the screen on after Stop | Open, planned as 1.12.4 |
+| C6 | Low: auto-sensitivity history after a gap uses sample time, events use the gap-aware clock (also the live pill) | **Deliberately deferred** to 2.x (no effect on counts) |
+| — | Episodes still join across a gap | **Owner decision needed**; unchanged |
+| — | Gap edge keeps the partial frame and raw ring; Stop reads `elapsed` after `release()` (sub-frame) | Deferred to 2.x; define "captured time" first |
+| — | Workflow hardening: job-scoped permissions, Pages trigger and concurrency only on `main`, full suite before publish, action pinning | Deferred; repository settings need the owner |
+
 ## Findings
 
-### R1 — Interruptions, real-clock gaps, wake lock · fixed (browser), device untested
+### R1 — Interruptions, real-clock gaps, wake lock · partly fixed, device untested
+
+The second review (a87c1f3) agreed for the suspended and ended paths but found three
+gaps: C1–C3 in [Second review](#second-review-of-a87c1f3).
 
 - **Change:** the recorder detects a suspended/interrupted audio context, a muted or
   ended microphone track, and 2 s without audio; the status says so, `resume()` is
@@ -107,7 +134,9 @@ Status values: fixed · partly fixed · unresolved · deliberately deferred · d
 - **Count change against the baseline** (shown to and approved by the owner before
   merge): demo night unchanged (16/16, 5 ignored, at 48/44.1/16 kHz × 8 seeds);
   20 synthetic mixed runs 756 → 762 confirmed (all 5 newly counted sounds are real
-  rattles, distractors 0 → 0); ESC-50 snoring clips 29/40 and 13/40 unchanged; night
+  rattles, distractors 0 → 0; this one-off harness was not committed, so the exact
+  numbers cannot be re-run — the second review could not reproduce them and
+  corroborated the rule by other means); ESC-50 snoring clips 29/40 and 13/40 unchanged; night
   sounds confirmed 22 → 23 / 1000 (breath rule 18 → 19), the extra one a washing-
   machine clip confirmed by the two-way confirmation.
 

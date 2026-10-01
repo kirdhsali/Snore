@@ -184,6 +184,19 @@ rise) → `RhythmGate` → `SessionStats` (confirmed = another snore 2–12 s aw
 ## 6. Known issues, unfinished work, missing tests
 
 - **No persistence** (see §4). Saved nights are planned for 2.x.
+- **Second review (a87c1f3), see `docs/REVIEW-RESPONSE.md` → "Second review":** C1
+  (`interrupted` audio context never resumed), C2 (night screen said "Recording" after
+  the mic ended), C3 (share image/HTML hid interruptions) and C5 (wake lock after
+  Stop) are fixed in 1.12.1–1.12.4 unless that file says otherwise. Still open:
+  - **C4** night store returns shared nested data, a clip survives its event turning
+    rejected, the night record is only shallowly frozen — fix before wiring storage in.
+  - **C6** auto-sensitivity history (`levels[].t`, JSON `offsetSec`) uses sample time,
+    events the gap-aware clock; the live pill mixes both.
+  - Gap edge: the partial frame and raw ring survive `resumeAfterGap`; Stop reads
+    `elapsed` after `release()` (sub-frame). Define "captured time" first.
+  - **[owner] decision needed:** should snoring episodes split at an interruption?
+    Today confirmation never crosses a gap, but two confirmed groups either side of a
+    short gap form one episode. Changing it changes episode counts.
 - **[suspected] Memory on long nights (R6, partly open):** clips are capped by count
   (1500, ~106 MB at worst per the review), not by bytes; event metadata of three
   detectors is unbounded; peak memory of the WAV export is not measured.
@@ -236,10 +249,14 @@ when `CI tests` is green (Claude may merge its own PRs); bump `package.json` and
   sends the JSON; run `npm run evaluate -- <file>.json` and compare Normal vs the
   background tests `breath` and `auto`. Any default change (planned v2.0: auto +
   breath rule) needs 2–3 such nights, `npm run eval:public` and the owner's approval.
-- **Independent review** of this checkpoint (see `docs/REVIEW-RESPONSE.md`).
+- **Independent review** of 1.12.0 done (saved in `docs/reviews/`); its answer is in
+  `docs/REVIEW-RESPONSE.md`.
 - **Future, owner's instructions pending (new session, version 2.x):** saved nights
   on the device with recovery (IndexedDB implementing `js/night-store.js`), a history
   screen and retention policy.
+  Prerequisites from the second review: fix C4; save progress during the night (a
+  checkpoint, not only `finalize`); make confirmation updates reach storage; an
+  explicit persisted schema with validation on import; a clip byte budget (R6).
 - **Later, separate decisions:** native iPhone recording prototype (locked screen,
   overnight), then possibly a full native app; accounts or sync only after that and
   with an explicit privacy decision (it would change the on-device promise).
