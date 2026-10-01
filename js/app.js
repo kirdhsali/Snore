@@ -480,6 +480,7 @@
     el.rec.classList.add('is-on');
     el.rec.setAttribute('aria-pressed', 'true');
     el.recLabel.textContent = 'Stop';
+    el.goDark.hidden = false;
     el.controls.classList.add('is-locked');
     // Locked for keyboards too: the background tests start with the same setting and must keep it.
     el.sensitivity.disabled = true;
@@ -741,6 +742,7 @@
     const sum = s.stats.summary(s.elapsed);
     s.summary = sum;
     el.live.hidden = true;
+    el.goDark.hidden = true;
     el.report.hidden = false;
     el.rec.classList.remove('is-on', 'is-snore');
     el.rec.setAttribute('aria-pressed', 'false');

@@ -254,6 +254,8 @@ body {
 .btn:hover { border-color: var(--fg-2); }
 .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .btn:disabled { opacity: 0.45; cursor: default; }
+.btn-quiet { background: transparent; color: var(--fg-2); font-size: 13px; padding: 5px 14px; border-radius: 999px; }
+.hero .btn-quiet { margin-top: 6px; } /* clear of the Stop button's level glow */
 .shadow-note { text-align: left; margin-top: -8px; }
 .verdict { margin: 0; font-size: 17px; max-width: 62ch; color: var(--fg); text-wrap: pretty; }
 

@@ -30,7 +30,8 @@ async function main() {
   });
   const errors = [];
   try {
-    const page = await browser.newPage();
+    // Phone-sized, like the owner's iPhone, where the layout is tightest.
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
     // Record every media element the page plays, and how loud its audio is.
     await page.addInitScript(() => {
       window.__played = [];
@@ -64,6 +65,19 @@ async function main() {
     await page.click('#rec');
     await page.waitForFunction(() => window.__snorewatch.running, null, { timeout: 10000 });
 
+    console.log('Darken screen button stays put while the status and level change…');
+    const spots = new Set();
+    const pills = new Set();
+    for (let i = 0; i < 12; i++) {
+      const box = await page.locator('#go-dark').boundingBox();
+      spots.add(box ? `${Math.round(box.x)},${Math.round(box.y)},${Math.round(box.width)}` : 'hidden');
+      pills.add(await page.textContent('#pill-text'));
+      await sleep(400);
+    }
+    assert.ok(pills.size >= 2, `status changed meanwhile: ${[...pills]}`);
+    assert.deepEqual([...spots].length, 1, `button positions: ${[...spots].join(' | ')} while the status read ${[...pills].join(' / ')}`);
+    assert.ok(!spots.has('hidden'), 'button shown while recording');
+
     console.log('Sensitivity is locked while recording, also for the keyboard…');
     assert.ok(await page.isDisabled('#sensitivity'), 'sensitivity disabled while recording');
     await page.evaluate(() => document.querySelector('#sensitivity').focus());
@@ -80,7 +94,7 @@ async function main() {
     await page.evaluate(() => window.__snorewatch.setLiveClipLimit(2)); // shows that the dark-screen queue is bounded
     await page.evaluate(() => window.__snorewatch.setDarkDelay(1500));
     await page.waitForFunction(() => window.__snorewatch.dark, null, { timeout: 5000 });
-    await sleep(26000); // most of the recording happens with the screen dark
+    await sleep(21000); // most of the recording happens with the screen dark (about 30 s in all)
     const pending = await page.evaluate(() => window.__snorewatch.pendingCards);
     assert.ok(pending >= 1 && pending <= 2, `cards queued while dark: ${pending}`);
     await page.click('#night');
