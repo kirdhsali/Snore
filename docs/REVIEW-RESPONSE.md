@@ -21,7 +21,7 @@ Status values: fixed · partly fixed · unresolved · deliberately deferred · d
 
 | ID | Topic | Status |
 | --- | --- | --- |
-| R1 | Interruptions, real-clock gaps, wake-lock failure | **Partly fixed** (second review): tested paths work; C1–C3 below remained; untested on a physical iPhone |
+| R1 | Interruptions, real-clock gaps, wake-lock failure | **Partly fixed** per the second review; its gaps C1–C3 are fixed since in 1.12.1–1.12.3 (simulated); untested on a physical iPhone |
 | R2 | Failed restart broke the previous night's exports | **Fixed** |
 | R3 | Rhythm rescue timing, too-close and earlier anchors, live/offline | **Fixed** (owner-approved counting change) |
 | R4 | Dev server traversal, hidden files, crash, all interfaces | **Fixed** (one cosmetic leftover) |
@@ -46,6 +46,10 @@ C1–C6. Its Appendix B reproduces C1 and C3–C6; the unchanged script is
 Before any fix it printed: C1 `suspended 6` / `interrupted 0` resume calls; C5
 `completed on 0`; C3 a 3600 s gap in the JSON but the HTML verdict "6 snores in 1 h
 0 min, about 721 per hour" with no gap; C4 `false 1 999`; C6 `3660 30.016`.
+After 1.12.1–1.12.4: C1 `interrupted 6`; C5 `completed off 1`; C3 (with the fields the
+app now passes) "6 snores in 30 s recorded." plus the gap; C4 and C6 unchanged
+(deferred). Each fix is one PR with a test that fails on the old code; results in
+[`VERIFICATION.md`](VERIFICATION.md), checkpoint 1.12.4.
 
 | ID | Finding | Status |
 | --- | --- | --- |

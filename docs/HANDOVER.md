@@ -1,9 +1,10 @@
 # Snorewatch handover
 
-State at version **1.12.0**, prepared 2026-10-01 as the checkpoint for an independent
-follow-up review and for a fresh development session. The tested revision and all
+State at version **1.12.4**, prepared 2026-10-01 as the checkpoint for a fresh
+development session. 1.12.0 was reviewed independently twice (v1.9.1 and `a87c1f3`);
+1.12.1–1.12.4 fix the second review's C1, C2, C3 and C5. The tested revision and all
 check results are in [`docs/VERIFICATION.md`](VERIFICATION.md); the finding-by-finding
-answer to the review of v1.9.1 is in [`docs/REVIEW-RESPONSE.md`](REVIEW-RESPONSE.md).
+answers to both reviews are in [`docs/REVIEW-RESPONSE.md`](REVIEW-RESPONSE.md).
 Marks: **[verified]** checked against this repository or by running it;
 **[assumption]** believed, not proven; **[suspected]** probable problem;
 **[owner]** decided by the owner; **[recommendation]** Claude's advice, not decided.
@@ -81,7 +82,7 @@ Claude's recommendations (**[recommendation]**, not decided):
 - Before a full native app, prototype locked-screen overnight recording on a real
   iPhone; the browser side of `js/recorder.js` is the part to replace.
 
-## 3. What changed in this session (v1.9.1 → v1.12.0) and why
+## 3. What changed in this session (v1.9.1 → v1.12.4) and why
 
 An independent review of v1.9.1 (commit `e4eea25`) reported R1–R9 plus structural
 advice. Phase A fixed the findings (one PR each), Phase B prepared the code for
@@ -191,7 +192,7 @@ rise) → `RhythmGate` → `SessionStats` (confirmed = another snore 2–12 s aw
 - **Second review (a87c1f3), see `docs/REVIEW-RESPONSE.md` → "Second review":** C1
   (`interrupted` audio context never resumed), C2 (night screen said "Recording" after
   the mic ended), C3 (share image/HTML hid interruptions) and C5 (wake lock after
-  Stop) are fixed in 1.12.1–1.12.4 unless that file says otherwise. Still open:
+  Stop) are fixed in 1.12.1–1.12.4 (simulated; not yet seen on an iPhone). Still open:
   - **C4** night store returns shared nested data, a clip survives its event turning
     rejected, the night record is only shallowly frozen — fix before wiring storage in.
   - **C6** auto-sensitivity history (`levels[].t`, JSON `offsetSec`) uses sample time,
@@ -249,12 +250,17 @@ when `CI tests` is green (Claude may merge its own PRs); bump `package.json` and
 
 ## 8. Next task
 
-- **Agreed now:** the owner records real nights with 1.12.0 (Normal sensitivity) and
+- **Agreed now:** the owner records real nights with 1.12.4 (Normal sensitivity) and
   sends the JSON; run `npm run evaluate -- <file>.json` and compare Normal vs the
   background tests `breath` and `auto`. Any default change (planned v2.0: auto +
   breath rule) needs 2–3 such nights, `npm run eval:public` and the owner's approval.
 - **Independent review** of 1.12.0 done (saved in `docs/reviews/`); its answer is in
   `docs/REVIEW-RESPONSE.md`.
+- **On the phone (owner, when convenient):** start a recording, trigger a real
+  interruption (a call, Siri, another app playing audio) with the screen darkened,
+  and check that the night screen says so, that recording resumes, and that the
+  report, JSON and shared report show the gap. This is the device check C1–C3 need.
+- **[owner] decision:** should episodes split at an interruption (see §6)?
 - **Future, owner's instructions pending (new session, version 2.x):** saved nights
   on the device with recovery (IndexedDB implementing `js/night-store.js`), a history
   screen and retention policy.
