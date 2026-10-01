@@ -413,3 +413,83 @@ test('auto sensitivity in a very quiet room full of deep rumble stays sensitive'
   }
   assert.ok(auto >= 2 * normal, `auto ${auto} vs normal ${normal}`);
 });
+
+// Rhythm rule as documented: a choppy, snore-like sound counts when a snore that
+// passed on its own starts 2-12 s before or after it.
+const gateEvent = (start, candidate = false) => ({
+  start,
+  end: start + 0.6,
+  duration: 0.6,
+  isSnore: !candidate,
+  rhythmCandidate: candidate,
+  reason: candidate ? 'choppy' : null,
+  lowRatio: 0.95,
+  highRatio: 0.01,
+  centroid: 180,
+  peaks: candidate ? 4 : 1,
+  relDb: 20,
+  clip: null,
+});
+function gateRun(input) {
+  const out = [];
+  const gate = new Core.RhythmGate({}, (e) => out.push(e));
+  for (const e of input) {
+    gate.expire(e.start);
+    gate.decide(e);
+  }
+  gate.flush();
+  return Object.fromEntries(out.map((e) => [e.start, e.isSnore]));
+}
+
+test('rhythm rule: a snore too close does not cancel a later one that is in rhythm', () => {
+  // Candidate at 2 s, snores at 3 s (1 s, too close) and 6 s (4 s, in rhythm).
+  assert.deepEqual(gateRun([gateEvent(2, true), gateEvent(3), gateEvent(6)]), { 2: true, 3: true, 6: true });
+});
+
+test('rhythm rule: every recent snore counts as an anchor, not only the latest', () => {
+  // Snores at 2 s and 5 s, candidate at 6 s: 1 s after the latest, but 4 s after the first.
+  assert.deepEqual(gateRun([gateEvent(2), gateEvent(5), gateEvent(6, true)]), { 2: true, 5: true, 6: true });
+});
+
+test('rhythm rule: limits stay 2 and 12 s and rescued sounds never anchor', () => {
+  assert.deepEqual(gateRun([gateEvent(2, true), gateEvent(14.5)]), { 2: false, 14.5: true }, '12.5 s is too far');
+  assert.deepEqual(gateRun([gateEvent(2, true), gateEvent(3.5)]), { 2: false, 3.5: true }, '1.5 s is too close');
+  // 2 s is rescued by the snore at 6 s, 9 s by the same snore 3 s before it.
+  // 20 s is in rhythm only with the rescued sound at 9 s, so it stays rejected.
+  assert.deepEqual(gateRun([gateEvent(2, true), gateEvent(6), gateEvent(9, true), gateEvent(20, true)]), {
+    2: true,
+    6: true,
+    9: true,
+    20: false,
+  });
+});
+
+test('rhythm rule: a long snore still in progress can rescue a rattle 11 s before it, live and offline alike', () => {
+  for (const at of [12, 12.5, 13, 13.5]) {
+    const scenario = Synth.compose(16000, 20, [{ type: 'rattle', at: 2 }, { type: 'snore', at, duration: 2 }], 1);
+    const { events } = run(scenario);
+    const live = new SessionStats();
+    events.forEach((e) => live.add(e));
+    assert.equal(events.length, 2);
+    assert.ok(events.every((e) => e.isSnore), `snore at ${at} s: ${events.map((e) => e.reason)}`);
+    assert.equal(live.confirmed.length, 2, `snore at ${at} s`);
+  }
+  // The same night as a downloaded report (made by the external review), re-evaluated offline.
+  const { eventsOf, reevaluate } = require('../scripts/evaluate.js');
+  const offline = reevaluate(eventsOf(require('./fixtures/rhythm-boundary-report.json')));
+  assert.deepEqual(
+    offline.map((e) => [e.start, e.isSnore, !!e.rhythm]),
+    [
+      [2.112, true, true],
+      [13.120000000000001, true, false],
+    ],
+  );
+});
+
+test('confirmation looks both ways when a rescued sound arrives after later snores', () => {
+  // Gate order 6, then 3 (rescued once 8 arrives), then 8: 3 and 6 are 3 s apart.
+  const stats = new SessionStats();
+  const snore = (start, rhythm) => ({ isSnore: true, rhythm, start, end: start + 0.6, duration: 0.6, relDb: 20, clip: null });
+  [snore(6), snore(3, true), snore(20)].forEach((e) => stats.add(e));
+  assert.deepEqual(stats.confirmed.map((x) => x.start), [3, 6]);
+});

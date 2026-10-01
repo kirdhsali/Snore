@@ -181,8 +181,8 @@ placed in quiet room noise at bedside level. Results for version 1.9 (snoring re
 | | any snore-like sound | confirmed snore |
 | --- | --- | --- |
 | snoring clips recognised | 29/40 (72.5 %) | 13/40 (32.5 %)* |
-| night sounds counted as snore (25 classes) | 100/1000 (10.0 %) | 22/1000 (2.2 %) |
-| … with the breath-noise rule (background test) | 87/1000 (8.7 %) | 18/1000 (1.8 %) |
+| night sounds counted as snore (25 classes) | 100/1000 (10.0 %) | 23/1000 (2.3 %) |
+| … with the breath-noise rule (background test) | 87/1000 (8.7 %) | 19/1000 (1.9 %) |
 
 \* Confirmation needs a second snore 2–12 s away inside the same 5-second
 clip, which most clips do not contain; over a real night snores come in runs,
