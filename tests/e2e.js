@@ -231,6 +231,9 @@ async function main() {
     await page.click('#rec');
     await page.waitForSelector('#report:not([hidden])');
     assert.match(await page.textContent('#report-range'), /interrupted 1×/);
+    await page.waitForSelector('#share-report:not([disabled])', { timeout: 10000 });
+    const [offRep] = await Promise.all([page.waitForEvent('download'), page.click('#share-report')]);
+    assert.match(fs.readFileSync(await offRep.path(), 'utf8'), /recorded · interrupted 1×/, 'the shared report shows the interruption');
     const [offDl] = await Promise.all([page.waitForEvent('download'), page.click('#dl-json')]);
     const off = JSON.parse(fs.readFileSync(await offDl.path(), 'utf8'));
     assert.equal(off.interruptions.length, 1);

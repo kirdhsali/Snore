@@ -651,6 +651,8 @@
       const data = {
         startWall: n.startWall,
         elapsed: n.clockSeconds, // the image and report draw the night on its clock
+        captured: n.capturedSeconds, // … and say how much of it was actually recorded
+        gaps: n.gaps.map((g) => ({ start: g.clock, end: g.clock + (g.end - g.start) / 1000 })),
         snores: n.stats.confirmed,
         summary: n.summary,
         version: n.version,

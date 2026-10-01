@@ -106,3 +106,63 @@ test('report states how many isolated snores were not counted', () => {
   assert.match(html, /1 isolated snore-like sounds without a neighbour in breathing rhythm were not counted/);
   assert.match(html, /\+1 possible, not counted/);
 });
+
+/** A canvas that records the text drawn on it. */
+function textCanvas() {
+  const texts = [];
+  const ctx = new Proxy(
+    {
+      fillText: (t) => texts.push(String(t)),
+      measureText: (t) => ({ width: String(t).length * 12 }),
+      createLinearGradient: () => ({ addColorStop() {} }),
+    },
+    { get: (o, k) => (k in o ? o[k] : typeof k === 'string' && /^[a-z]/.test(k) ? () => {} : undefined), set: () => true },
+  );
+  return { canvas: { getContext: () => ctx }, texts };
+}
+
+test('an interrupted night says so in the report file and the image; an uninterrupted one is unchanged', () => {
+  const s = demoSession(); // about 90 s of audio
+  const lost = 3600;
+  const night = { ...s, elapsed: s.elapsed + lost };
+  const gaps = [{ start: 30, end: 30 + lost }];
+  const html = reportFor(night, { captured: s.elapsed, gaps });
+  const verdict = html.match(/<p class="verdict">([^<]*)/)[1];
+  assert.match(verdict, new RegExp(`^${s.summary.snoreCount} snores in 1 min \\d+ s recorded\\.`), verdict);
+  assert.doesNotMatch(verdict, /per hour|1 h/, 'no hourly figure from 90 s, and not "in 1 h"');
+  assert.match(html, /<p class="meta">[^<]* of 1 h 1 min recorded · interrupted 1×/);
+  assert.match(html, /interrupted 1× \(1 h 0 min not recorded: /);
+  assert.match(html, /<rect class="gap"/);
+  assert.match(html, /recording too short/);
+
+  // The same night uninterrupted reads as before, with or without the new fields.
+  const plain = reportFor(s);
+  assert.equal(reportFor(s, { captured: s.elapsed, gaps: [] }), plain);
+  assert.doesNotMatch(plain, /interrupted|class="gap"/);
+
+  const card = (d) => {
+    const c = textCanvas();
+    Share.drawShareCard(c.canvas, {
+      startWall: Date.UTC(2026, 8, 28, 21, 2),
+      snores: s.stats.snores,
+      summary: s.summary,
+      version: 't',
+      sensitivity: 'normal',
+      ...d,
+    });
+    return c.texts;
+  };
+  const cut = card({ elapsed: night.elapsed, captured: s.elapsed, gaps });
+  assert.ok(
+    cut.some((t) => /of 1 h 1 min recorded · interrupted 1×$/.test(t)),
+    cut.join(' | '),
+  );
+  assert.ok(cut.includes('not recorded'), 'legend explains the hatched gap');
+  assert.ok(
+    cut.some((t) => /^in 1 min \d+ s$/.test(t)),
+    'hero counts the recorded time, not the hour',
+  );
+  const whole = card({ elapsed: s.elapsed });
+  assert.ok(!whole.some((t) => /interrupted|not recorded/.test(t)));
+  assert.deepEqual(card({ elapsed: s.elapsed, captured: s.elapsed, gaps: [] }), whole);
+});
