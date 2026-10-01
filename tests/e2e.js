@@ -64,6 +64,12 @@ async function main() {
     await page.click('#rec');
     await page.waitForFunction(() => window.__snorewatch.running, null, { timeout: 10000 });
 
+    console.log('Sensitivity is locked while recording, also for the keyboard…');
+    assert.ok(await page.isDisabled('#sensitivity'), 'sensitivity disabled while recording');
+    await page.evaluate(() => document.querySelector('#sensitivity').focus());
+    await page.keyboard.press('ArrowUp');
+    assert.deepEqual(await page.evaluate(() => window.__snorewatch.sensitivities), { main: 'normal', breath: 'normal', auto: 'auto' });
+
     console.log('Night screen: darkens when left alone, a tap only wakes it…');
     await page.evaluate(() => window.__snorewatch.setDarkDelay(500));
     await page.waitForFunction(() => window.__snorewatch.dark, null, { timeout: 5000 });
@@ -71,10 +77,16 @@ async function main() {
     await page.click('#night', { position: { x: 200, y: 180 } }); // right over the Stop button
     assert.equal(await page.evaluate(() => window.__snorewatch.dark), false, 'tap wakes the screen');
     assert.ok(await page.evaluate(() => window.__snorewatch.running), 'the tap did not stop the recording');
+    await page.evaluate(() => window.__snorewatch.setLiveClipLimit(2)); // shows that the dark-screen queue is bounded
     await page.evaluate(() => window.__snorewatch.setDarkDelay(1500));
     await page.waitForFunction(() => window.__snorewatch.dark, null, { timeout: 5000 });
     await sleep(26000); // most of the recording happens with the screen dark
+    const pending = await page.evaluate(() => window.__snorewatch.pendingCards);
+    assert.ok(pending >= 1 && pending <= 2, `cards queued while dark: ${pending}`);
     await page.click('#night');
+    await sleep(300);
+    assert.ok((await page.$$('#live-clips .clip')).length <= 2, 'only the newest cards are drawn');
+    await page.evaluate(() => window.__snorewatch.setLiveClipLimit(6));
     await page.evaluate(() => window.__snorewatch.setDarkDelay(600000));
     await sleep(2000);
     const live = await page.evaluate(() => window.__snorewatch.summary());
@@ -93,6 +105,9 @@ async function main() {
     assert.match(await page.textContent('#shadow-note'), /breath-noise rule .* automatic sensitivity/);
     const [jsonDl] = await Promise.all([page.waitForEvent('download'), page.click('#dl-json')]);
     const report = JSON.parse(fs.readFileSync(await jsonDl.path(), 'utf8'));
+    assert.equal(report.sensitivity, 'normal');
+    assert.equal(report.shadows.breath.sensitivity, 'normal');
+    assert.ok(await page.isEnabled('#sensitivity'), 'sensitivity can be changed again after Stop');
     assert.equal(report.shadows.auto.sensitivity, 'auto');
     assert.equal(report.shadows.breath.minBreathRiseDb, 3);
     for (const sh of Object.values(report.shadows)) {

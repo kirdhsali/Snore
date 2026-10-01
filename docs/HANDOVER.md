@@ -1,6 +1,6 @@
 # Snorewatch handover
 
-State at version **1.9.2** (1.9.1 was the documentation and reproducibility checkpoint,
+State at version **1.9.3** (1.9.1 was the documentation and reproducibility checkpoint,
 2026-10-01; later versions fix findings of an external review, see §9).
 Statements marked **[verified]** were checked against this repository or by running
 it; **[assumption]** marks beliefs not proven; **[suspected]** marks probable problems.
@@ -200,3 +200,4 @@ then a report to the owner and a "go" before any restructuring (Phase B).
 | Version | Finding | Fix |
 | --- | --- | --- |
 | 1.9.2 | R2: a failed Start (e.g. microphone blocked) after a finished night discarded the session, so the still visible report's JSON/WAV/copy buttons threw | The new session is only adopted once its audio runs; on failure the previous night stays; downloads check for a finished night. E2E covers it |
+| 1.9.3 | R7: the sensitivity control was only locked for touch/mouse (CSS); a keyboard could change the main detector mid-night while the breath background test kept the old setting. R6: snores found while the screen was black were all queued and drawn as cards on waking, then trimmed to 6 | The select is `disabled` while recording and the mid-night change path is removed; the dark-screen queue keeps only the newest cards that will be shown |

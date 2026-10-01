@@ -8,6 +8,7 @@
   const Share = window.SnoreShare;
   const EMBED = !!window.SNOREWATCH_EMBED;
   const LIVE_SECONDS = 30;
+  let liveClipLimit = 6; // snore cards shown while recording
   const BREATH_RULE_DB = 3; // candidate breath-noise rule, tested in the background
   const V = window.SNOREWATCH_VERSION || { version: '?', build: 'dev' };
   const VERSION_TEXT = `${V.version} (${V.build})`;
@@ -114,9 +115,6 @@
     if (!running) setStatus('Tap Start to begin.');
   }
   window.addEventListener('hashchange', () => !running && updateSourceUI());
-  el.sensitivity.addEventListener('change', () => {
-    if (session && running) session.detector.setSensitivity(el.sensitivity.value);
-  });
 
   if (EMBED) {
     HINTS.demo += ' The microphone is not available in this preview; open the app from its own address to record yourself.';
@@ -365,7 +363,11 @@
       if (s.frames[i].index <= lastFrame && s.frames[i].cls === 'p') s.frames[i].cls = cls;
     }
     s.lastVerdict = { ev, t: ev.end };
-    if (ev.isSnore) s.newClips.push(ev);
+    if (ev.isSnore) {
+      // Only the newest cards are ever shown, so a long dark night queues no more than that.
+      s.newClips.push(ev);
+      if (s.newClips.length > liveClipLimit) s.newClips.splice(0, s.newClips.length - liveClipLimit);
+    }
   }
 
   function showLive() {
@@ -377,6 +379,8 @@
     el.rec.setAttribute('aria-pressed', 'true');
     el.recLabel.textContent = 'Stop';
     el.controls.classList.add('is-locked');
+    // Locked for keyboards too: the background tests start with the same setting and must keep it.
+    el.sensitivity.disabled = true;
     el.liveClips.innerHTML = '<p class="empty">Snores appear here as soon as they are detected.</p>';
     renderLiveTiles();
     renderTimeline(el.liveTimeline, el.liveBucket, session.detector.elapsed);
@@ -466,7 +470,7 @@
         const card = clipCard(ev, true);
         el.liveClips.prepend(card);
       }
-      while (el.liveClips.children.length > 6) el.liveClips.lastChild.remove();
+      while (el.liveClips.children.length > liveClipLimit) el.liveClips.lastChild.remove();
       s.newClips = [];
       lastSlow = 0;
     }
@@ -641,6 +645,7 @@
     el.rec.style.setProperty('--lvl', 0);
     el.recLabel.textContent = 'Start';
     el.controls.classList.remove('is-locked');
+    el.sensitivity.disabled = false;
     setStatus('Recording stopped. Your report is below. Tap Start for a new recording.');
 
     el.reportSource.textContent = SOURCE_NAMES[s.source];
@@ -998,6 +1003,15 @@
     setDarkDelay(ms) {
       darkDelay = ms;
       scheduleDark();
+    },
+    setLiveClipLimit(n) {
+      liveClipLimit = n;
+    },
+    get pendingCards() {
+      return session ? session.newClips.length : 0;
+    },
+    get sensitivities() {
+      return session && { main: session.detector.sensitivity, ...Object.fromEntries(Object.entries(session.shadows).map(([k, sh]) => [k, sh.detector.sensitivity])) };
     },
   };
 

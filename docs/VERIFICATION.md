@@ -77,3 +77,4 @@ the old code first and failed there.
 | Version | Check | Result |
 | --- | --- | --- |
 | 1.9.2 | E2E "failed restart": finished 30 s night, `getUserMedia` rejected with `NotAllowedError`, Start, then JSON + WAV download | old code: download never happens (page error); new code: JSON has the previous `startedAt` and snores, WAV valid; full e2e passed; `npm test` 36/36 |
+| 1.9.3 | E2E: focus + ArrowUp on the sensitivity while recording; card limit 2 during the dark phase | old code fails (`sensitivity disabled while recording`); new: main/breath stay `normal`, ≤ 2 cards queued and drawn; JSON `sensitivity` and `shadows.breath.sensitivity` both `normal`; full e2e passed; `npm test` 36/36 |
