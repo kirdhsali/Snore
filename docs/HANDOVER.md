@@ -113,6 +113,7 @@ expansion without behaviour change. Details per finding, with tests and results:
 | 1.12.3 | #31 | C3: share image and HTML report state recorded time and interruptions; short-recording wording uses recorded time |
 | 1.12.4 | #32 | C5: a screen lock that arrives after Stop or for an earlier night is released; stale release events ignored |
 | 1.12.5 | #34 | Night 4 follow-up: the data file names the night's time zone; `npm run evaluate` counts per hour in it (was this computer's zone) |
+| 1.12.6 | #35 | Night 4 follow-up: snore clips are turned up to listening level before the 16-bit conversion (were cut at −70 dBFS level, about 25 sample values, and boosted only for playback: grainy) |
 
 ## 4. Architecture
 
@@ -132,7 +133,7 @@ js/app.js (page) ◄── onState / onFrame / onEvent / onWakeLock
 | `index.html`, `css/style.css` | Page, dark-first design, night screen; loads the scripts below in order |
 | `js/version.js` | Version + build (`dev`, replaced by the commit hash on deploy) |
 | `js/stats.js` | `SessionStats`: confirmation (2–12 s, both directions, not across gaps), episodes, intervals, timeline buckets; the rhythm window as single source (`SnoreStats`) |
-| `js/wav.js` | `encodeWav`, `normalizeClip` (`SnoreWav`) |
+| `js/wav.js` | `encodeWav`, `clipFromAudio` (`SnoreWav`) |
 | `js/detector.js` | FFT, `FrameAnalyzer`, `SnoreDetector` (floor, events, classification, clips, `release()`, `resumeAfterGap()`), `RhythmGate`, `classify`, `DEFAULTS`/`SENSITIVITY`/`REASONS`. UMD facade `SnoreCore` that re-exports `stats.js` and `wav.js` |
 | `js/synth.js` | Seeded synthetic sounds and rooms; used by the demo and tests |
 | `js/charts.js` | Canvas drawing (live strip, timeline, clip waveform) |

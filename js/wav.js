@@ -11,15 +11,17 @@
   'use strict';
 
   /**
-   * Evens out clip volume for listening: scales the clip so its peak reaches
-   * `targetPeak` (0..1), boosting by at most `maxGainDb`. Never turns it down.
+   * A snore clip for listening: 16-bit samples of `audio` (-1..1) with the volume
+   * evened out, so the peak reaches `targetPeak` (0..1), boosting by at most
+   * `maxGainDb` and never turning it down. The boost comes before the 16-bit
+   * conversion: a snore at -70 dBFS keeps full detail instead of a few dozen
+   * sample values. The real level stays in the event (peakDb, relDb).
    */
-  function normalizeClip(clip, targetPeak = 0.7, maxGainDb = 60) {
-    let peak = 1;
-    for (let i = 0; i < clip.length; i++) peak = Math.max(peak, Math.abs(clip[i]));
-    const gain = Math.min((targetPeak * 32767) / peak, Math.pow(10, maxGainDb / 20));
-    if (gain <= 1) return clip;
-    return Int16Array.from(clip, (x) => Math.max(-32768, Math.min(32767, Math.round(x * gain))));
+  function clipFromAudio(audio, targetPeak = 0.7, maxGainDb = 60) {
+    let peak = 0;
+    for (let i = 0; i < audio.length; i++) peak = Math.max(peak, Math.abs(audio[i]));
+    const gain = peak > 0 ? Math.max(1, Math.min(targetPeak / peak, Math.pow(10, maxGainDb / 20))) : 1;
+    return Int16Array.from(audio, (x) => Math.max(-32768, Math.min(32767, Math.round(x * gain * 32767))));
   }
 
   /** 16-bit mono WAV from Int16 chunks, with `gapSec` of silence between them. */
@@ -54,5 +56,5 @@
     return buf;
   }
 
-  return { encodeWav, normalizeClip };
+  return { encodeWav, clipFromAudio };
 });

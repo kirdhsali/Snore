@@ -41,7 +41,7 @@
   'use strict';
 
   const { SessionStats, percentile } = Stats;
-  const { encodeWav, normalizeClip } = Wav;
+  const { encodeWav, clipFromAudio } = Wav;
 
   // triggerDb/releaseDb: margin above the room's noise floor.
   // minAbsDb: absolute level (dBFS) a sound must reach at all. Phones record
@@ -616,8 +616,7 @@
         clipRate: this.clipRate,
       };
       // Candidates keep their audio only while they wait; it is dropped if no snore confirms them.
-      if ((result.isSnore || result.rhythmCandidate) && o.keepClips)
-        result.clip = Int16Array.from(audio, (x) => Math.max(-32768, Math.min(32767, Math.round(x * 32767))));
+      if ((result.isSnore || result.rhythmCandidate) && o.keepClips) result.clip = clipFromAudio(audio);
       return result;
     }
 
@@ -745,7 +744,7 @@
     subBassShare,
     countPeaks,
     encodeWav,
-    normalizeClip,
+    clipFromAudio,
     nextPow2,
     DEFAULTS,
     SENSITIVITY,
