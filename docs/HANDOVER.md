@@ -1,8 +1,10 @@
 # Snorewatch handover
 
-State at version **1.13.0**, prepared 2026-10-03. 1.12.0 was reviewed independently
+State at version **1.14.0**, prepared 2026-10-03. 1.12.0 was reviewed independently
 twice (v1.9.1 and `a87c1f3`); 1.12.1–1.12.4 fix the second review's C1, C2, C3 and C5.
-1.12.5–1.13.0 follow up the first real night recorded with 1.12.4 (night 4, §6a).
+1.12.5–1.14.0 follow up the first real night recorded with 1.12.4 (night 4, §6a): data
+file and clips (1.12.5–1.12.6), the 6 dB breath test (1.13.0), auto sensitivity's release
+(1.13.1) and its test clips (1.14.0).
 The tested revisions and all check results are in [`docs/VERIFICATION.md`](VERIFICATION.md);
 the finding-by-finding answers to both reviews are in [`docs/REVIEW-RESPONSE.md`](REVIEW-RESPONSE.md).
 Marks: **[verified]** checked against this repository or by running it;
@@ -302,17 +304,27 @@ when `CI tests` is green (Claude may merge its own PRs); bump `package.json` and
 
 ## 8. Next task
 
-- **Agreed now:** the owner records real nights with 1.13.0 (Normal sensitivity) and
-  sends the JSON (and WAV); run `npm run evaluate -- <file>.json` and compare Normal with
-  the background tests `breath` (3 dB), `breath6` (6 dB) and `auto`; check a sample of
-  clips by spectrogram or by ear, above all where the tests disagree. Making a breath
+- **Agreed now:** the owner records real nights with 1.14.0 (Normal sensitivity) and
+  sends the JSON, the snores WAV and the test-clip WAV; run `npm run evaluate -- <file>.json`
+  and compare Normal with the background tests `breath` (3 dB), `breath6` (6 dB) and
+  `auto`; listen to (or spectrogram) the test clips and a sample of Normal's clips, above
+  all where the tests disagree. Check whether auto still misses Normal's loud snores
+  (night 4: 80 of 150 at 03:15–04:00; 1.13.1 should fix it). Making a breath
   rule count (night 4 points to 6 dB for the chosen sensitivity) or any default change
   (planned v2.0: auto + breath rule) needs 2–3 such nights, `npm run eval:public`
   (1.13.0: the 6 dB rule keeps 29/40 snoring clips, night sounds 100 → 78 / 1000) and
   the owner's approval.
-- **[recommendation]** If auto sensitivity stays a candidate, keep a small random
-  sample of its extra snores' clips so it can be checked by ear (needs an owner
-  decision: still "only short snore clips", but more of them).
+- **Next build, owner agreed (2026-10-03), after the auto work:** room noise for users.
+  Step 1 (data only): a per-minute noise profile (background level plus ~10 pitch bands,
+  quiet moments only, no audio) in the night record and JSON. Step 2: a "Room noise"
+  report section with plain findings (steady hum, a device cycling on/off, noisy
+  stretches, hours where quiet snores could not be heard) and a time × pitch heatmap;
+  across nights (hour × night) once nights are saved (2.x). Step 3 (background test
+  first): use it in detection, e.g. a level without the mains-hum band. Open owner
+  question: show it in the shared image/HTML too, or only in the app?
+- **Revisit with that data:** auto's restlessness measure ignores rejected sounds
+  (hum swells, rumble), so it never saw night 4's swells. Counting them was tried in
+  1.13.1 and left out (no measurable gain in simulation; one change at a time).
 - **Independent review** of 1.12.0 done (saved in `docs/reviews/`); its answer is in
   `docs/REVIEW-RESPONSE.md`.
 - **On the phone (owner, when convenient):** start a recording, trigger a real
