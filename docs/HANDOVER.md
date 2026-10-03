@@ -114,6 +114,7 @@ expansion without behaviour change. Details per finding, with tests and results:
 | 1.12.4 | #32 | C5: a screen lock that arrives after Stop or for an earlier night is released; stale release events ignored |
 | 1.12.5 | #34 | Night 4 follow-up: the data file names the night's time zone; `npm run evaluate` counts per hour in it (was this computer's zone) |
 | 1.12.6 | #35 | Night 4 follow-up: snore clips are turned up to listening level before the 16-bit conversion (were cut at −70 dBFS level, about 25 sample values, and boosted only for playback: grainy) |
+| 1.13.0 | #36 | Night 4 follow-up: third background test `breath6` (chosen sensitivity + breath rule 6 dB); headline unchanged; `eval:public` reports it |
 
 ## 4. Architecture
 

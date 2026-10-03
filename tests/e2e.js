@@ -82,7 +82,12 @@ async function main() {
     assert.ok(await page.isDisabled('#sensitivity'), 'sensitivity disabled while recording');
     await page.evaluate(() => document.querySelector('#sensitivity').focus());
     await page.keyboard.press('ArrowUp');
-    assert.deepEqual(await page.evaluate(() => window.__snorewatch.sensitivities), { main: 'normal', breath: 'normal', auto: 'auto' });
+    assert.deepEqual(await page.evaluate(() => window.__snorewatch.sensitivities), {
+      main: 'normal',
+      breath: 'normal',
+      breath6: 'normal',
+      auto: 'auto',
+    });
 
     console.log('Night screen: darkens when left alone, a tap only wakes it…');
     await page.evaluate(() => window.__snorewatch.setDarkDelay(500));

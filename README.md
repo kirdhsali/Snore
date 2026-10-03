@@ -182,13 +182,15 @@ Report, after Stop:
 
 `npm run eval:public` runs the detector on [ESC-50](https://github.com/karolpiczak/ESC-50)
 (CC BY-NC; downloaded for testing only, never committed). Each 5-second clip is
-placed in quiet room noise at bedside level. Results for version 1.9 (snoring recognised is unchanged by the breath-noise rule):
+placed in quiet room noise at bedside level. Results for version 1.13 (the current rules unchanged since 1.9; the
+breath-noise rules recognise the same 29 snoring clips):
 
 | | any snore-like sound | confirmed snore |
 | --- | --- | --- |
 | snoring clips recognised | 29/40 (72.5 %) | 13/40 (32.5 %)* |
 | night sounds counted as snore (25 classes) | 100/1000 (10.0 %) | 23/1000 (2.3 %) |
 | … with the breath-noise rule (background test) | 87/1000 (8.7 %) | 19/1000 (1.9 %) |
+| … with the stricter 6 dB rule (background test) | 78/1000 (7.8 %) | 14/1000 (1.4 %); snoring 12/40 confirmed |
 
 \* Confirmation needs a second snore 2–12 s away inside the same 5-second
 clip, which most clips do not contain; over a real night snores come in runs,
