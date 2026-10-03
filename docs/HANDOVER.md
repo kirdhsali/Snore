@@ -1,10 +1,10 @@
 # Snorewatch handover
 
-State at version **1.12.4**, prepared 2026-10-01 as the checkpoint for a fresh
-development session. 1.12.0 was reviewed independently twice (v1.9.1 and `a87c1f3`);
-1.12.1–1.12.4 fix the second review's C1, C2, C3 and C5. The tested revision and all
-check results are in [`docs/VERIFICATION.md`](VERIFICATION.md); the finding-by-finding
-answers to both reviews are in [`docs/REVIEW-RESPONSE.md`](REVIEW-RESPONSE.md).
+State at version **1.13.0**, prepared 2026-10-03. 1.12.0 was reviewed independently
+twice (v1.9.1 and `a87c1f3`); 1.12.1–1.12.4 fix the second review's C1, C2, C3 and C5.
+1.12.5–1.13.0 follow up the first real night recorded with 1.12.4 (night 4, §6a).
+The tested revisions and all check results are in [`docs/VERIFICATION.md`](VERIFICATION.md);
+the finding-by-finding answers to both reviews are in [`docs/REVIEW-RESPONSE.md`](REVIEW-RESPONSE.md).
 Marks: **[verified]** checked against this repository or by running it;
 **[assumption]** believed, not proven; **[suspected]** probable problem;
 **[owner]** decided by the owner; **[recommendation]** Claude's advice, not decided.
@@ -48,6 +48,10 @@ Requirements:
   (Wake Lock) and covers it with black; screen-off recording needs a native app.
 
 Owner decisions (**[owner]**), most recent first:
+- **Night 4 follow-ups (2026-10-03):** the owner agreed that some of night 4's
+  clips hold no snore and approved three changes: the time zone in the data file,
+  clips at full 16-bit detail, and the 6 dB breath rule as a background test only
+  (headline unchanged). Whether a breath rule counts is decided later (§8).
 - **Saving nights, history, accounts:** to be done as version 2.x in a new session
   after the owner's instructions; nothing of it is started beyond the interface
   (§4, `js/night-store.js`).
@@ -82,7 +86,7 @@ Claude's recommendations (**[recommendation]**, not decided):
 - Before a full native app, prototype locked-screen overnight recording on a real
   iPhone; the browser side of `js/recorder.js` is the part to replace.
 
-## 3. What changed in this session (v1.9.1 → v1.12.4) and why
+## 3. What changed (v1.9.1 → v1.13.0) and why
 
 An independent review of v1.9.1 (commit `e4eea25`) reported R1–R9 plus structural
 advice. Phase A fixed the findings (one PR each), Phase B prepared the code for
@@ -217,12 +221,52 @@ rise) → `RhythmGate` → `SessionStats` (confirmed = another snore 2–12 s aw
   ScriptProcessor fallback has no automated browser test (only the fake-browser unit test).
 - The e2e demo step uses a random demo seed (the review suggested deterministic
   seeds); the step was made robust (longer run) but is not seeded.
-- **[assumption]** Thresholds generalise beyond 3 real nights of one person, synthetic
-  sounds and ESC-50; the breath rule (3 dB) and auto sensitivity are untested live.
+- **[assumption]** Thresholds generalise beyond 4 real nights of one person, synthetic
+  sounds and ESC-50. Night 4 was the first live run of the background tests: the 3 dB
+  breath rule was too lenient in that room (§6a); auto sensitivity counted more than
+  Normal, which cannot be checked by ear because background tests keep no clips.
+- `npm run evaluate` reads features rounded to 3 decimals: on night 4, 6 sounds with a
+  20–60 Hz share of exactly 0.850 flip from "rumble" to snore-like (1053 → 1061 recorded
+  vs current with identical rules). Cosmetic; not fixed.
 - No Content-Security-Policy; Google Fonts reveals the visitor's IP to Google.
 - No type checker. `dist/` builds are not maintained. `eval:public` is not in CI.
 - Event times are analysed audio plus interruptions, not raw wall clock (start, end
   and gaps use the real clock).
+
+## 6a. Real night 4 (recorded 2026-10-02 with 1.12.4)
+
+Only aggregate figures are kept here; the night's JSON and WAV are never committed.
+Times are the owner's local time (UTC+2).
+
+- 01:34–08:26, 6 h 52 min, no interruptions, screen lock held, Normal. Recorded:
+  955 confirmed (139/h), 98 possible, 1534 ignored; background tests breath 3 dB 816,
+  auto 1347. **[verified]**
+- **Real snoring** 01:52–02:17 (~350, about every 4 s) and 03:15–03:56 (~150, louder):
+  the clips show harmonic sound at 100–400 Hz rising over the 0.25 s before each
+  snore. **[verified by spectrograms]** Almost nothing 04:00–06:00.
+- **False snores after 07:30:** ~260 confirmed whose clips show the same spectrum as
+  the moment before: swells of a low hum (centroid ~70 Hz, breath noise 0–5 dB,
+  peak −73 to −75 dBFS) at intervals that confirm each other. Night 3 showed the
+  same pattern (why the breath measurement exists since 1.9). **[verified by
+  spectrograms; owner agreed]**
+- **Room:** a steady 50 Hz hum, plus something that runs ~21 min every ~52 min
+  and raises the background from −89 to −79.5 dBFS; restless from ~06:00.
+- **Offline re-scoring** of the stored features (`scripts/evaluate.js` `reevaluate`):
+
+  | Rules | Whole night | Clear stretches (01:34–02:30, 03:15–04:00) | After 07:30 |
+  | --- | --- | --- | --- |
+  | 1.0 (gate −70 dBFS, no confirmation; approximated) | 624 | 346 | 78 |
+  | Current (1.12.4–1.13.0) | 961 | 510 | 260 |
+  | + breath rule 3 dB | 822 | 505 | 169 |
+  | + breath rule 6 dB | 661 | 499 | 46 |
+
+  The trigger, floor tracking and release are unchanged since 1.0; the counting
+  changes since then are the gate −70 → −75 dBFS (1.1), the rumble filter and
+  rhythm rescue (1.4), centroid 500 Hz and confirmation (1.5), and the rhythm fix
+  (1.10). The −75 dBFS gate (1.1) lets the quiet hum swells in, but the −70 dBFS
+  gate also lost a third of the clear snores, so a level gate cannot separate them.
+- **Side findings, fixed:** no time zone in the data file (1.12.5); clips cut at the
+  raw −70 dBFS level, median 25 sample values, grainy when boosted (1.12.6).
 
 ## 7. Setup, development and testing
 
@@ -254,10 +298,17 @@ when `CI tests` is green (Claude may merge its own PRs); bump `package.json` and
 
 ## 8. Next task
 
-- **Agreed now:** the owner records real nights with 1.12.4 (Normal sensitivity) and
-  sends the JSON; run `npm run evaluate -- <file>.json` and compare Normal vs the
-  background tests `breath` and `auto`. Any default change (planned v2.0: auto +
-  breath rule) needs 2–3 such nights, `npm run eval:public` and the owner's approval.
+- **Agreed now:** the owner records real nights with 1.13.0 (Normal sensitivity) and
+  sends the JSON (and WAV); run `npm run evaluate -- <file>.json` and compare Normal with
+  the background tests `breath` (3 dB), `breath6` (6 dB) and `auto`; check a sample of
+  clips by spectrogram or by ear, above all where the tests disagree. Making a breath
+  rule count (night 4 points to 6 dB for the chosen sensitivity) or any default change
+  (planned v2.0: auto + breath rule) needs 2–3 such nights, `npm run eval:public`
+  (1.13.0: the 6 dB rule keeps 29/40 snoring clips, night sounds 100 → 78 / 1000) and
+  the owner's approval.
+- **[recommendation]** If auto sensitivity stays a candidate, keep a small random
+  sample of its extra snores' clips so it can be checked by ear (needs an owner
+  decision: still "only short snore clips", but more of them).
 - **Independent review** of 1.12.0 done (saved in `docs/reviews/`); its answer is in
   `docs/REVIEW-RESPONSE.md`.
 - **On the phone (owner, when convenient):** start a recording, trigger a real
