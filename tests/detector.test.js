@@ -257,13 +257,16 @@ test('page version matches package.json', () => {
   assert.equal(v.version, pkg.version);
 });
 
-test('normalizeClip boosts quiet clips and caps the gain', () => {
-  const quiet = Core.normalizeClip(new Int16Array([10, -20, 5]));
-  assert.equal(Math.max(...quiet.map(Math.abs)), Math.round(20 * Math.pow(10, 60 / 20)));
-  const loud = new Int16Array([30000, -100]);
-  assert.equal(Core.normalizeClip(loud), loud);
-  const mid = Core.normalizeClip(new Int16Array([1000, -2000]));
-  assert.equal(Math.max(...mid.map(Math.abs)), Math.round(0.7 * 32767));
+test('clipFromAudio boosts quiet clips and caps the gain', () => {
+  const peakOf = (clip) => Math.max(...clip.map(Math.abs));
+  const step = 1 / 32767; // one 16-bit step
+  const quiet = Core.clipFromAudio(Float32Array.from([10, -20, 5], (x) => x * step));
+  assert.equal(peakOf(quiet), Math.round(20 * Math.pow(10, 60 / 20)), 'boost capped at 60 dB');
+  const loud = Core.clipFromAudio(Float32Array.from([30000, -100], (x) => x * step));
+  assert.deepEqual(Array.from(loud), [30000, -100], 'never turned down');
+  const mid = Core.clipFromAudio(Float32Array.from([1000, -2000], (x) => x * step));
+  assert.equal(peakOf(mid), Math.round(0.7 * 32767));
+  assert.deepEqual(Array.from(Core.clipFromAudio(new Float32Array(3))), [0, 0, 0], 'silence stays silent');
 });
 
 test('deep rumble is rejected although it is low and smooth', () => {
@@ -587,5 +590,27 @@ test('an interruption: later events keep wall time and nothing is decided or con
   assert.deepEqual(
     s2.confirmed.map((e) => e.start),
     [2, 6, 8],
+  );
+});
+
+test('quiet snores keep full 16-bit detail in their clips', () => {
+  // A bedside phone records snores near -70 dBFS (real night 4: median peak -69 dBFS).
+  // Clips used to be cut at that level and only turned up when played, leaving about
+  // 25 distinct sample values: grainy. They are now turned up before the 16-bit cut.
+  const demo = Synth.demoScenario(16000);
+  const quiet = { ...demo, samples: demo.samples.map((x) => x * 0.01) }; // 40 dB quieter
+  const { events } = run(quiet, { minAbsDb: -120 });
+  const snores = events.filter((e) => e.isSnore && e.clip);
+  assert.ok(snores.length >= 10, `found ${snores.length} quiet snores`);
+  for (const e of snores) {
+    const peak = e.clip.reduce((m, x) => Math.max(m, Math.abs(x)), 0);
+    assert.ok(Math.abs(peak - 0.7 * 32767) <= 2, `clip peak ${peak} at listening level`);
+    assert.ok(new Set(e.clip).size > 1000, `clip has ${new Set(e.clip).size} distinct values`);
+  }
+  // Counting does not depend on the clip: the same snores as at full level.
+  const loud = run(demo).events.filter((e) => e.isSnore);
+  assert.deepEqual(
+    snores.map((e) => e.start),
+    loud.map((e) => e.start),
   );
 });
