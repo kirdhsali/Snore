@@ -114,7 +114,7 @@ function report(file) {
     if (a || b) console.log(`  ${REASONS[k].padEnd(34).slice(0, 34)} ${pad(b, 4)}   ${pad(a, 13)}`);
   }
   const shadows = r.shadows || (r.shadow ? { auto: r.shadow } : {});
-  for (const [name, sh] of Object.entries(shadows)) compareShadow(r, sh, name, hours);
+  for (const [name, sh] of Object.entries(shadows)) compareShadow(r, sh, name, hours, night.interruptions);
   const clock = hourClock(night.timeZone);
   console.log(`\n  hour    recorded  current   (snore-like sounds per clock hour, ${clock.label})`);
   const byHour = new Map();
@@ -135,8 +135,28 @@ function report(file) {
   for (const h of order) console.log(`  ${pad(h, 2)}:00  ${pad(byHour.get(h)[0], 8)}  ${pad(byHour.get(h)[1], 7)}`);
 }
 
+/**
+ * A background test's confirmed snores under a stricter breath-noise rule, from its stored
+ * snore-like sounds (each keeps its breath noise). Approximate: rhythm rescues are not redone.
+ */
+function stricterBreath(shadow, minDb, gaps = []) {
+  const stats = new SessionStats();
+  for (const g of gaps) stats.addGap(g.start, g.end);
+  for (const x of shadow.snores)
+    if (x.breathRiseDb != null && x.breathRiseDb >= minDb)
+      stats.add({
+        isSnore: true,
+        start: x.offsetSec,
+        end: x.offsetSec + x.durationSec,
+        duration: x.durationSec,
+        relDb: x.aboveRoomDb,
+        clip: null,
+      });
+  return stats.confirmed.length;
+}
+
 /** The recording's own detector against a candidate rule set that ran alongside it. */
-function compareShadow(r, shadow, name, hours) {
+function compareShadow(r, shadow, name, hours, gaps = []) {
   const main = r.snores.filter((x) => x.confirmed);
   const auto = shadow.snores.filter((x) => x.confirmed);
   const near = (a, list) => list.some((b) => Math.abs(a.offsetSec - b.offsetSec) < 0.6);
@@ -152,6 +172,12 @@ function compareShadow(r, shadow, name, hours) {
     `    found by both ${both}, only ${r.sensitivity} ${main.length - both}, only ${name} ${auto.filter((x) => !near(x, main)).length}`,
   );
   if (trig.length) console.log(`    trigger margin over the night: min ${q(0)}, median ${q(0.5)}, max ${q(1)} dB`);
+  if (shadow.minBreathRiseDb != null && shadow.minBreathRiseDb < 6) {
+    const n = stricterBreath(shadow, 6, gaps);
+    console.log(`    with a 6 dB breath-noise rule instead (from its stored sounds): ${n} (${(n / hours).toFixed(0)}/h)`);
+  }
+  const clips = shadow.snores.filter((x) => x.wavStartSec != null).length;
+  if (clips) console.log(`    ${clips} of its snores that ${r.sensitivity} missed are in the test-clip WAV (wavStartSec)`);
 }
 
 if (require.main === module) {
@@ -162,4 +188,4 @@ if (require.main === module) {
   }
   files.forEach(report);
 }
-module.exports = { eventsOf, reevaluate };
+module.exports = { eventsOf, reevaluate, stricterBreath };

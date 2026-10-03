@@ -88,6 +88,19 @@ test('a finished night survives the round trip through the data file', () => {
   assert.equal(back.shadows.auto.snores.length, night.shadows.auto.snores.length);
 });
 
+test('background-test clips are placed in the test-clip WAV', () => {
+  const night = demoNight();
+  const sampled = [...night.shadows.auto.snores].sort((a, b) => a.start - b.start).slice(0, 2);
+  const json = toReport({ ...night, testWavStarts: new Map(sampled.map((x, i) => [x, i * 1.5])) });
+  const positions = json.shadows.auto.snores.map((x) => x.wavStartSec);
+  assert.deepEqual(positions.slice(0, 2), [0, 1.5]);
+  assert.ok(positions.slice(2).every((p) => p === null));
+  assert.ok(
+    toReport(night).shadows.auto.snores.every((x) => x.wavStartSec === null),
+    'none without a sample',
+  );
+});
+
 test('the data file keeps every field earlier versions wrote', () => {
   const old = require('./fixtures/v1.9-demo-report.json');
   const now = toReport(demoNight());
