@@ -22,6 +22,8 @@
   const { SnoreDetector, SessionStats } = Core;
   const STALL_MS = 2000; // no audio for this long while recording counts as an interruption
   const BREATH_RULE_DB = 3; // candidate breath-noise rule, tested in the background
+  // Stricter candidate: night 4 counted hum swells with 3-6 dB of breath noise as snores.
+  const STRICT_BREATH_RULE_DB = 6;
 
   const TAP_CODE = `class Tap extends AudioWorkletProcessor {
     constructor() { super(); this.buf = new Float32Array(2048); this.n = 0; }
@@ -302,6 +304,7 @@
         };
         s.shadows = {
           breath: shadow({ sensitivity, minBreathRiseDb: BREATH_RULE_DB }),
+          breath6: shadow({ sensitivity, minBreathRiseDb: STRICT_BREATH_RULE_DB }),
           auto: shadow({ sensitivity: 'auto', minBreathRiseDb: BREATH_RULE_DB }),
         };
         s.tap = await createTap(env, ctx, input, (samples) => {

@@ -119,7 +119,8 @@ expansion without behaviour change. Details per finding, with tests and results:
 ```
 mic or demo ─► js/recorder.js: AudioWorklet tap (ScriptProcessor fallback)
                  ├─► SnoreDetector (chosen sensitivity) ─► SessionStats ─┐
-                 ├─► SnoreDetector (background "breath") ─► SessionStats ─┼─► frozen night record on Stop
+                 ├─► SnoreDetector (background "breath") ─► SessionStats ─┤
+                 ├─► SnoreDetector (background "breath6")─► SessionStats ─┼─► frozen night record on Stop
                  └─► SnoreDetector (background "auto")   ─► SessionStats ─┘
                states: idle → requesting → recording ⇄ interrupted → stopping → completed
 js/app.js (page) ◄── onState / onFrame / onEvent / onWakeLock
@@ -137,7 +138,7 @@ js/app.js (page) ◄── onState / onFrame / onEvent / onWakeLock
 | `js/charts.js` | Canvas drawing (live strip, timeline, clip waveform) |
 | `js/share.js` | Star-map image and script-free HTML report (also runs in Node) |
 | `js/report-format.js` | The data file: `toReport` (download), `fromReport` (reads schema 1 and 2) (`SnoreReport`) |
-| `js/recorder.js` | Recording controller (`SnoreRecorder`): audio graph, three detectors, interruptions, wake lock, state machine, `finishNight`. Browser APIs injected through `env` (unit-tested with fakes) |
+| `js/recorder.js` | Recording controller (`SnoreRecorder`): audio graph, four detectors (one counting, three background tests), interruptions, wake lock, state machine, `finishNight`. Browser APIs injected through `env` (unit-tested with fakes) |
 | `js/night-store.js` | Storage interface + in-memory implementation (`SnoreStore`). **Not loaded by the page** |
 | `js/app.js` | The page only; never touches audio objects; test hooks on `window.__snorewatch` |
 | `scripts/serve.js` | Local static server for `npm start` (127.0.0.1 unless `HOST`) |
@@ -151,7 +152,7 @@ js/app.js (page) ◄── onState / onFrame / onEvent / onWakeLock
 
 **How a night flows:**
 - **Recording:** `recorder.start()` creates the audio context and microphone (or demo
-  buffer), three detectors on the same samples, and asks for a screen wake lock (a
+  buffer), four detectors on the same samples, and asks for a screen wake lock (a
   refused/unsupported lock is shown in the status).
 - **Interruptions:** context `statechange`, track `mute`/`ended` or 2 s without audio
   open a gap; status "Recording interrupted … trying to resume" (or "switched the
@@ -206,7 +207,7 @@ rise) → `RhythmGate` → `SessionStats` (confirmed = another snore 2–12 s aw
 - **[suspected] Memory on long nights (R6, partly open):** clips are capped by count
   (1500, ~106 MB at worst per the review), not by bytes; event metadata of three
   detectors is unbounded; peak memory of the WAV export is not measured.
-- **[suspected]** Three detectors may cost noticeable CPU/battery on a phone; not measured.
+- **[suspected]** Four detectors may cost noticeable CPU/battery on a phone; not measured.
 - Interruption handling is verified with simulated events in Chromium only; how iOS
   Safari reports a call, Siri or a locked screen is **untested on a device**.
 - Not tested on a physical iPhone in this session: an overnight run, the share sheet,

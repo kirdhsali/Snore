@@ -157,15 +157,17 @@ Report, after Stop:
    through a narrowed throat, so the 150–1500 Hz band rises above the room
    noise. Every sound gets `breathRiseDb`; with the rule (≥ 3 dB) deep hums,
    rumble and machinery without breath noise are ignored as “no breath noise”.
+   A stricter variant (≥ 6 dB) is tested too: in a real night (night 4) hum
+   swells with 3–6 dB of breath noise still passed the 3 dB rule.
    **Automatic sensitivity (testing in the background):** every 30 s it measures
    how much quiet half-second stretches fluctuate above the room noise and sets
    its margins from that: 5 dB in a still room, up to 14 dB when restless (fan,
    wind, rain), at most 2 dB change per step, capped at 9 dB in a very quiet
    room (floor below −78 dBFS) where flicker is not restlessness. Its absolute
    gate only guards against silence (−95 dBFS).
-   The app runs two extra detectors on the same audio: **breath** (chosen
-   sensitivity + breath rule) and **auto** (automatic sensitivity + breath
-   rule). They keep no audio; their counts, margins and snore times go into the
+   The app runs three extra detectors on the same audio: **breath** (chosen
+   sensitivity + 3 dB breath rule), **breath6** (chosen sensitivity + 6 dB
+   breath rule) and **auto** (automatic sensitivity + 3 dB breath rule). They keep no audio; their counts, margins and snore times go into the
    JSON under `shadows`, the report shows one line, and `npm run evaluate`
    compares them with the recorded result.
    **Confirmed snores:** snores come in runs with the breathing. The figures,

@@ -130,6 +130,8 @@ async function main() {
     assert.ok(await page.isEnabled('#sensitivity'), 'sensitivity can be changed again after Stop');
     assert.equal(report.shadows.auto.sensitivity, 'auto');
     assert.equal(report.shadows.breath.minBreathRiseDb, 3);
+    assert.equal(report.shadows.breath6.sensitivity, 'normal');
+    assert.equal(report.shadows.breath6.minBreathRiseDb, 6);
     for (const sh of Object.values(report.shadows)) {
       assert.ok(sh.summary.snoreCount >= 4, `background test counted ${sh.summary.snoreCount}`);
       assert.ok(sh.snores.every((x) => typeof x.offsetSec === 'number' && !('clip' in x)));
@@ -139,7 +141,7 @@ async function main() {
       'breath noise saved per snore',
     );
     console.log(
-      `  background tests: breath rule ${report.shadows.breath.summary.snoreCount}, auto + breath ${report.shadows.auto.summary.snoreCount} snores`,
+      `  background tests: breath rule ${report.shadows.breath.summary.snoreCount}, 6 dB ${report.shadows.breath6.summary.snoreCount}, auto + breath ${report.shadows.auto.summary.snoreCount} snores`,
     );
 
     console.log('Playback: tapping the loudest snore…');
