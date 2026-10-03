@@ -11,6 +11,7 @@
  *      instead of `shadows`; reports before 1.10.1 have no `interruptions`;
  *      older ones lack some features (subBassShare, loudFill, breathRiseDb).
  *   2  1.11.0: adds `schemaVersion`; fields otherwise as in 1.10.x.
+ *      1.12.5 adds `timeZone` (IANA name, e.g. "Europe/Berlin"); older files lack it.
  */
 (function (root, factory) {
   const api = factory();
@@ -39,7 +40,7 @@
 
   /**
    * night: {
-   *   version, source, startWall, endWall (ms), capturedSeconds,
+   *   version, source, startWall, endWall (ms), timeZone, capturedSeconds,
    *   gaps: [{start, end (ms), clock (s on the events' clock), reason}],
    *   screenWakeLock, sensitivity, summary,
    *   snores: [events], ignored: [ignored-sound records],
@@ -59,6 +60,7 @@
       source: night.source,
       startedAt: new Date(night.startWall).toISOString(),
       endedAt: new Date(night.endWall).toISOString(),
+      timeZone: night.timeZone || null, // where the night was recorded, for clock hours
       wallSeconds: round((night.endWall - night.startWall) / 1000, 1),
       capturedSeconds: round(night.capturedSeconds, 1),
       // Times the system paused or stopped the microphone; nothing was analysed then.
@@ -177,6 +179,7 @@
       source: r.source || null,
       startedAt: r.startedAt ? Date.parse(r.startedAt) : null,
       endedAt: r.endedAt ? Date.parse(r.endedAt) : null,
+      timeZone: r.timeZone || null,
       sensitivity: r.sensitivity || null,
       summary: r.summary || null,
       elapsed: r.summary ? r.summary.elapsed : null,

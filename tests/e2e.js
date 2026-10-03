@@ -124,6 +124,7 @@ async function main() {
     assert.ok(first.frozen && /^night-/.test(first.id), `finished night is one frozen record: ${JSON.stringify(first)}`);
     assert.equal(first.snores, report.snores.length);
     assert.ok(first.sampleRate > 0 && first.timeZone);
+    assert.equal(report.timeZone, first.timeZone, 'data file names the time zone of the night');
     assert.equal(report.sensitivity, 'normal');
     assert.equal(report.shadows.breath.sensitivity, 'normal');
     assert.ok(await page.isEnabled('#sensitivity'), 'sensitivity can be changed again after Stop');

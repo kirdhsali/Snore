@@ -45,3 +45,38 @@ test('evaluator keeps working with reports that lack newer features', () => {
   assert.equal(events[0].breathRise, null);
   assert.equal(reevaluate(events, { minBreathRiseDb: 3 })[0].isSnore, true, 'no data, no verdict from that rule');
 });
+
+/** Runs the evaluator on a report as a separate process, with this computer's clock set to `tz`. */
+function evaluateOutput(report, tz) {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const { execFileSync } = require('child_process');
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'snorewatch-')), 'night.json');
+  fs.writeFileSync(file, JSON.stringify(report));
+  return execFileSync(process.execPath, [path.join(__dirname, '..', 'scripts', 'evaluate.js'), file], {
+    env: { ...process.env, TZ: tz },
+    encoding: 'utf8',
+  });
+}
+
+test("evaluator counts per hour in the night's own time zone", () => {
+  const report = {
+    app: 'Snorewatch',
+    startedAt: '2026-10-01T23:34:00.000Z',
+    timeZone: 'Asia/Kathmandu', // UTC+5:45, so 23:34 UTC is 05:19 there
+    sensitivity: 'normal',
+    summary: { elapsed: 600 },
+    snores: [feature(2, 12), feature(6, 10), feature(10, 11)],
+    ignored: [],
+  };
+  const out = evaluateOutput(report, 'UTC');
+  assert.match(out, /\n\s+5:00\s+3\s+3\b/, out);
+  assert.doesNotMatch(out, /23:00/);
+  assert.match(out, /Asia\/Kathmandu/);
+  // Files without a time zone (before 1.12.5) use this computer's and say so.
+  delete report.timeZone;
+  const old = evaluateOutput(report, 'UTC');
+  assert.match(old, /\n\s+23:00\s+3\s+3\b/, old);
+  assert.match(old, /this computer's time zone/);
+});
