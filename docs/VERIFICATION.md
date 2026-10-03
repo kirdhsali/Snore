@@ -1,5 +1,30 @@
 # Verification record
 
+## Checkpoint 1.13.0 (real night 4 follow-up, 2026-10-03)
+
+**Tested code revision:** `SHA_PLACEHOLDER` (`main` after PR #36, version 1.13.0; tested on the
+identical PR tree). The docs PR that adds this section changes no application or test code.
+Environment as for 1.12.0 (Node v22.22.0, npm 10.9.4, Chromium 141.0.7390.37 via
+`CHROMIUM_PATH`); ESC-50 checkout `33c8ce9` outside the repository.
+
+| Command | Result |
+| --- | --- |
+| `npm ci --no-audit --no-fund` | passed, 82 packages |
+| `npm test` | **passed**, 66/66 (new: evaluator time zone, clip detail ×2, 6 dB rule) |
+| `npm run lint` | **passed** |
+| `node --check` over `js/ scripts/ tests/` | **passed**, 24 files |
+| `CHROMIUM_PATH=… npm run test:e2e` | **passed**; JSON names the time zone; background tests breath 6, breath6 6, auto 6; playback peak 0.70 |
+| Demo night at 48 / 44.1 / 16 kHz, main detector and the three background tests | **unchanged**: 16 confirmed, 0 possible, 5 ignored each |
+| `ESC50_DIR=… npm run eval:public` | current rules **unchanged** since 1.12.0 (snoring 29/40, 13 confirmed; night sounds 100/1000, 23 confirmed); breath 3 dB 29/40, 13; 87/1000, 19; breath 6 dB 29/40, 12; 78/1000, 14 |
+| `node docs/review-probes/controller-store-probes.cjs "$PWD"` | unchanged from 1.12.4: C1 `suspended 6` / `interrupted 6`; C5 `completed off 1`; C3 old-call verdict as noted there; C4 `false 1 999`, C6 `3660 30.016` (deferred) |
+| `node docs/review-probes/server-probes-adapted.cjs "$PWD"`, `CHROMIUM_PATH=… node docs/review-probes/browser-probes-adapted.cjs "$PWD"` | unchanged |
+| `npm run evaluate -- <night 4>.json` (real night, not committed) | 1053 → 1061 snore-like, 955 → 961 confirmed (feature rounding, see HANDOVER §6); the file predates 1.12.5, so the hours fall back to this computer's zone and say so |
+| Night 4 offline re-scoring with `reevaluate` (scratch script, not committed) | figures in HANDOVER §6a |
+
+**Not run / not available:** as for 1.12.4; nothing in 1.12.5–1.13.0 was tried on an
+iPhone. The clip change is verified on synthetic audio only (same snores, same playback
+level); its effect on real clips shows with the next recorded night.
+
 ## Checkpoint 1.12.4 (answer to the second review, 2026-10-01)
 
 **Tested code revision:** `077174be1a8bce2fe8c207e13a097ad5cb7824c2` (`main` after PR #32, version 1.12.4; tested on the identical PR tree).
