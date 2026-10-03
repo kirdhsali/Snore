@@ -369,22 +369,30 @@
     /**
      * Auto sensitivity. The spread of quiet half-second blocks above the floor
      * (90th minus 50th percentile) says how restless the room is: a still bedroom
-     * gets small margins, a fan or rain larger ones. In a very quiet room the
-     * trigger is capped. Changes are limited to 2 dB per update.
+     * gets small margins, a fan or rain larger ones. A sound ends only once the
+     * level is back within the room's usual quiet range (median + spread + 1 dB):
+     * the floor follows the quietest moments, and a wavering hum keeps the usual
+     * level several dB above it (night 4: 3-5 dB), where a lower release kept
+     * sounds open until the hum made them look choppy or too long. In a very quiet
+     * room the trigger is capped. Changes are limited to 2 dB per update.
      */
     _autoUpdate(t) {
       const o = this.opts;
       const n = Math.min(this.autoIdleCount, this.autoIdle.length);
       if (n * o.autoBlockSec < o.autoMinIdleSec) return;
       const v = Array.from(this.autoIdle.subarray(0, n)).sort((a, b) => a - b);
-      const spread = v[Math.floor(0.9 * (n - 1))] - v[Math.floor(0.5 * (n - 1))];
+      const usual = v[Math.floor(0.5 * (n - 1))];
+      const spread = v[Math.floor(0.9 * (n - 1))] - usual;
       const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
       const step = (from, to) => from + clamp(to - from, -2, 2);
       // Lower limits as for "high": smaller margins let room noise dilute the sound's profile.
       // In a very quiet room a large spread is more likely microphone flicker than a restless room.
       const quiet = this.floor < o.autoQuietRoomDb;
-      const release = clamp(1.5 * spread + 2, 3, quiet ? o.autoQuietMaxTriggerDb - 2 : 7);
-      const trigger = clamp(release + 2 + spread, 5, quiet ? o.autoQuietMaxTriggerDb : 14);
+      const maxRelease = quiet ? o.autoQuietMaxTriggerDb - 2 : 7;
+      const base = clamp(1.5 * spread + 2, 3, maxRelease);
+      const release = clamp(Math.max(base, usual + spread + 1), 3, maxRelease);
+      // The trigger keeps its margin over the spread; it only rises to stay above the release.
+      const trigger = clamp(Math.max(base + 2 + spread, release + 1), 5, quiet ? o.autoQuietMaxTriggerDb : 14);
       this.releaseDb = step(this.releaseDb, release);
       this.triggerDb = Math.max(this.releaseDb + 1, step(this.triggerDb, trigger));
       this.levels.push({ t, triggerDb: this.triggerDb, releaseDb: this.releaseDb, spreadDb: spread, floorDb: this.floor });
