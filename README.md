@@ -163,8 +163,10 @@ Report, after Stop:
    how much quiet half-second stretches fluctuate above the room noise and sets
    its margins from that: 5 dB in a still room, up to 14 dB when restless (fan,
    wind, rain), at most 2 dB change per step, capped at 9 dB in a very quiet
-   room (floor below −78 dBFS) where flicker is not restlessness. Its absolute
-   gate only guards against silence (−95 dBFS).
+   room (floor below −78 dBFS) where flicker is not restlessness. A sound ends
+   only once the level is back within the room's usual quiet range (since 1.13.1:
+   a wavering hum keeps that range a few dB above the quietest moments). Its
+   absolute gate only guards against silence (−95 dBFS).
    The app runs three extra detectors on the same audio: **breath** (chosen
    sensitivity + 3 dB breath rule), **breath6** (chosen sensitivity + 6 dB
    breath rule) and **auto** (automatic sensitivity + 3 dB breath rule). They keep no audio; their counts, margins and snore times go into the

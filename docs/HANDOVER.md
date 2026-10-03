@@ -119,6 +119,7 @@ expansion without behaviour change. Details per finding, with tests and results:
 | 1.12.5 | #34 | Night 4 follow-up: the data file names the night's time zone; `npm run evaluate` counts per hour in it (was this computer's zone) |
 | 1.12.6 | #35 | Night 4 follow-up: snore clips are turned up to listening level before the 16-bit conversion (were cut at −70 dBFS level, about 25 sample values, and boosted only for playback: grainy) |
 | 1.13.0 | #36 | Night 4 follow-up: third background test `breath6` (chosen sensitivity + breath rule 6 dB); headline unchanged; `eval:public` reports it |
+| 1.13.1 | #38 | Auto sensitivity (background test): a sound ends only once the level is back within the room's usual quiet range; in night 4 the release (3.2 dB) lay inside a wavering hum's usual level (median 3.2 dB, 5.0 dB in the quietest stretch), so sounds stayed open and loud snores were rejected |
 
 ## 4. Architecture
 

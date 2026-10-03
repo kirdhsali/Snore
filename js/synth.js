@@ -281,7 +281,45 @@
     return out;
   }
 
-  const MAKERS = { snore, rattle, rumble, swell, speech, knock, cough, car };
+  /**
+   * Soft breathing between snores: band noise around 200-1500 Hz, a few dB above
+   * a very quiet room, rising and falling over 1-2 s.
+   */
+  function breath(sr, rand, opts = {}) {
+    const dur = opts.duration || 1.2 + rand() * 0.8;
+    const amp = opts.amp || 0.0001;
+    const n = Math.round(dur * sr);
+    const out = new Float32Array(n);
+    const lo = lpCoef(1500, sr);
+    const hi = lpCoef(200, sr);
+    let a = 0;
+    let b = 0;
+    for (let i = 0; i < n; i++) {
+      a += lo * (rand() * 2 - 1 - a);
+      b += hi * (a - b);
+      out[i] = amp * 3 * (a - b) * Math.pow(Math.sin((Math.PI * i) / n), 1.5);
+    }
+    return out;
+  }
+
+  /**
+   * A very quiet room with a mains hum (night 4): two close tones near 50 Hz beat,
+   * so 40 ms frames flicker while half-second averages stay steady, and the usual
+   * level sits a few dB above the quietest moments.
+   */
+  function humRoomNoise(sr, n, level, rand) {
+    const out = roomNoise(sr, n, level * 0.25, rand);
+    let p1 = 0;
+    let p2 = 0;
+    for (let i = 0; i < n; i++) {
+      p1 += (TAU * 50) / sr;
+      p2 += (TAU * 51.5) / sr;
+      out[i] += level * (Math.sin(p1) + 0.45 * Math.sin(p2));
+    }
+    return out;
+  }
+
+  const MAKERS = { snore, rattle, rumble, swell, speech, knock, cough, car, breath };
 
   /**
    * Places sounds on a timeline over room noise.
@@ -296,7 +334,9 @@
         ? gustyNoise(sr, n, noiseLevel, rand)
         : background === 'deep'
           ? deepRoomNoise(sr, n, noiseLevel, rand)
-          : roomNoise(sr, n, noiseLevel, rand);
+          : background === 'hum'
+            ? humRoomNoise(sr, n, noiseLevel, rand)
+            : roomNoise(sr, n, noiseLevel, rand);
     const truth = [];
     for (const item of plan) {
       const buf = MAKERS[item.type](sr, rand, item);
