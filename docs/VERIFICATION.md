@@ -199,3 +199,9 @@ the old code first and failed there.
 | 1.12.2 | E2E: screen darkened before the system switches the microphone off; the night screen first says "Recording · …", then "Microphone off · tap, then Stop" | old code: e2e fails ("Recording · 0 snores"); `npm test` 61/61; lint clean; full e2e passed |
 | 1.12.3 | New share unit test: an interrupted night (90 s recorded, 1 h gap) → HTML meta "… of 1 h 1 min recorded · interrupted 1×", verdict "in 1 min … recorded" without an hourly figure, gap times listed, gap band in the timeline; image text likewise with a "not recorded" legend; uninterrupted output byte-identical with and without the new fields. E2E: the shared report of the switched-off night says "interrupted 1×". Review probe C3 with the fields the app now passes: "6 snores in 30 s recorded." | old code: new unit test fails; `npm test` 62/62; lint clean; full e2e passed |
 | 1.12.4 | New recorder unit test: lock resolved after Stop → released, state `off`; lock for the first night arriving during the second → released, the second night's lock kept and released on Stop. Review probe C5: `completed on 0` → `completed off 1` | old code: new test fails; `npm test` 63/63; lint clean; full e2e passed |
+
+### Per-step records, real night 4 follow-up (1.12.5–)
+
+| Version | New or changed check | Result |
+| --- | --- | --- |
+| 1.12.5 | New evaluator test: a report with `timeZone: "Asia/Kathmandu"` evaluated on a computer set to UTC counts its 23:34 UTC snores under 5:00 and names the zone; without `timeZone` it uses the computer's zone and says so. Round-trip test: `timeZone` written and read back. E2E: the downloaded JSON names the night's zone | old code: new test fails (`23:00`); `npm test` 64/64; lint clean; full e2e passed |

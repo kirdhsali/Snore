@@ -39,6 +39,7 @@ function demoNight() {
     source: 'demo',
     startWall,
     endWall: startWall + (det.clock + 0.4) * 1000,
+    timeZone: 'Europe/Berlin',
     capturedSeconds: det.elapsed,
     gaps: [{ start: startWall + clock * 1000, end: startWall + (clock + 5) * 1000, clock, reason: 'suspended' }],
     screenWakeLock: 'on',
@@ -62,7 +63,9 @@ test('a finished night survives the round trip through the data file', () => {
   const json = JSON.parse(JSON.stringify(toReport(night)));
   assert.equal(json.schemaVersion, SCHEMA_VERSION);
   assert.equal(json.interruptions.length, 1);
+  assert.equal(json.timeZone, 'Europe/Berlin');
   const back = fromReport(json);
+  assert.equal(back.timeZone, 'Europe/Berlin');
   assert.equal(back.schemaVersion, SCHEMA_VERSION);
   assert.deepEqual(back.missing, []);
   assert.equal(back.snores.length, night.snores.length);

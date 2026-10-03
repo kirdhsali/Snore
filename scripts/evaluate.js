@@ -47,6 +47,22 @@ function reevaluate(events, options = DEFAULTS, gaps = []) {
 }
 
 const pad = (v, n) => String(v).padStart(n);
+
+/**
+ * Clock hour (0-23) of a moment, in the night's time zone when the file names a
+ * valid one (from 1.12.5), else in this computer's. Returns the hour function and its label.
+ */
+function hourClock(timeZone) {
+  if (timeZone) {
+    try {
+      const fmt = new Intl.DateTimeFormat('en-GB', { hour: 'numeric', hourCycle: 'h23', timeZone });
+      return { hourOf: (ms) => Number(fmt.format(ms)), label: timeZone };
+    } catch {
+      return { hourOf: (ms) => new Date(ms).getHours(), label: `this computer's time zone (unknown zone ${timeZone})` };
+    }
+  }
+  return { hourOf: (ms) => new Date(ms).getHours(), label: "this computer's time zone (the file names none)" };
+}
 const count = (list, f) => list.filter(f).length;
 
 function report(file) {
@@ -99,9 +115,10 @@ function report(file) {
   }
   const shadows = r.shadows || (r.shadow ? { auto: r.shadow } : {});
   for (const [name, sh] of Object.entries(shadows)) compareShadow(r, sh, name, hours);
-  console.log('\n  hour    recorded  current   (snore-like sounds per clock hour)');
+  const clock = hourClock(night.timeZone);
+  console.log(`\n  hour    recorded  current   (snore-like sounds per clock hour, ${clock.label})`);
   const byHour = new Map();
-  const hourOf = (e) => new Date(start + e.start * 1000).getHours();
+  const hourOf = (e) => clock.hourOf(start + e.start * 1000);
   for (const e of events)
     if (e.wasSnore)
       byHour.set(
