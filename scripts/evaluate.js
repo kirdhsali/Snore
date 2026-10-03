@@ -116,7 +116,16 @@ function report(file) {
   const shadows = r.shadows || (r.shadow ? { auto: r.shadow } : {});
   for (const [name, sh] of Object.entries(shadows)) compareShadow(r, sh, name, hours, night.interruptions);
   const clock = hourClock(night.timeZone);
-  console.log(`\n  hour    recorded  current   (snore-like sounds per clock hour, ${clock.label})`);
+  const noiseByHour = new Map();
+  for (const m of (night.noise && night.noise.minutes) || []) {
+    if (m.backgroundDbfs == null) continue;
+    const h = clock.hourOf(start + m.offsetSec * 1000);
+    (noiseByHour.get(h) || noiseByHour.set(h, []).get(h)).push(m);
+  }
+  const median = (xs) => [...xs].sort((a, b) => a - b)[xs.length >> 1];
+  console.log(
+    `\n  hour    recorded  current   (snore-like sounds per clock hour, ${clock.label})${noiseByHour.size ? '   room: background dBFS, hum' : ''}`,
+  );
   const byHour = new Map();
   const hourOf = (e) => clock.hourOf(start + e.start * 1000);
   for (const e of events)
@@ -131,8 +140,16 @@ function report(file) {
         hourOf(e),
         (byHour.get(hourOf(e)) || [0, 0]).map((v, i) => v + (i === 1)),
       );
+  for (const h of noiseByHour.keys()) if (!byHour.has(h)) byHour.set(h, [0, 0]);
   const order = [...byHour.keys()].sort((a, b) => ((a + 12) % 24) - ((b + 12) % 24));
-  for (const h of order) console.log(`  ${pad(h, 2)}:00  ${pad(byHour.get(h)[0], 8)}  ${pad(byHour.get(h)[1], 7)}`);
+  for (const h of order) {
+    const mins = noiseByHour.get(h) || [];
+    const hums = mins.filter((m) => m.humHz != null);
+    const room = mins.length
+      ? `   ${pad(median(mins.map((m) => m.backgroundDbfs)).toFixed(1), 6)}  ${hums.length ? `${median(hums.map((m) => m.humHz)).toFixed(0)} Hz in ${Math.round((100 * hums.length) / mins.length)}% of minutes` : '-'}`
+      : '';
+    console.log(`  ${pad(h, 2)}:00  ${pad(byHour.get(h)[0], 8)}  ${pad(byHour.get(h)[1], 7)}${room}`);
+  }
 }
 
 /**

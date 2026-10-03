@@ -13,7 +13,7 @@ function demoNight() {
   const sc = Synth.demoScenario(sr);
   const stats = new Core.SessionStats();
   const shadowStats = new Core.SessionStats();
-  const det = new Core.SnoreDetector(sr, { onEvent: (e) => stats.add(e) });
+  const det = new Core.SnoreDetector(sr, { noiseProfile: true, onEvent: (e) => stats.add(e) });
   const shadow = new Core.SnoreDetector(sr, {
     sensitivity: 'auto',
     minBreathRiseDb: 3,
@@ -40,6 +40,7 @@ function demoNight() {
     startWall,
     endWall: startWall + (det.clock + 0.4) * 1000,
     timeZone: 'Europe/Berlin',
+    noise: { minuteSec: 60, bandsHz: det.noise.bandsHz, minutes: det.noise.finish() },
     capturedSeconds: det.elapsed,
     gaps: [{ start: startWall + clock * 1000, end: startWall + (clock + 5) * 1000, clock, reason: 'suspended' }],
     screenWakeLock: 'on',
@@ -64,6 +65,8 @@ test('a finished night survives the round trip through the data file', () => {
   assert.equal(json.schemaVersion, SCHEMA_VERSION);
   assert.equal(json.interruptions.length, 1);
   assert.equal(json.timeZone, 'Europe/Berlin');
+  assert.equal(json.noise.minutes.length, night.noise.minutes.length);
+  assert.ok(json.noise.minutes.every((m) => typeof m.backgroundDbfs === 'number' && m.bandsDbfs.length === json.noise.bandsHz.length));
   const back = fromReport(json);
   assert.equal(back.timeZone, 'Europe/Berlin');
   assert.equal(back.schemaVersion, SCHEMA_VERSION);

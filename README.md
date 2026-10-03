@@ -121,6 +121,9 @@ Report, after Stop:
 - downloads: all snores as one `.wav` (volume evened out per clip so quiet
   snores are audible), all data as `.json` (each snore's position in the WAV as
   `wavStartSec`; ignored sounds with their features but no audio); copy a text summary.
+  The JSON also holds the **room noise per minute** under `noise` (since 1.15.0): the
+  usual background level, the quietest and loudest moments, octave bands from 31.5 Hz
+  and the strongest low tone (a mains hum or a fan), all as levels, never as sound.
   When the automatic-sensitivity background test heard snores the counting detector
   did not, up to 60 of them (a random sample) can be downloaded as **test clips**
   (`.wav`) to check by ear; the JSON gives their place as `wavStartSec` under
@@ -239,6 +242,7 @@ type checker. Agent instructions: `CLAUDE.md` / `AGENTS.md`; general working rul
 | `js/detector.js` | FFT, features, snore detector, rhythm rule; one entry point (`SnoreCore`) that also exports the two below |
 | `js/stats.js` | session statistics: confirmed snores, episodes, intervals, timeline |
 | `js/wav.js` | WAV encoder and clip loudness |
+| `js/noise.js` | room noise per minute: background level, octave bands, the strongest low tone (numbers only) |
 | `js/synth.js` | synthetic snores and distractor sounds for demo mode and tests |
 | `js/charts.js` | canvas drawing for the live strip, timeline and waveforms |
 | `js/share.js` | share image (star map) and the self-contained report file |

@@ -13,6 +13,7 @@
  *   2  1.11.0: adds `schemaVersion`; fields otherwise as in 1.10.x.
  *      1.12.5 adds `timeZone` (IANA name, e.g. "Europe/Berlin"); older files lack it.
  *      1.14.0 adds `wavStartSec` to background-test snores (the test-clip WAV).
+ *      1.15.0 adds `noise`: the room noise per minute (levels only, no sound).
  */
 (function (root, factory) {
   const api = factory();
@@ -47,6 +48,7 @@
    *   snores: [events], ignored: [ignored-sound records],
    *   wavStarts: Map(event -> seconds in the WAV download) (optional),
    *   testWavStarts: Map(background-test event -> seconds in the test-clip WAV) (optional),
+   *   noise: {minuteSec, bandsHz, minutes: [{t, quietSec, backgroundDb, p10Db, p90Db, bandsDb, humHz, humDb}]} (optional),
    *   shadows: {name: {options, summary, levels, snores}}
    * }
    * Event times (`start`) are seconds on the night's clock: analysed audio
@@ -77,6 +79,23 @@
       screenWakeLock: night.screenWakeLock,
       sensitivity: night.sensitivity,
       summary: night.summary,
+      // The room's background per minute of the night's clock: no sound, only levels (dBFS).
+      noise: night.noise
+        ? {
+            minuteSec: night.noise.minuteSec,
+            bandsHz: night.noise.bandsHz,
+            minutes: night.noise.minutes.map((m) => ({
+              offsetSec: m.t,
+              quietSec: round(m.quietSec, 0),
+              backgroundDbfs: round(m.backgroundDb, 1), // usual level when no sound is going on
+              p10Dbfs: round(m.p10Db, 1), // the quietest and loudest moments of the minute
+              p90Dbfs: round(m.p90Db, 1),
+              bandsDbfs: m.bandsDb && m.bandsDb.map((v) => round(v, 1)), // octave bands, see bandsHz
+              humHz: round(m.humHz, 1), // strongest low tone (mains hum, fan), if it stands out
+              humDb: round(m.humDb, 1),
+            })),
+          }
+        : null,
       snores: [...night.snores].sort(byStart).map((x) => ({
         time: time(x.start),
         offsetSec: round(x.start, 2),
@@ -188,6 +207,7 @@
       sensitivity: r.sensitivity || null,
       summary: r.summary || null,
       elapsed: r.summary ? r.summary.elapsed : null,
+      noise: r.noise || null, // from 1.15.0
       // Gaps on the events' clock; reports before 1.10.1 have none recorded.
       interruptions: (r.interruptions || [])
         .filter((g) => g.offsetSec != null)

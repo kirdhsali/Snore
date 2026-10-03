@@ -95,6 +95,17 @@ test('a night goes idle → requesting → recording → stopping → completed 
   assert.deepEqual(Object.keys(night.shadows), ['breath', 'breath6', 'auto']);
   assert.deepEqual(night.shadows.breath6.options, { sensitivity: 'normal', minBreathRiseDb: 6 });
   assert.equal(night.shadows.breath6.summary.snoreCount, 16, 'the demo snores have clear breath noise');
+  assert.deepEqual(night.noise.bandsHz, [31.5, 63, 125, 250, 500, 1000, 2000, 4000]); // 16 kHz: up to the 4 kHz octave
+  assert.deepEqual(
+    night.noise.minutes.map((m) => m.t),
+    [0, 60],
+    'the 90 s demo night has two minutes of room noise',
+  );
+  assert.ok(night.noise.minutes.every((m) => m.quietSec > 10 && m.bandsDb.length === 8 && m.p90Db > m.backgroundDb));
+  assert.ok(
+    Object.values(night.shadows).every((sh) => !('noise' in sh)),
+    'only the counting detector keeps the profile',
+  );
   assert.equal(night.gaps.length, 0);
 });
 

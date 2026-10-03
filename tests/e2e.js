@@ -145,6 +145,11 @@ async function main() {
       report.snores.every((x) => typeof x.breathRiseDb === 'number'),
       'breath noise saved per snore',
     );
+    assert.ok(report.noise && report.noise.minutes.length >= 1, 'the data file has the room noise per minute');
+    assert.ok(
+      report.noise.minutes.every((m) => typeof m.backgroundDbfs === 'number' && m.bandsDbfs.length === report.noise.bandsHz.length),
+      'background level and octave bands for each minute',
+    );
     const testClipsInFile = report.shadows.auto.snores.filter((x) => x.wavStartSec != null).length;
     assert.equal(await page.isVisible('#dl-test-wav'), testClipsInFile > 0, 'test clips offered exactly when the auto test kept some');
     if (testClipsInFile) {
