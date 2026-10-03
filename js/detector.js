@@ -1,7 +1,8 @@
 /*
  * Snorewatch core: signal analysis and snore detection. Also the one entry
  * point (window.SnoreCore / require) that re-exports the session statistics
- * (js/stats.js) and the WAV helpers (js/wav.js), which load before it.
+ * (js/stats.js), the WAV helpers (js/wav.js) and the room noise profile
+ * (js/noise.js), which load before it.
  *
  * Pure JavaScript with no browser dependencies, so the same file runs in the
  * page and in Node for tests.
@@ -34,10 +35,14 @@
  */
 (function (root, factory) {
   const node = typeof module === 'object' && module.exports;
-  const api = factory(node ? require('./stats.js') : root.SnoreStats, node ? require('./wav.js') : root.SnoreWav);
+  const api = factory(
+    node ? require('./stats.js') : root.SnoreStats,
+    node ? require('./wav.js') : root.SnoreWav,
+    node ? require('./noise.js') : root.SnoreNoise,
+  );
   if (node) module.exports = api;
   else root.SnoreCore = api;
-})(typeof self !== 'undefined' ? self : this, function (Stats, Wav) {
+})(typeof self !== 'undefined' ? self : this, function (Stats, Wav, Noise) {
   'use strict';
 
   const { SessionStats, percentile } = Stats;
@@ -79,6 +84,7 @@
     postRollSec: 0.15,
     clipRate: 8000,
     keepClips: true, // false for a detector that only counts (the auto shadow)
+    noiseProfile: false, // true: keep a per-minute room noise profile (numbers only; the counting detector)
     // Auto sensitivity: statistics of quiet frames (not during or right after a sound)
     autoWindowSec: 180,
     autoUpdateSec: 30,
@@ -306,6 +312,7 @@
       this.frameSize = nextPow2(Math.round(sampleRate * 0.04));
       this.hopSec = this.frameSize / sampleRate;
       this.analyzer = new FrameAnalyzer(sampleRate, this.frameSize);
+      this.noise = this.opts.noiseProfile ? new Noise.NoiseProfile(sampleRate, this.frameSize) : null;
       this.pending = new Float32Array(this.frameSize);
       this.pendingLen = 0;
       this.frameIndex = 0;
@@ -541,6 +548,12 @@
       }
       if (this.auto && this.floor !== null && index % Math.round(o.autoUpdateSec / this.hopSec) === 0) {
         this._autoUpdate(index * this.hopSec);
+      }
+
+      if (this.noise) {
+        // Background: no sound going on and none just ended (the same guard as auto's statistics).
+        const quiet = !this.event && (index - this.lastEventEndFrame) * this.hopSec > o.autoGuardSec;
+        this.noise.add(index * this.hopSec + this.timeOffset, f.db, quiet, this.analyzer.re, this.analyzer.im);
       }
 
       this.frameIndex++;

@@ -291,6 +291,7 @@
         };
         const det = new SnoreDetector(ctx.sampleRate, {
           sensitivity,
+          noiseProfile: true,
           onFrame: (f) => notify(opts.onFrame, f),
           onEvent: (ev) => {
             s.stats.add(ev);
@@ -447,6 +448,12 @@
         capturedSeconds: s.elapsed, // audio actually analysed
         clockSeconds: s.wallElapsed, // the events' clock: analysed audio plus interruptions
         gaps: s.gaps.slice(),
+        // Room noise per minute (levels only), on the events' clock.
+        noise: s.detector.noise && {
+          minuteSec: s.detector.noise.minuteSec,
+          bandsHz: s.detector.noise.bandsHz,
+          minutes: s.detector.noise.finish(),
+        },
         screenWakeLock: s.wakeLock,
         sensitivity: s.detector.sensitivity,
         config: config(s.detector),

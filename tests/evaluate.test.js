@@ -48,6 +48,37 @@ test('the stricter breath-noise rule (6 dB) also drops sounds with only a little
   assert.deepEqual(reasons(6), [null, null, 'no-breath', 'no-breath', 'no-breath']);
 });
 
+test('evaluator shows the room background and hum per hour when the file has them (1.15.0)', () => {
+  const minute = (offsetSec, backgroundDbfs, humHz) => ({
+    offsetSec,
+    quietSec: 50,
+    backgroundDbfs,
+    p10Dbfs: -92,
+    p90Dbfs: -80,
+    bandsDbfs: [],
+    humHz,
+    humDb: humHz ? 25 : null,
+  });
+  const report = {
+    app: 'Snorewatch',
+    startedAt: '2026-10-01T23:00:00.000Z',
+    timeZone: 'UTC',
+    sensitivity: 'normal',
+    summary: { elapsed: 7200 },
+    snores: [feature(2, 12), feature(6, 10), feature(10, 11)],
+    ignored: [],
+    noise: {
+      minuteSec: 60,
+      bandsHz: [],
+      minutes: [minute(0, -89, 50), minute(60, -88, 50), minute(3600, -79.5, null), minute(3660, -80, 50.4)],
+    },
+  };
+  const out = evaluateOutput(report, 'UTC');
+  assert.match(out, /room: background dBFS, hum/);
+  assert.match(out, /\n\s+23:00\s+3\s+3\s+-88\.0\s+50 Hz in 100% of minutes/, out);
+  assert.match(out, /\n\s+0:00\s+0\s+0\s+-79\.5\s+50 Hz in 50% of minutes/, out);
+});
+
 test('a background test can be re-counted with the 6 dB breath rule from its stored sounds', () => {
   const sh = { snores: [2, 6, 10, 14].map((t, i) => ({ offsetSec: t, durationSec: 1, aboveRoomDb: 12, breathRiseDb: [14, 11, 4, 9][i] })) };
   assert.equal(stricterBreath(sh, 3), 4);

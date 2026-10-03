@@ -124,6 +124,7 @@ expansion without behaviour change. Details per finding, with tests and results:
 | 1.13.0 | #36 | Night 4 follow-up: third background test `breath6` (chosen sensitivity + breath rule 6 dB); headline unchanged; `eval:public` reports it |
 | 1.13.1 | #38 | Auto sensitivity (background test): a sound ends only once the level is back within the room's usual quiet range; in night 4 the release (3.2 dB) lay inside a wavering hum's usual level (median 3.2 dB, 5.0 dB in the quietest stretch), so sounds stayed open and loud snores were rejected |
 | 1.14.0 | #39 | Auto test made checkable: a random sample of up to 60 clips of snores only auto heard ("Download test clips (.wav)", `wavStartSec` under `shadows.auto.snores`); `npm run evaluate` re-counts the 3 dB background tests with a 6 dB rule |
+| 1.15.0 | #40 | Room noise step 1 (data only): per-minute noise profile (`noise` in the night record and JSON); `npm run evaluate` shows background and hum per hour. Detection unchanged |
 
 ## 4. Architecture
 
@@ -144,6 +145,7 @@ js/app.js (page) ◄── onState / onFrame / onEvent / onWakeLock
 | `js/version.js` | Version + build (`dev`, replaced by the commit hash on deploy) |
 | `js/stats.js` | `SessionStats`: confirmation (2–12 s, both directions, not across gaps), episodes, intervals, timeline buckets; the rhythm window as single source (`SnoreStats`) |
 | `js/wav.js` | `encodeWav`, `clipFromAudio` (`SnoreWav`) |
+| `js/noise.js` | `NoiseProfile` (`SnoreNoise`): room noise per minute of the night's clock from the counting detector's quiet frames: median level, p10/p90 of all frames, octave bands, strongest 30–400 Hz tone. Numbers only |
 | `js/detector.js` | FFT, `FrameAnalyzer`, `SnoreDetector` (floor, events, classification, clips, `release()`, `resumeAfterGap()`), `RhythmGate`, `classify`, `DEFAULTS`/`SENSITIVITY`/`REASONS`. UMD facade `SnoreCore` that re-exports `stats.js` and `wav.js` |
 | `js/synth.js` | Seeded synthetic sounds and rooms; used by the demo and tests |
 | `js/charts.js` | Canvas drawing (live strip, timeline, clip waveform) |
@@ -315,8 +317,7 @@ when `CI tests` is green (Claude may merge its own PRs); bump `package.json` and
   (1.13.0: the 6 dB rule keeps 29/40 snoring clips, night sounds 100 → 78 / 1000) and
   the owner's approval.
 - **Next build, owner agreed (2026-10-03), after the auto work:** room noise for users.
-  Step 1 (data only): a per-minute noise profile (background level plus ~10 pitch bands,
-  quiet moments only, no audio) in the night record and JSON. Step 2: a "Room noise"
+  Step 1 (data only) done in 1.15.0: `noise` in the JSON. Step 2: a "Room noise"
   report section with plain findings (steady hum, a device cycling on/off, noisy
   stretches, hours where quiet snores could not be heard) and a time × pitch heatmap;
   across nights (hour × night) once nights are saved (2.x). Step 3 (background test
