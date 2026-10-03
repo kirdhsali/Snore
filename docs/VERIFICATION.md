@@ -2,7 +2,7 @@
 
 ## Checkpoint 1.13.0 (real night 4 follow-up, 2026-10-03)
 
-**Tested code revision:** `SHA_PLACEHOLDER` (`main` after PR #36, version 1.13.0; tested on the
+**Tested code revision:** `45c507d8597e715035fdffd4d5e078113cac0fd3` (`main` after PR #36, version 1.13.0; tested on the
 identical PR tree). The docs PR that adds this section changes no application or test code.
 Environment as for 1.12.0 (Node v22.22.0, npm 10.9.4, Chromium 141.0.7390.37 via
 `CHROMIUM_PATH`); ESC-50 checkout `33c8ce9` outside the repository.
