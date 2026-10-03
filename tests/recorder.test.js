@@ -92,7 +92,9 @@ test('a night goes idle → requesting → recording → stopping → completed 
   assert.equal(night.sampleRate, 16000);
   assert.equal(night.summary.snoreCount, 16, 'the demo night counts as in the detector tests');
   assert.equal(night.summary.ignoredCount, 5);
-  assert.deepEqual(Object.keys(night.shadows), ['breath', 'auto']);
+  assert.deepEqual(Object.keys(night.shadows), ['breath', 'breath6', 'auto']);
+  assert.deepEqual(night.shadows.breath6.options, { sensitivity: 'normal', minBreathRiseDb: 6 });
+  assert.equal(night.shadows.breath6.summary.snoreCount, 16, 'the demo snores have clear breath noise');
   assert.equal(night.gaps.length, 0);
 });
 

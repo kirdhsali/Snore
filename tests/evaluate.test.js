@@ -37,6 +37,17 @@ test('evaluator reads the breath noise of each sound and can apply the breath-no
   );
 });
 
+test('the stricter breath-noise rule (6 dB) also drops sounds with only a little breath noise', () => {
+  // Night 4: hum swells with 3-6 dB of breath noise passed the 3 dB rule and confirmed each other.
+  const report = {
+    snores: [feature(2, 14), feature(6, 11), feature(10, 4.5), feature(14, 3.8), feature(18, 5.2)],
+    ignored: [],
+  };
+  const reasons = (min) => reevaluate(eventsOf(report), { minBreathRiseDb: min }).map((e) => e.reason);
+  assert.deepEqual(reasons(3), [null, null, null, null, null]);
+  assert.deepEqual(reasons(6), [null, null, 'no-breath', 'no-breath', 'no-breath']);
+});
+
 test('evaluator keeps working with reports that lack newer features', () => {
   const old = feature(2, undefined);
   delete old.breathRiseDb;

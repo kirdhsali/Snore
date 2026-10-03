@@ -105,8 +105,12 @@ function main() {
     .trim()
     .split('\n')
     .slice(1);
-  // Current rules and the candidate breath-noise rule (tested in the background in the app).
-  const variants = { 'current rules': {}, 'with breath-noise rule': { minBreathRiseDb: 3 } };
+  // Current rules and the candidate breath-noise rules (tested in the background in the app).
+  const variants = {
+    'current rules': {},
+    'with breath-noise rule': { minBreathRiseDb: 3 },
+    'with the stricter breath-noise rule (6 dB)': { minBreathRiseDb: 6 },
+  };
   const results = {};
   rows.forEach((line, i) => {
     const [file, , , category] = line.split(',');

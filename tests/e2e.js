@@ -82,7 +82,12 @@ async function main() {
     assert.ok(await page.isDisabled('#sensitivity'), 'sensitivity disabled while recording');
     await page.evaluate(() => document.querySelector('#sensitivity').focus());
     await page.keyboard.press('ArrowUp');
-    assert.deepEqual(await page.evaluate(() => window.__snorewatch.sensitivities), { main: 'normal', breath: 'normal', auto: 'auto' });
+    assert.deepEqual(await page.evaluate(() => window.__snorewatch.sensitivities), {
+      main: 'normal',
+      breath: 'normal',
+      breath6: 'normal',
+      auto: 'auto',
+    });
 
     console.log('Night screen: darkens when left alone, a tap only wakes it…');
     await page.evaluate(() => window.__snorewatch.setDarkDelay(500));
@@ -130,6 +135,8 @@ async function main() {
     assert.ok(await page.isEnabled('#sensitivity'), 'sensitivity can be changed again after Stop');
     assert.equal(report.shadows.auto.sensitivity, 'auto');
     assert.equal(report.shadows.breath.minBreathRiseDb, 3);
+    assert.equal(report.shadows.breath6.sensitivity, 'normal');
+    assert.equal(report.shadows.breath6.minBreathRiseDb, 6);
     for (const sh of Object.values(report.shadows)) {
       assert.ok(sh.summary.snoreCount >= 4, `background test counted ${sh.summary.snoreCount}`);
       assert.ok(sh.snores.every((x) => typeof x.offsetSec === 'number' && !('clip' in x)));
@@ -139,7 +146,7 @@ async function main() {
       'breath noise saved per snore',
     );
     console.log(
-      `  background tests: breath rule ${report.shadows.breath.summary.snoreCount}, auto + breath ${report.shadows.auto.summary.snoreCount} snores`,
+      `  background tests: breath rule ${report.shadows.breath.summary.snoreCount}, 6 dB ${report.shadows.breath6.summary.snoreCount}, auto + breath ${report.shadows.auto.summary.snoreCount} snores`,
     );
 
     console.log('Playback: tapping the loudest snore…');

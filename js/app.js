@@ -564,9 +564,9 @@
     el.shadowNote.hidden = false;
     el.shadowNote.textContent = `Background tests, not counted yet: with the breath-noise rule ${fmtNum(
       n.shadows.breath.summary.snoreCount,
-    )} snores; with automatic sensitivity and the breath-noise rule ${fmtNum(n.shadows.auto.summary.snoreCount)} (this recording, ${
-      n.sensitivity
-    }: ${fmtNum(sum.snoreCount)}). Details are in the data file.`;
+    )} snores (stricter rule: ${fmtNum(n.shadows.breath6.summary.snoreCount)}); with automatic sensitivity and the breath-noise rule ${fmtNum(
+      n.shadows.auto.summary.snoreCount,
+    )} (this recording, ${n.sensitivity}: ${fmtNum(sum.snoreCount)}). Details are in the data file.`;
 
     el.reportTiles.innerHTML = [
       tile(
