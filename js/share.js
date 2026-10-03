@@ -409,7 +409,7 @@
   }
 
   function clipDataUri(s) {
-    return `data:audio/wav;base64,${base64(Core.encodeWav([Core.normalizeClip(s.clip)], s.clipRate, 0))}`;
+    return `data:audio/wav;base64,${base64(Core.encodeWav([s.clip], s.clipRate, 0))}`;
   }
 
   /** SVG waveform (min/max envelope) of an Int16 clip. */

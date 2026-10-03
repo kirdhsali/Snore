@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  const { encodeWav, normalizeClip, REASONS } = window.SnoreCore;
+  const { encodeWav, REASONS } = window.SnoreCore;
   const Charts = window.SnoreCharts;
   const Share = window.SnoreShare;
   const Report = window.SnoreReport;
@@ -516,7 +516,7 @@
     try {
       if (!running && navigator.audioSession) navigator.audioSession.type = 'playback';
     } catch {}
-    const wav = encodeWav([normalizeClip(ev.clip)], ev.clipRate, 0);
+    const wav = encodeWav([ev.clip], ev.clipRate, 0);
     const url = URL.createObjectURL(new Blob([wav], { type: 'audio/wav' }));
     const audio = new Audio(url);
     const done = () => {
@@ -796,9 +796,9 @@
     if (!finished()) return;
     const snores = inTimeOrder(night.snores).filter((x) => x.clip);
     if (!snores.length) return;
-    // Volume is evened out per clip so quiet snores are audible; the JSON keeps the real levels.
+    // Clips come with their volume evened out (clipFromAudio); the JSON keeps the real levels.
     const wav = encodeWav(
-      snores.map((x) => normalizeClip(x.clip)),
+      snores.map((x) => x.clip),
       snores[0].clipRate,
       WAV_GAP_SEC,
     );
