@@ -24,6 +24,9 @@
   const BREATH_RULE_DB = 3; // candidate breath-noise rule, tested in the background
   // Stricter candidate: night 4 counted hum swells with 3-6 dB of breath noise as snores.
   const STRICT_BREATH_RULE_DB = 6;
+  // The auto test keeps clips of a random sample of the snores the counting detector did not
+  // find, so they can be checked by ear (owner's decision after night 4).
+  const TEST_CLIPS = 60;
 
   const TAP_CODE = `class Tap extends AudioWorkletProcessor {
     constructor() { super(); this.buf = new Float32Array(2048); this.n = 0; }
@@ -95,6 +98,7 @@
       setInterval: (f, ms) => g.setInterval(f, ms),
       clearInterval: (id) => g.clearInterval(id),
       timeZone: () => Intl.DateTimeFormat().resolvedOptions().timeZone,
+      random: () => Math.random(),
     };
   }
 
@@ -104,11 +108,13 @@
    *   onState(state, recorder),      every state change
    *   onFrame(frame), onEvent(ev),   the main detector's frames and decided events (already counted)
    *   onWakeLock(state),             'on' | 'failed' | 'unsupported'
+   *   testClips                      most clips the auto test keeps per night (default 60)
    *   env                            browser APIs (tests pass fakes)
    * }
    */
   function createRecorder(opts = {}) {
     const env = Object.assign(browserEnv(), opts.env);
+    const maxTestClips = opts.testClips ?? TEST_CLIPS;
     const notify = (fn, ...args) => fn && fn(...args);
     let state = 'idle';
     let session = null;
@@ -293,19 +299,25 @@
         });
         s.detector = det;
         // Background tests of candidate rules: extra detectors on the same audio.
-        // They keep no audio and change nothing on screen; their counts go into the data file.
-        const shadow = (options) => {
+        // They change nothing on screen; their counts go into the data file. Only the auto
+        // test keeps audio: a sample of its snores the counting detector did not find.
+        const shadow = (options, sample) => {
           const stats = new SessionStats();
-          return {
-            options,
-            stats,
-            detector: new SnoreDetector(ctx.sampleRate, { ...options, keepClips: false, onEvent: (e) => stats.add(e) }),
-          };
+          const detector = new SnoreDetector(ctx.sampleRate, {
+            ...options,
+            keepClips: !!sample,
+            onEvent: (e) => {
+              stats.add(e);
+              if (e.clip && !sampleClip(s, e, stats)) stats.dropClip(e);
+            },
+          });
+          return { options, stats, detector };
         };
+        s.sample = { kept: [], seen: 0 };
         s.shadows = {
           breath: shadow({ sensitivity, minBreathRiseDb: BREATH_RULE_DB }),
           breath6: shadow({ sensitivity, minBreathRiseDb: STRICT_BREATH_RULE_DB }),
-          auto: shadow({ sensitivity: 'auto', minBreathRiseDb: BREATH_RULE_DB }),
+          auto: shadow({ sensitivity: 'auto', minBreathRiseDb: BREATH_RULE_DB }, true),
         };
         s.tap = await createTap(env, ctx, input, (samples) => {
           if (!live() || session !== s) return;
@@ -339,6 +351,7 @@
       setState('stopping');
       s.detector.flush(); // decides open sounds; they arrive through onEvent
       for (const sh of Object.values(s.shadows)) sh.detector.flush();
+      settleSample(s);
       // No audio other than the kept snore clips may remain once the night is over.
       s.detector.release();
       for (const sh of Object.values(s.shadows)) sh.detector.release();
@@ -371,6 +384,49 @@
 
     function gapSeconds(s) {
       return s.gaps.reduce((sum, g) => sum + (g.end - g.start) / 1000, 0);
+    }
+
+    // ----- auto test clip sample -----
+    /** True when the counting detector found a snore-like sound overlapping `e`. */
+    function countedByMain(s, e, recentOnly = true) {
+      const list = s.stats.snores;
+      // Both detectors hear the same audio, so a match is among the latest sounds (in decision order).
+      const from = recentOnly ? Math.max(0, list.length - 60) : 0;
+      for (let i = list.length - 1; i >= from; i--) if (list[i].start < e.end + 0.2 && list[i].end > e.start - 0.2) return true;
+      return false;
+    }
+
+    /**
+     * Whether the auto test keeps this clip: a snore the counting detector did not find,
+     * held in a random sample (reservoir) of twice the final size until Stop.
+     */
+    function sampleClip(s, e, stats) {
+      if (!e.isSnore || !maxTestClips || countedByMain(s, e)) return false;
+      const r = s.sample;
+      r.stats = stats;
+      r.seen++;
+      if (r.kept.length < 2 * maxTestClips) {
+        r.kept.push(e);
+        return true;
+      }
+      const j = Math.floor(env.random() * r.seen);
+      if (j >= r.kept.length) return false;
+      stats.dropClip(r.kept[j]);
+      r.kept[j] = e;
+      return true;
+    }
+
+    /** At Stop: drops clips the counting detector matched late, then keeps a random `maxTestClips`. */
+    function settleSample(s) {
+      const r = s.sample;
+      if (!r.stats) return;
+      const kept = [];
+      for (const e of r.kept) {
+        if (e.clip && !countedByMain(s, e, false)) kept.push(e);
+        else r.stats.dropClip(e);
+      }
+      while (kept.length > maxTestClips) r.stats.dropClip(kept.splice(Math.floor(env.random() * kept.length), 1)[0]);
+      r.kept = kept;
     }
 
     /**

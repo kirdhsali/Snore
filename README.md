@@ -120,7 +120,11 @@ Report, after Stop:
   phones both open the share sheet; elsewhere they download.
 - downloads: all snores as one `.wav` (volume evened out per clip so quiet
   snores are audible), all data as `.json` (each snore's position in the WAV as
-  `wavStartSec`; ignored sounds with their features but no audio); copy a text summary
+  `wavStartSec`; ignored sounds with their features but no audio); copy a text summary.
+  When the automatic-sensitivity background test heard snores the counting detector
+  did not, up to 60 of them (a random sample) can be downloaded as **test clips**
+  (`.wav`) to check by ear; the JSON gives their place as `wavStartSec` under
+  `shadows.auto.snores`
 
 ## How detection works
 
@@ -169,14 +173,18 @@ Report, after Stop:
    absolute gate only guards against silence (−95 dBFS).
    The app runs three extra detectors on the same audio: **breath** (chosen
    sensitivity + 3 dB breath rule), **breath6** (chosen sensitivity + 6 dB
-   breath rule) and **auto** (automatic sensitivity + 3 dB breath rule). They keep no audio; their counts, margins and snore times go into the
-   JSON under `shadows`, the report shows one line, and `npm run evaluate`
-   compares them with the recorded result.
+   breath rule) and **auto** (automatic sensitivity + 3 dB breath rule). Their
+   counts, margins and snore times go into the JSON under `shadows`, the report
+   shows one line, and `npm run evaluate` compares them with the recorded result
+   (and re-counts the 3 dB tests with a 6 dB rule from their stored sounds). Only
+   **auto** keeps audio: the test clips described above.
    **Confirmed snores:** snores come in runs with the breathing. The figures,
    charts and share outputs count a snore only when another snore lies 2–12 s
    before or after it. Isolated snore-like sounds (a footstep, a door, a single
    cough) are listed as “possible” and not counted.
-4. Only sounds classified as snores keep their audio (downsampled to 8 kHz, 16-bit). A rolling buffer
+4. Only sounds classified as snores keep their audio (downsampled to 8 kHz, 16-bit): the
+   counting detector's snores, plus at most 60 test clips of snores only the automatic-
+   sensitivity background test heard. A rolling buffer
    of a few seconds exists only to capture the start of a snore; it is
    continuously overwritten and wiped when the recording stops.
 

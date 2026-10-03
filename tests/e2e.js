@@ -145,6 +145,13 @@ async function main() {
       report.snores.every((x) => typeof x.breathRiseDb === 'number'),
       'breath noise saved per snore',
     );
+    const testClipsInFile = report.shadows.auto.snores.filter((x) => x.wavStartSec != null).length;
+    assert.equal(await page.isVisible('#dl-test-wav'), testClipsInFile > 0, 'test clips offered exactly when the auto test kept some');
+    if (testClipsInFile) {
+      const [testDl] = await Promise.all([page.waitForEvent('download'), page.click('#dl-test-wav')]);
+      assert.ok(fs.statSync(await testDl.path()).size > 44 + testClipsInFile * 1000, 'test-clip WAV holds the clips');
+    }
+    console.log(`  test clips (auto snores Normal missed): ${testClipsInFile}`);
     console.log(
       `  background tests: breath rule ${report.shadows.breath.summary.snoreCount}, 6 dB ${report.shadows.breath6.summary.snoreCount}, auto + breath ${report.shadows.auto.summary.snoreCount} snores`,
     );

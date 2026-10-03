@@ -2,7 +2,7 @@
 // scripts/evaluate.js re-runs a downloaded night's stored features through the rules.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { eventsOf, reevaluate } = require('../scripts/evaluate.js');
+const { eventsOf, reevaluate, stricterBreath } = require('../scripts/evaluate.js');
 
 const feature = (offsetSec, breathRiseDb, extra = {}) => ({
   offsetSec,
@@ -46,6 +46,13 @@ test('the stricter breath-noise rule (6 dB) also drops sounds with only a little
   const reasons = (min) => reevaluate(eventsOf(report), { minBreathRiseDb: min }).map((e) => e.reason);
   assert.deepEqual(reasons(3), [null, null, null, null, null]);
   assert.deepEqual(reasons(6), [null, null, 'no-breath', 'no-breath', 'no-breath']);
+});
+
+test('a background test can be re-counted with the 6 dB breath rule from its stored sounds', () => {
+  const sh = { snores: [2, 6, 10, 14].map((t, i) => ({ offsetSec: t, durationSec: 1, aboveRoomDb: 12, breathRiseDb: [14, 11, 4, 9][i] })) };
+  assert.equal(stricterBreath(sh, 3), 4);
+  assert.equal(stricterBreath(sh, 6), 3, 'the 4 dB sound drops out; 2, 6 and 14 s still confirm each other');
+  assert.equal(stricterBreath(sh, 6, [{ start: 7, end: 13 }]), 2, 'nothing confirms across an interruption');
 });
 
 test('evaluator keeps working with reports that lack newer features', () => {

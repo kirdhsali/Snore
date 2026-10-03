@@ -12,6 +12,7 @@
  *      older ones lack some features (subBassShare, loudFill, breathRiseDb).
  *   2  1.11.0: adds `schemaVersion`; fields otherwise as in 1.10.x.
  *      1.12.5 adds `timeZone` (IANA name, e.g. "Europe/Berlin"); older files lack it.
+ *      1.14.0 adds `wavStartSec` to background-test snores (the test-clip WAV).
  */
 (function (root, factory) {
   const api = factory();
@@ -45,6 +46,7 @@
    *   screenWakeLock, sensitivity, summary,
    *   snores: [events], ignored: [ignored-sound records],
    *   wavStarts: Map(event -> seconds in the WAV download) (optional),
+   *   testWavStarts: Map(background-test event -> seconds in the test-clip WAV) (optional),
    *   shadows: {name: {options, summary, levels, snores}}
    * }
    * Event times (`start`) are seconds on the night's clock: analysed audio
@@ -53,6 +55,7 @@
   function toReport(night) {
     const time = (sec) => new Date(night.startWall + sec * 1000).toISOString();
     const wavStarts = night.wavStarts || new Map();
+    const testWavStarts = night.testWavStarts || new Map();
     return {
       app: 'Snorewatch',
       schemaVersion: SCHEMA_VERSION,
@@ -123,6 +126,8 @@
               aboveRoomDb: round(x.relDb, 1),
               breathRiseDb: round(x.breathRise, 1),
               confirmed: !!x.confirmed,
+              // In the test-clip WAV: the auto test's sample of snores the counting detector missed.
+              wavStartSec: testWavStarts.has(x) ? round(testWavStarts.get(x), 2) : null,
             })),
           },
         ]),

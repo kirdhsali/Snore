@@ -36,7 +36,8 @@ User journeys:
 
 Requirements:
 - One-button UI, live view, report on Stop. **[verified]**
-- **Privacy:** only short snore clips keep audio; everything runs on the device; no
+- **Privacy:** only short snore clips keep audio (since 1.14.0 also up to 60 test clips of
+  snores only the auto test heard, **[owner]**); everything runs on the device; no
   backend, uploads or accounts. Non-snore audio exists only in a ~6.5 s rolling
   buffer and as a rhythm candidate (≤ 12 s); ignored sounds keep features only; all
   buffers are wiped on Stop. Clips include 0.25 s before / 0.15 s after a snore and
@@ -120,6 +121,7 @@ expansion without behaviour change. Details per finding, with tests and results:
 | 1.12.6 | #35 | Night 4 follow-up: snore clips are turned up to listening level before the 16-bit conversion (were cut at −70 dBFS level, about 25 sample values, and boosted only for playback: grainy) |
 | 1.13.0 | #36 | Night 4 follow-up: third background test `breath6` (chosen sensitivity + breath rule 6 dB); headline unchanged; `eval:public` reports it |
 | 1.13.1 | #38 | Auto sensitivity (background test): a sound ends only once the level is back within the room's usual quiet range; in night 4 the release (3.2 dB) lay inside a wavering hum's usual level (median 3.2 dB, 5.0 dB in the quietest stretch), so sounds stayed open and loud snores were rejected |
+| 1.14.0 | #39 | Auto test made checkable: a random sample of up to 60 clips of snores only auto heard ("Download test clips (.wav)", `wavStartSec` under `shadows.auto.snores`); `npm run evaluate` re-counts the 3 dB background tests with a 6 dB rule |
 
 ## 4. Architecture
 
@@ -225,7 +227,8 @@ rise) → `RhythmGate` → `SessionStats` (confirmed = another snore 2–12 s aw
 - **[assumption]** Thresholds generalise beyond 4 real nights of one person, synthetic
   sounds and ESC-50. Night 4 was the first live run of the background tests: the 3 dB
   breath rule was too lenient in that room (§6a); auto sensitivity counted more than
-  Normal, which cannot be checked by ear because background tests keep no clips.
+  Normal and missed loud snores (fixed in 1.13.1, simulated only). Since 1.14.0 up to 60
+  of the snores only auto heard are kept as test clips, so they can be checked by ear.
 - `npm run evaluate` reads features rounded to 3 decimals: on night 4, 6 sounds with a
   20–60 Hz share of exactly 0.850 flip from "rumble" to snore-like (1053 → 1061 recorded
   vs current with identical rules). Cosmetic; not fixed.

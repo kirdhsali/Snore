@@ -97,6 +97,13 @@
       }
     }
 
+    /** Lets go of one snore's audio, e.g. a background test's clip that is not part of the sample. */
+    dropClip(ev) {
+      if (!ev.clip) return;
+      ev.clip = null;
+      this.clipCount--;
+    }
+
     _dropQuietestClip() {
       let min = null;
       for (const s of this.snores) if (s.clip && (!min || s.relDb < min.relDb)) min = s;
