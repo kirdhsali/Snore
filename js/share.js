@@ -489,9 +489,103 @@
     return { svg: `${out}</svg>`, size };
   }
 
+  /**
+   * The room's noise over the night as a heatmap: one row per octave band (lowest at
+   * the bottom), each minute shaded by how far that band sat above its own quiet level
+   * (its 10th percentile over the night; full colour at 15 dB), the background level as
+   * a line under it, snores as ticks and clock times along the bottom. Script-free SVG,
+   * shown in the app and in the report file.
+   * d: { startWall, elapsed, gaps, snores, noise: {minuteSec, bandsHz, minutes: [{t, backgroundDb, bandsDb}]},
+   *      noiseBands (Hz to show; default all) }
+   * `width`: drawing units across; the app passes the panel's width in pixels so the labels keep their size.
+   */
+  function noiseSvg(d, width = 720) {
+    const noise = d.noise;
+    const minuteSec = noise.minuteSec || 60;
+    const minutes = noise.minutes || [];
+    const rows = (d.noiseBands || noise.bandsHz).map((hz) => noise.bandsHz.indexOf(hz)).filter((i) => i >= 0);
+    const W = Math.max(200, Math.round(width));
+    const pl = 50;
+    const pt = 4;
+    const rowH = 16;
+    const heatH = rows.length * rowH;
+    const levelTop = pt + heatH + 8;
+    const levelH = 28;
+    const tickTop = levelTop + levelH + 6;
+    const H = tickTop + 9 + 22;
+    const xAt = (t) => pl + ((W - pl) * Math.min(Math.max(t, 0), d.elapsed)) / Math.max(1, d.elapsed);
+    let out = `<svg class="noise" viewBox="0 0 ${W} ${H}" role="img" aria-label="Room noise by pitch over the night">`;
+    out += `<rect class="heat-bg" x="${pl}" y="${pt}" width="${W - pl}" height="${heatH}"/>`;
+    rows.forEach((b, r) => {
+      const vals = minutes
+        .map((m) => (m.bandsDb ? m.bandsDb[b] : null))
+        .filter((v) => v != null)
+        .sort((p, q) => p - q);
+      const y = pt + (rows.length - 1 - r) * rowH;
+      const hz = noise.bandsHz[b];
+      out += `<text x="${pl - 6}" y="${y + rowH / 2}" class="ytick">${hz >= 1000 ? `${hz / 1000} kHz` : `${hz} Hz`}</text>`;
+      if (!vals.length) return;
+      const quiet = vals[Math.floor(vals.length * 0.1)];
+      // Shades in eighths; neighbouring minutes with the same shade become one rectangle.
+      let run = null;
+      const flush = () => {
+        if (run && run.k)
+          out += `<rect class="cell" x="${xAt(run.from).toFixed(1)}" y="${y}" width="${Math.max(0.5, xAt(run.to) - xAt(run.from)).toFixed(
+            1,
+          )}" height="${rowH - 1}" fill-opacity="${run.k / 8}"/>`;
+        run = null;
+      };
+      for (const m of minutes) {
+        const v = m.bandsDb ? m.bandsDb[b] : null;
+        const k = v == null ? 0 : Math.max(0, Math.min(8, Math.round(((v - quiet) / 15) * 8)));
+        if (run && run.k === k && Math.abs(run.to - m.t) < 1) run.to = m.t + minuteSec;
+        else {
+          flush();
+          run = { k, from: m.t, to: m.t + minuteSec };
+        }
+      }
+      flush();
+    });
+    // The background level, scaled to the night's own range (at least 6 dB); broken where minutes are missing.
+    const bgs = minutes.filter((m) => m.backgroundDb != null);
+    if (bgs.length) {
+      const lo = Math.min(...bgs.map((m) => m.backgroundDb));
+      const hi = Math.max(lo + 6, ...bgs.map((m) => m.backgroundDb));
+      let path = '';
+      let prev = null;
+      for (const m of bgs) {
+        const x = xAt(m.t + minuteSec / 2);
+        const y = levelTop + levelH - ((m.backgroundDb - lo) / (hi - lo)) * levelH;
+        path += `${prev != null && m.t - prev <= minuteSec + 1 ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`;
+        prev = m.t;
+      }
+      out += `<path class="level" d="${path}"/><text x="${pl - 6}" y="${levelTop + levelH / 2}" class="ytick">level</text>`;
+    }
+    for (const g of d.gaps || []) {
+      const x0 = xAt(g.start);
+      out += `<rect class="gap" x="${x0.toFixed(1)}" y="${pt}" width="${Math.max(1, xAt(g.end) - x0).toFixed(1)}" height="${
+        levelTop + levelH - pt
+      }"><title>not recorded</title></rect>`;
+    }
+    // Snores: one tick per pixel column at most.
+    const cols = new Set((d.snores || []).map((x) => Math.round(xAt(x.start))));
+    for (const x of cols) out += `<rect class="tick" x="${x - 0.75}" y="${tickTop}" width="1.5" height="9"/>`;
+    let lastRight = -Infinity;
+    for (const tk of timeTicks(d.startWall, d.elapsed)) {
+      const x = xAt(tk.t);
+      const half = tk.label.length * 3.3 + 4; // about half the label's width at 11 px
+      if (x - half < lastRight || x < pl || x + half > W) continue;
+      out += `<line class="grid" x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${pt}" y2="${pt + heatH}"/><text x="${x.toFixed(1)}" y="${
+        H - 6
+      }" class="xtick">${esc(tk.label)}</text>`;
+      lastRight = x + half;
+    }
+    return `${out}</svg>`;
+  }
+
   const REPORT_CSS = `
-:root{--bg:#f6f7fa;--surface:#fff;--fg:#12141b;--fg2:#474d60;--muted:#767d91;--line:#e2e5ec;--snore:#e25f2a;--ignored:#a9aebd;color-scheme:light}
-@media (prefers-color-scheme:dark){:root{--bg:#0e1016;--surface:#161922;--fg:#eef0f6;--fg2:#b3b8c9;--muted:#7a8196;--line:#262b38;--snore:#e8743f;--ignored:#5d6478;color-scheme:dark}}
+:root{--bg:#f6f7fa;--surface:#fff;--fg:#12141b;--fg2:#474d60;--muted:#767d91;--line:#e2e5ec;--snore:#e25f2a;--ignored:#a9aebd;--quiet:#dde1e9;--accent:#3448c2;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#0e1016;--surface:#161922;--fg:#eef0f6;--fg2:#b3b8c9;--muted:#7a8196;--line:#262b38;--snore:#e8743f;--ignored:#5d6478;--quiet:#2f3544;--accent:#a5b4ff;color-scheme:dark}}
 *{box-sizing:border-box}html,body{margin:0}
 body{background:var(--bg);color:var(--fg);font:15px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 main{max-width:820px;margin:0 auto;padding:28px 16px 48px;display:flex;flex-direction:column;gap:22px}
@@ -512,6 +606,11 @@ section{background:var(--surface);border:1px solid var(--line);border-radius:14p
 .timeline .bar{fill:var(--snore)}.timeline .gap{fill:var(--line);opacity:.7}
 .timeline text{fill:var(--muted);font-size:11px}
 .timeline .ytick{text-anchor:end;dominant-baseline:middle}.timeline .xtick{text-anchor:middle}
+.noise{width:100%;height:auto;display:block}
+.noise .heat-bg{fill:var(--quiet)}.noise .cell{fill:var(--accent)}.noise .level{fill:none;stroke:var(--accent);stroke-width:1.5}
+.noise .tick{fill:var(--snore)}.noise .gap{fill:var(--line);opacity:.7}.noise .grid{stroke:var(--surface);stroke-width:1}
+.noise text{fill:var(--muted);font-size:11px}.noise .ytick{text-anchor:end;dominant-baseline:middle}.noise .xtick{text-anchor:middle}
+.findings{margin:0 0 12px;padding-left:20px;display:grid;gap:6px;max-width:72ch}
 .sub{color:var(--muted);font-size:13px;margin:-6px 0 10px}
 .clips{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
 .clip{border:1px solid var(--line);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:6px}
@@ -531,7 +630,8 @@ tr:last-child td{border-bottom:0}
   /**
    * Builds the report file.
    * d: { startWall, elapsed, captured, gaps, snores, summary, version, sensitivity, sourceLabel,
-   *      reasons (key -> label), heroImage (data URI or null), samples: {loud, random} }
+   *      reasons (key -> label), heroImage (data URI or null), samples: {loud, random},
+   *      noise, noiseBands, noiseLines (room noise: the night's profile and its findings; optional) }
    */
   function buildReportHtml(d) {
     const sum = d.summary;
@@ -630,6 +730,21 @@ ${
     : '<p class="note">No snoring episodes.</p>'
 }
 </section>
+${
+  d.noise && d.noise.minutes && d.noise.minutes.length
+    ? `<section>
+<h2>Room noise</h2>
+<p class="sub">Levels per minute only; no sound of the room was kept.</p>
+${
+  d.noiseLines && d.noiseLines.length
+    ? `<ul class="findings">${d.noiseLines.map((l) => `<li>${esc(l)}</li>`).join('')}</ul>`
+    : '<p class="note">The room is described from 10 minutes of recording on.</p>'
+}
+${d.noise.minutes.length >= 3 ? noiseSvg(d) : ''}
+<p class="note">Shading: how far each pitch rose above its own quiet level (full colour at 15 dB). Line: the room's overall level. Ticks: snores.</p>
+</section>`
+    : ''
+}
 <section>
 <h2>Ignored sounds</h2>
 <p class="sub">Heard during the night but not snoring. No audio of these was kept.</p>
@@ -643,5 +758,5 @@ ${ignored ? `<table><tbody>${ignored}</tbody></table>` : '<p class="note">No oth
 `;
   }
 
-  return { CARD_W, CARD_H, drawShareCard, buildReportHtml, pickSamples, timeTicks, busiest, coverage, waveSvg, fmtSpan };
+  return { CARD_W, CARD_H, drawShareCard, buildReportHtml, pickSamples, timeTicks, busiest, coverage, waveSvg, noiseSvg, fmtSpan };
 });

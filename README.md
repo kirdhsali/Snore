@@ -111,11 +111,18 @@ Report, after Stop:
 - summary sentence and key figures
 - snores over time, loudness classes (light / moderate / loud above room noise)
 - ignored sounds by reason
+- **room noise** (since 1.19.0): plain findings about the room (from 10 minutes of
+  recording) and a heatmap. The findings cover a steady low tone (mains hum or a motor),
+  a device switching on and off, a steady or restless sound in the middle and high pitches
+  outside the snoring minutes, and stretches loud enough to hide quiet snores. In the
+  heatmap each row is an octave band, shaded by how far it rose above its own quiet level
+  (full colour at 15 dB), with the overall level and the snores under it. It uses levels
+  per minute only; no sound of the room is kept
 - snoring episodes (3+ snores less than a minute apart)
 - the 8 loudest snores to listen to
 - **Share this night**: an image of the night as a star map (1080 × 1350 PNG;
   each snore a dot by time and loudness) and the **full report** as one HTML
-  file with charts and the 8 loudest + 5 random snores to play. The report has
+  file with charts, the room noise and the 8 loudest + 5 random snores to play. The report has
   no scripts, works offline in any browser (on iPhone: “Open in Safari”). On
   phones both open the share sheet; elsewhere they download.
 - downloads: all snores as one `.wav` (volume evened out per clip so quiet
@@ -264,7 +271,7 @@ type checker. Agent instructions: `CLAUDE.md` / `AGENTS.md`; general working rul
 | `js/noise.js` | room noise per minute: background level, octave bands, the strongest low tone (numbers only) |
 | `js/synth.js` | synthetic snores and distractor sounds for demo mode and tests |
 | `js/charts.js` | canvas drawing for the live strip, timeline and waveforms |
-| `js/share.js` | share image (star map) and the self-contained report file |
+| `js/share.js` | share image (star map), the self-contained report file and the room-noise heatmap (SVG) |
 | `js/version.js` | version shown in the footer |
 | `js/recorder.js` | recording: microphone or `#demo`, detectors and background tests, interruptions, wake lock, the finished night |
 | `js/report-format.js` | the downloaded data file (JSON), writing and reading every version |

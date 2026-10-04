@@ -7,6 +7,7 @@
   const Share = window.SnoreShare;
   const Report = window.SnoreReport;
   const Recorder = window.SnoreRecorder;
+  const Noise = window.SnoreNoise;
   const EMBED = !!window.SNOREWATCH_EMBED;
   const LIVE_SECONDS = 30;
   let liveClipLimit = 6; // snore cards shown while recording
@@ -44,6 +45,10 @@
     intensity: $('intensity'),
     ignored: $('ignored'),
     episodes: $('episodes'),
+    noisePanel: $('noise-panel'),
+    noiseFindings: $('noise-findings'),
+    noiseChart: $('noise-chart'),
+    noiseLegend: $('noise-legend'),
     reportClips: $('report-clips'),
     dlWav: $('dl-wav'),
     dlJson: $('dl-json'),
@@ -621,6 +626,18 @@
           .join('')}</tbody>`
       : '<tbody><tr><td class="empty">No snoring episodes.</td></tr></tbody>';
 
+    const room = roomNoise(n);
+    el.noisePanel.hidden = !room;
+    if (room) {
+      el.noiseFindings.innerHTML = room.lines.length
+        ? room.lines.map((l) => `<li>${esc(l)}</li>`).join('')
+        : '<li class="empty">The room is described from 10 minutes of recording on.</li>';
+      el.noiseLegend.hidden = !room.chart;
+      el.noiseChart._draw = room.chart;
+      if (room.chart) requestAnimationFrame(() => (el.noiseChart.innerHTML = room.chart(el.noiseChart.clientWidth)));
+      else el.noiseChart.innerHTML = '';
+    }
+
     el.reportClips.innerHTML = '';
     const loudest = n.stats.confirmed
       .filter((x) => x.clip)
@@ -633,6 +650,32 @@
     el.dlTestWav.hidden = EMBED || !testClips(n).length;
     prepareShare(n);
     el.report.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+  }
+
+  /**
+   * The room's noise for the report: plain findings (js/noise.js) and the heatmap
+   * (js/share.js), or null when the night has no noise profile.
+   */
+  function roomNoise(n) {
+    if (!n.noise || !n.noise.minutes.length) return null;
+    const lines = Noise.describe(
+      Noise.summarize(
+        n.noise,
+        n.stats.confirmed.map((x) => x.start),
+      ),
+      (sec) => fmtTime(at(sec)),
+    );
+    const data = {
+      startWall: n.startWall,
+      elapsed: n.clockSeconds,
+      gaps: n.gaps.map((g) => ({ start: g.clock, end: g.clock + (g.end - g.start) / 1000 })),
+      snores: n.stats.confirmed,
+      noise: n.noise,
+      noiseBands: Noise.SHOWN_BANDS,
+    };
+    // Drawn at the panel's width (in pixels), so its labels keep their size on a phone.
+    const chart = n.noise.minutes.length >= 3 ? (width) => Share.noiseSvg(data, width) : null;
+    return { lines, chart };
   }
 
   // ---------- sharing ----------
@@ -667,6 +710,9 @@
         sensitivity: n.sensitivity,
         sourceLabel: SOURCE_NAMES[n.source],
         reasons: REASONS,
+        noise: n.noise,
+        noiseBands: Noise.SHOWN_BANDS,
+        noiseLines: (roomNoise(n) || { lines: [] }).lines,
       };
       const canvas = Share.drawShareCard(document.createElement('canvas'), data);
       const png = await new Promise((r) => canvas.toBlob(r, 'image/png'));
@@ -866,6 +912,7 @@
 
   window.addEventListener('resize', () => {
     for (const c of [el.liveTimeline, el.reportTimeline]) if (c._timeline && c.offsetParent) c._timeline.geo = c._timeline.draw(-1);
+    if (el.noiseChart._draw && el.noiseChart.offsetParent) el.noiseChart.innerHTML = el.noiseChart._draw(el.noiseChart.clientWidth);
   });
 
   // Test hook: lets automated tests read the state of the page.

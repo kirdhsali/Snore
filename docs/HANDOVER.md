@@ -1,12 +1,12 @@
 # Snorewatch handover
 
-State at version **1.18.0**, prepared 2026-10-04. 1.12.0 was reviewed independently
+State at version **1.19.0**, prepared 2026-10-04. 1.12.0 was reviewed independently
 twice (v1.9.1 and `a87c1f3`); 1.12.1–1.12.4 fix the second review's C1, C2, C3 and C5.
 1.12.5–1.14.0 follow up the first real night recorded with 1.12.4 (night 4, §6a): data
 file and clips (1.12.5–1.12.6), the 6 dB breath test (1.13.0), auto sensitivity's release
 (1.13.1) and its test clips (1.14.0). 1.15.0 records the room noise; 1.16.0 follows up
 night 5 (§6b); 1.17.0 makes Normal count with the 6 dB breath rule (owner's decision);
-1.18.0 adds the knock background test.
+1.18.0 adds the knock background test; 1.19.0 shows the room noise in the report.
 The tested revisions and all check results are in [`docs/VERIFICATION.md`](VERIFICATION.md);
 the finding-by-finding answers to both reviews are in [`docs/REVIEW-RESPONSE.md`](REVIEW-RESPONSE.md).
 Marks: **[verified]** checked against this repository or by running it;
@@ -26,11 +26,11 @@ User journeys:
    sleep", tap **Start**. A "Darken screen" button under Stop (and a 20 s timeout)
    turns the screen black; tap it to look. In the morning tap **Stop**.
 2. **Report:** summary sentence, tiles, snores-over-time chart, loudness classes,
-   ignored sounds by reason, episodes, 8 loudest snores (tap to play), a one-line
+   ignored sounds by reason, room noise (findings and heatmap), episodes, 8 loudest snores (tap to play), a one-line
    result of the background tests, and "interrupted N×" if the system paused the
    microphone.
 3. **Share:** star-map PNG (1080 × 1350) and a script-free HTML report with
-   8 loudest + 5 random snores (share sheet on phones, download elsewhere).
+   the room noise and 8 loudest + 5 random snores (share sheet on phones, download elsewhere).
 4. **Hand data to a developer:** "Download data (.json)" (all events, features,
    interruptions, background tests) and "Download snores (.wav)";
    `npm run evaluate -- <file>.json` re-evaluates a night with the current rules.
@@ -137,6 +137,7 @@ expansion without behaviour change. Details per finding, with tests and results:
 | (—) | #42 | Room noise step 2 logic: `summarize`/`describe` in `js/noise.js` (steady tone, on/off cycles, mid/high stretches outside snoring, loud stretches); printed by `npm run evaluate`; not shown in the app |
 | 1.17.0 | #43 | **Counting change (owner):** Normal requires 6 dB of breath noise (`SENSITIVITY.normal.minBreathRiseDb`, `breathRuleDb()`); night 4 961 → 661 confirmed, night 5 76 → 73; ESC-50 night sounds 100 → 78 (confirmed 23 → 14), snoring clips 29/40 kept (confirmed 13 → 12). Background tests `breath`/`breath6` removed (exactly re-computable offline); the JSON names the rule (`minBreathRiseDb`); the evaluator applies the night's sensitivity and prints the count without the rule |
 | 1.18.0 | #44 | Knock background test `knock` (chosen sensitivity + sudden-start rule): new measure `onsetJump`, the largest rise over 20 ms at a sound's start, stored per sound (`onsetJumpDb`); option `maxOnsetJumpDb` rejects as 'sudden'; the test uses 20 dB. Night 5's 4 knocks 21–42 dB, real snores ≤ 23 dB (2 of night 4's 955 above 20). Synthetic `bump`. `eval:public` fades clips in and out over 0.1 s (they started mid-sound, which looked like a knock); with the rule ESC-50 night sounds 76 → 50 / 1000, snoring clips 29 → 28 (confirmed 13 → 11). Headline unchanged |
+| 1.19.0 | #45 | Room noise step 2 in the report: "Room noise" panel with the plain findings (`js/noise.js`, from 10 minutes) and a heatmap (`Share.noiseSvg`: octave bands × minutes, shaded 0–15 dB above each band's quiet level; background level line; snore ticks; drawn at the panel's width); the same section in the shared HTML report. The star-map image is unchanged |
 
 ## 4. Architecture
 
@@ -160,7 +161,7 @@ js/app.js (page) ◄── onState / onFrame / onEvent / onWakeLock
 | `js/detector.js` | FFT, `FrameAnalyzer`, `SnoreDetector` (floor, events, classification, clips, `release()`, `resumeAfterGap()`), `RhythmGate`, `classify`, `DEFAULTS`/`SENSITIVITY`/`REASONS`. UMD facade `SnoreCore` that re-exports `stats.js` and `wav.js` |
 | `js/synth.js` | Seeded synthetic sounds and rooms; used by the demo and tests |
 | `js/charts.js` | Canvas drawing (live strip, timeline, clip waveform) |
-| `js/share.js` | Star-map image and script-free HTML report (also runs in Node) |
+| `js/share.js` | Star-map image, script-free HTML report and the room-noise heatmap (SVG, also used by the app) (also runs in Node) |
 | `js/report-format.js` | The data file: `toReport` (download), `fromReport` (reads schema 1 and 2) (`SnoreReport`) |
 | `js/recorder.js` | Recording controller (`SnoreRecorder`): audio graph, detectors (one counting, background tests `knock` and `auto`), interruptions, wake lock, state machine, `finishNight`. Browser APIs injected through `env` (unit-tested with fakes) |
 | `js/night-store.js` | Storage interface + in-memory implementation (`SnoreStore`). **Not loaded by the page** |
@@ -366,18 +367,19 @@ when `CI tests` is green (Claude may merge its own PRs); bump `package.json` and
   test drops (`npm run evaluate` lists its count; `onsetJumpDb` is stored per sound; listen
   to Normal's snores above 20 dB). Make it count only after real nights and the owner's
   approval.
-- **Next build, owner agreed (2026-10-04):** the room-noise section in the report (below).
+- **Room noise in the report (1.19.0):** the owner finds the findings not very informative
+  yet ("let's start with this"); after some nights, ask what would help (e.g. naming the
+  loudest hours, comparing with earlier nights, less technical wording) and revise.
 - **Next build, owner agreed (2026-10-03), after the auto work:** room noise for users.
   Step 1 (data only) done in 1.15.0: `noise` in the JSON. Step 2 logic done (not shown
   yet): `summarize`/`describe` in `js/noise.js` (steady tone held ≥ 7 of 10 minutes,
   regular on/off cycles, mid/high-pitch stretches outside snoring minutes, loud stretches;
   the 8 kHz octave left out), printed by `npm run evaluate`; owner saw examples for nights
-  4 and 5 on 2026-10-04. Still to build: the "Room noise"
-  report section with plain findings (steady hum, a device cycling on/off, noisy
-  stretches, hours where quiet snores could not be heard) and a time × pitch heatmap;
-  across nights (hour × night) once nights are saved (2.x). Step 3 (background test
-  first): use it in detection, e.g. a level without the mains-hum band. Open owner
-  question: show it in the shared image/HTML too, or only in the app?
+  4 and 5 on 2026-10-04. Shown since 1.19.0: the "Room noise" panel (findings and a
+  time × pitch heatmap) in the app and in the shared HTML report (owner: "let's use it";
+  the star-map image unchanged). Still to build: across nights (hour × night) once nights
+  are saved (2.x). Step 3 (background test first): use it in detection, e.g. a level
+  without the mains-hum band.
 - **Revisit with that data:** auto's restlessness measure ignores rejected sounds
   (hum swells, rumble), so it never saw night 4's swells. Counting them was tried in
   1.13.1 and left out (no measurable gain in simulation; one change at a time).
