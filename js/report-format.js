@@ -14,6 +14,7 @@
  *      1.12.5 adds `timeZone` (IANA name, e.g. "Europe/Berlin"); older files lack it.
  *      1.14.0 adds `wavStartSec` to background-test snores (the test-clip WAV).
  *      1.15.0 adds `noise`: the room noise per minute (levels only, no sound).
+ *      1.16.0 adds `lowRiseDb` per sound and `minLowRiseDb` per background test.
  */
 (function (root, factory) {
   const api = factory();
@@ -37,6 +38,7 @@
       subBassShare: round(x.subBass, 3),
       loudFill: round(x.fill, 2),
       breathRiseDb: round(x.breathRise, 1),
+      lowRiseDb: round(x.lowRise, 1), // snore band 50-800 Hz above its room noise (from 1.16.0)
     };
   }
 
@@ -124,6 +126,7 @@
           {
             sensitivity: sh.options.sensitivity,
             minBreathRiseDb: sh.options.minBreathRiseDb,
+            minLowRiseDb: sh.options.minLowRiseDb ?? null,
             summary: {
               snoreCount: sh.summary.snoreCount,
               possibleCount: sh.summary.possibleCount,
@@ -144,6 +147,7 @@
               durationSec: round(x.duration, 2),
               aboveRoomDb: round(x.relDb, 1),
               breathRiseDb: round(x.breathRise, 1),
+              lowRiseDb: round(x.lowRise, 1),
               confirmed: !!x.confirmed,
               // In the test-clip WAV: the auto test's sample of snores the counting detector missed.
               wavStartSec: testWavStarts.has(x) ? round(testWavStarts.get(x), 2) : null,
@@ -169,6 +173,7 @@
       subBass: x.subBassShare ?? null,
       fill: x.loudFill ?? null,
       breathRise: x.breathRiseDb ?? null,
+      lowRise: x.lowRiseDb ?? null,
       isSnore,
       reason: isSnore ? null : x.reason,
       rhythm: !!x.rhythmRescued,

@@ -24,6 +24,9 @@
   const BREATH_RULE_DB = 3; // candidate breath-noise rule, tested in the background
   // Stricter candidate: night 4 counted hum swells with 3-6 dB of breath noise as snores.
   const STRICT_BREATH_RULE_DB = 6;
+  // Auto test: night 5 counted quiet breathing over a room tone as snores; a snore raises
+  // the 50-800 Hz band well above its room noise, breathing hardly does.
+  const SNORE_BAND_RULE_DB = 8;
   // The auto test keeps clips of a random sample of the snores the counting detector did not
   // find, so they can be checked by ear (owner's decision after night 4).
   const TEST_CLIPS = 60;
@@ -318,7 +321,7 @@
         s.shadows = {
           breath: shadow({ sensitivity, minBreathRiseDb: BREATH_RULE_DB }),
           breath6: shadow({ sensitivity, minBreathRiseDb: STRICT_BREATH_RULE_DB }),
-          auto: shadow({ sensitivity: 'auto', minBreathRiseDb: BREATH_RULE_DB }, true),
+          auto: shadow({ sensitivity: 'auto', minBreathRiseDb: BREATH_RULE_DB, minLowRiseDb: SNORE_BAND_RULE_DB }, true),
         };
         s.tap = await createTap(env, ctx, input, (samples) => {
           if (!live() || session !== s) return;

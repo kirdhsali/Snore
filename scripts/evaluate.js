@@ -180,7 +180,7 @@ function compareShadow(r, shadow, name, hours, gaps = []) {
   const both = main.filter((x) => near(x, auto)).length;
   const trig = shadow.levels.map((l) => l.triggerDb).sort((a, b) => a - b);
   const q = (p) => (trig.length ? trig[Math.floor(p * (trig.length - 1))].toFixed(1) : '-');
-  const label = `${name}: sensitivity ${shadow.sensitivity}${shadow.minBreathRiseDb != null ? `, breath-noise rule ${shadow.minBreathRiseDb} dB` : ''}`;
+  const label = `${name}: sensitivity ${shadow.sensitivity}${shadow.minBreathRiseDb != null ? `, breath-noise rule ${shadow.minBreathRiseDb} dB` : ''}${shadow.minLowRiseDb != null ? `, snore-band rule ${shadow.minLowRiseDb} dB` : ''}`;
   console.log(`\n  background test ${label} vs ${r.sensitivity}:`);
   console.log(
     `    confirmed snores   ${r.sensitivity} ${main.length} (${(main.length / hours).toFixed(0)}/h)   ${name} ${auto.length} (${(auto.length / hours).toFixed(0)}/h)`,

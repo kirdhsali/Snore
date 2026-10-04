@@ -125,6 +125,7 @@ expansion without behaviour change. Details per finding, with tests and results:
 | 1.13.1 | #38 | Auto sensitivity (background test): a sound ends only once the level is back within the room's usual quiet range; in night 4 the release (3.2 dB) lay inside a wavering hum's usual level (median 3.2 dB, 5.0 dB in the quietest stretch), so sounds stayed open and loud snores were rejected |
 | 1.14.0 | #39 | Auto test made checkable: a random sample of up to 60 clips of snores only auto heard ("Download test clips (.wav)", `wavStartSec` under `shadows.auto.snores`); `npm run evaluate` re-counts the 3 dB background tests with a 6 dB rule |
 | 1.15.0 | #40 | Room noise step 1 (data only): per-minute noise profile (`noise` in the night record and JSON); `npm run evaluate` shows background and hum per hour. Detection unchanged |
+| 1.16.0 | #41 | Night 5 (hotel): auto counted the sleeper's quiet breathing over a motor's 66–82 Hz tone (581 vs Normal 76; 59/60 test clips without a snore). New measure `lowRise` (50–800 Hz above its tracked room noise, like `breathRise`), saved per sound; the auto background test requires 8 dB. Normal unchanged |
 
 ## 4. Architecture
 

@@ -137,6 +137,11 @@ async function main() {
     assert.equal(report.shadows.breath.minBreathRiseDb, 3);
     assert.equal(report.shadows.breath6.sensitivity, 'normal');
     assert.equal(report.shadows.breath6.minBreathRiseDb, 6);
+    assert.equal(report.shadows.auto.minLowRiseDb, 8, 'auto test: snore-band rule');
+    assert.ok(
+      report.snores.every((x) => typeof x.lowRiseDb === 'number'),
+      'snore-band rise saved per snore',
+    );
     for (const sh of Object.values(report.shadows)) {
       assert.ok(sh.summary.snoreCount >= 4, `background test counted ${sh.summary.snoreCount}`);
       assert.ok(sh.snores.every((x) => typeof x.offsetSec === 'number' && !('clip' in x)));

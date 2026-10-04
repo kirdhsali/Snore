@@ -488,6 +488,43 @@ test('auto sensitivity over a wavering hum ends sounds in time and does not coun
   assert.equal(counts.falseAlarms, 0, 'no breath counted as a snore');
 });
 
+test('snore-band rule: quiet breathing over a room tone is not a snore, snores are (night 5)', () => {
+  // Night 5 (hotel): auto counted 581 snores, Normal 76; its sampled extra snores were the
+  // sleeper's quiet breathing over a motor's low tone. The tone makes any quiet sound look
+  // low and snore-like, but breathing barely raises the 50-800 Hz band above its room noise.
+  const auto = { sensitivity: 'auto', minBreathRiseDb: 3 };
+  const counts = { plain: 0, rule: 0, snores: 0, hits: 0 };
+  for (let seed = 1; seed <= 3; seed++) {
+    const r = Synth.rng(seed);
+    const plan = [];
+    for (let t = 3; t < 590; t += 3.6 + r())
+      if (t < 200 || t > 250) plan.push({ type: 'breath', at: t, dull: true, amp: 0.00005 * (0.7 + 0.6 * r()) });
+    for (let k = 0; k < 10; k++) plan.push({ type: 'snore', at: 202 + k * 4.3, amp: 0.0025 * (0.6 + r()) });
+    const night = Synth.compose(16000, 600, plan, seed, 0.00005, 'hum');
+    const snores = night.truth.filter((t) => t.type === 'snore');
+    const confirmed = (options) => {
+      const stats = new SessionStats();
+      const det = new SnoreDetector(16000, { ...options, keepClips: false, onEvent: (e) => stats.add(e) });
+      det.process(night.samples);
+      det.flush();
+      return stats.confirmed;
+    };
+    const falseOnes = (list) => list.filter((e) => !snores.some((t) => overlaps(e, t))).length;
+    counts.plain += falseOnes(confirmed(auto));
+    const withRule = confirmed({ ...auto, minLowRiseDb: 8 });
+    counts.rule += falseOnes(withRule);
+    counts.snores += snores.length;
+    counts.hits += snores.filter((t) => withRule.some((e) => overlaps(e, t))).length;
+    assert.ok(
+      withRule.every((e) => e.lowRise >= 8),
+      'what counts rises in the snore band',
+    );
+  }
+  assert.ok(counts.plain >= 20, `without the rule auto counts breaths: ${counts.plain}`);
+  assert.equal(counts.rule, 0, 'with the rule no breath counts');
+  assert.equal(counts.hits, counts.snores, `snores still count: ${counts.hits}/${counts.snores}`);
+});
+
 // Rhythm rule as documented: a choppy, snore-like sound counts when a snore that
 // passed on its own starts 2-12 s before or after it.
 const gateEvent = (start, candidate = false) => ({
