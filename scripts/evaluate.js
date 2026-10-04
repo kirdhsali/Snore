@@ -11,6 +11,7 @@
 const fs = require('fs');
 const { classify, isRhythmCandidate, RhythmGate, SessionStats, DEFAULTS, REASONS } = require('../js/detector.js');
 const { fromReport } = require('../js/report-format.js');
+const Noise = require('../js/noise.js');
 
 /** The night's events in time order, each with the verdict it got when recorded (was*). */
 function eventsOf(report) {
@@ -149,6 +150,20 @@ function report(file) {
       ? `   ${pad(median(mins.map((m) => m.backgroundDbfs)).toFixed(1), 6)}  ${hums.length ? `${median(hums.map((m) => m.humHz)).toFixed(0)} Hz in ${Math.round((100 * hums.length) / mins.length)}% of minutes` : '-'}`
       : '';
     console.log(`  ${pad(h, 2)}:00  ${pad(byHour.get(h)[0], 8)}  ${pad(byHour.get(h)[1], 7)}${room}`);
+  }
+  if (night.noise) {
+    // The room's noise in plain findings, as the report will show them (js/noise.js).
+    const fmt = (sec) => {
+      const opts = { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' };
+      try {
+        return new Date(start + sec * 1000).toLocaleTimeString('en-GB', { ...opts, timeZone: night.timeZone || undefined });
+      } catch {
+        return new Date(start + sec * 1000).toLocaleTimeString('en-GB', opts);
+      }
+    };
+    const snoreTimes = events.filter((e) => e.wasSnore && e.confirmed).map((e) => e.start);
+    console.log('\n  room noise:');
+    for (const line of Noise.describe(Noise.summarize(night.noise, snoreTimes), fmt)) console.log(`    - ${line}`);
   }
 }
 

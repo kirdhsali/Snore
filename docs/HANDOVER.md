@@ -277,6 +277,38 @@ Times are the owner's local time (UTC+2).
 - **Side findings, fixed:** no time zone in the data file (1.12.5); clips cut at the
   raw −70 dBFS level, median 25 sample values, grainy when boosted (1.12.6).
 
+## 6b. Real night 5 (hotel, recorded 2026-10-04 with 1.15.0)
+
+Aggregate figures only; the files are not committed. Local time UTC+2 (Europe/Paris).
+
+- 01:10–07:49, 6 h 39 min, no interruptions. Normal 76 confirmed (11/h), breath 3 dB 75,
+  breath 6 dB 73; auto 581 (87/h), 60 test clips. **[verified]**
+- Normal's snores are real (snore band rises a median 12–16 dB). The 3 snores the 6 dB
+  rule drops look like short thumps. **But the shared report's 3 loudest "snores" and one
+  random one (01:11:04–01:11:17, a minute after Start) were knocks:** an instant attack
+  (14–32 dB within 10 ms) and an exponential decay; they passed every rule and confirmed
+  each other by rhythm. Across nights 4 and 5, real snores jump at most 16.7 dB within
+  10 ms (99% under 13 dB); a sudden-onset rule (≈ 15 dB) is a candidate, not built. **[owner]**
+  asked to identify them; the rule needs an owner decision and real nights first.
+- Auto: 59 of 60 test clips hold no snore (snore band +1.2 dB vs Normal's +15.8 dB). Its
+  start margin sat 1.4 dB above the room's 90th-percentile flicker, so the sleeper's quiet
+  breathing over a motor's 66–82 Hz tone passed. Fixed for the auto test in 1.16.0
+  (snore-band rule 8 dB); the next night shows whether it holds.
+- Room noise (first real profile): very quiet (−89 dBFS), a drifting 70–83 Hz tone for
+  ~46% of the night; mid/high-pitch stretches mostly coincide with snoring (the sleeper's
+  breathing), which the findings now leave out.
+
+**How auto sensitivity works (exact, 1.16.0).** Starts like Normal (trigger 8 dB, release
+4 dB above the floor) but with an absolute gate of −95 dBFS instead of −75. The floor follows
+the quietest moments (falls with a 0.5 s, rises with an 8 s time constant; 60 s during a
+sound). Quiet frames (no sound, more than 1 s after one) are averaged into half-second
+blocks; the last 180 s are kept as levels above the floor. Every 30 s, with at least 20 s of
+blocks: usual = median, spread = 90th percentile − median; release = max(1.5·spread + 2,
+usual + spread + 1), trigger = max(release_old + 2 + spread, release + 1), limits 3–7 / 5–14 dB
+(very quiet room, floor below −78 dBFS: release ≤ 7, trigger ≤ 9); each update moves at most
+2 dB. Then the same rules as Normal plus, in the background test, breath noise ≥ 3 dB and
+(since 1.16.0) a snore-band rise ≥ 8 dB.
+
 ## 7. Setup, development and testing
 
 Requirements: Node ≥ 18 for the app scripts and unit tests; Node ≥ 20.19 for
@@ -318,7 +350,11 @@ when `CI tests` is green (Claude may merge its own PRs); bump `package.json` and
   (1.13.0: the 6 dB rule keeps 29/40 snoring clips, night sounds 100 → 78 / 1000) and
   the owner's approval.
 - **Next build, owner agreed (2026-10-03), after the auto work:** room noise for users.
-  Step 1 (data only) done in 1.15.0: `noise` in the JSON. Step 2: a "Room noise"
+  Step 1 (data only) done in 1.15.0: `noise` in the JSON. Step 2 logic done (not shown
+  yet): `summarize`/`describe` in `js/noise.js` (steady tone held ≥ 7 of 10 minutes,
+  regular on/off cycles, mid/high-pitch stretches outside snoring minutes, loud stretches;
+  the 8 kHz octave left out), printed by `npm run evaluate`; owner saw examples for nights
+  4 and 5 on 2026-10-04. Still to build: the "Room noise"
   report section with plain findings (steady hum, a device cycling on/off, noisy
   stretches, hours where quiet snores could not be heard) and a time × pitch heatmap;
   across nights (hour × night) once nights are saved (2.x). Step 3 (background test
