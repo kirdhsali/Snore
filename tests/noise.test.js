@@ -72,3 +72,77 @@ test('no minutes are made up during an interruption', () => {
   );
   assert.ok(minutes[1].quietSec < 12 && minutes[2].quietSec < 32, 'partly recorded minutes say so');
 });
+
+// ----- findings from the per-minute profile -----
+const { summarize, describe } = require('../js/noise.js');
+const at = (sec) => `${String(Math.floor(sec / 3600)).padStart(2, '0')}:${String(Math.floor((sec % 3600) / 60)).padStart(2, '0')}`;
+const BANDS = [31.5, 63, 125, 250, 500, 1000, 2000, 4000, 8000];
+/** A night of `n` minutes: background -89 dBFS, quiet bands, no tone; `edit(i, m)` changes minute i. */
+function minutes(n, edit = () => {}) {
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const m = {
+      offsetSec: i * 60,
+      quietSec: 55,
+      backgroundDbfs: -89,
+      p10Dbfs: -91,
+      p90Dbfs: -87,
+      bandsDbfs: BANDS.map(() => -105),
+      humHz: null,
+      humDb: null,
+    };
+    edit(i, m);
+    out.push(m);
+  }
+  return { minuteSec: 60, bandsHz: BANDS, minutes: out };
+}
+
+test('a device switching on at a steady rhythm is one finding, with when, how often and how much', () => {
+  const noise = minutes(300, (i, m) => {
+    if (i >= 30 && i < 260 && (i - 30) % 52 < 22) m.backgroundDbfs = -79; // on for 22 min every 52 min
+  });
+  const s = summarize(noise);
+  assert.equal(s.cycles.count, 5);
+  assert.ok(s.cycles.regular && Math.abs(s.cycles.period - 52) <= 1 && Math.abs(s.cycles.minutes - 22) <= 2, JSON.stringify(s.cycles));
+  assert.ok(Math.abs(s.cycles.stepDb - 10) < 1);
+  assert.deepEqual(s.masked, [], 'its loud stretches are part of the cycle sentence');
+  const text = describe(s, at);
+  assert.match(
+    text[0],
+    /switched on 5 times between 00:30 and 04:20, about every 52 min, for about 2\d min each time, and made the room 10 dB louder/,
+  );
+});
+
+test('a steady tone is reported only when its pitch holds; mains hum is told apart from a motor', () => {
+  const mains = summarize(minutes(120, (i, m) => (m.humHz = 50 + (i % 3) * 0.4)));
+  assert.ok(mains.tone && mains.tone.mains && mains.tone.share > 0.9);
+  assert.match(describe(mains, at)[0], /about 50 Hz .* mains hum/);
+  const motor = summarize(minutes(120, (i, m) => (m.humHz = 74 + (i % 5))));
+  assert.ok(motor.tone && !motor.tone.mains);
+  assert.match(describe(motor, at)[0], /motor or fan/);
+  // Readings that jump around (no real tone) are not a finding.
+  const scattered = summarize(minutes(120, (i, m) => (m.humHz = 55 + ((i * 37) % 45))));
+  assert.equal(scattered.tone, null);
+});
+
+test("the sleeper's own sounds are not blamed on the room; a quiet night says so", () => {
+  const noisy = (i, m) => {
+    if (i >= 60 && i < 90) m.bandsDbfs = m.bandsDbfs.map((v, k) => (BANDS[k] >= 500 && BANDS[k] <= 4000 ? v + 8 : v));
+  };
+  const s = summarize(minutes(180, noisy));
+  assert.equal(s.stretches.length, 1, 'mid and high pitches raised for 30 min');
+  assert.match(describe(s, at).join(' '), /01:00–01:30: a steady sound in the middle and high pitches \(8 dB/);
+  const snoreTimes = [];
+  for (let t = 3600; t < 5400; t += 40) snoreTimes.push(t);
+  assert.deepEqual(summarize(minutes(180, noisy), snoreTimes).stretches, [], 'snoring then: the sound was the sleeper');
+  assert.deepEqual(describe(summarize(minutes(180)), at), ['The room stayed quiet and steady all night.']);
+});
+
+test('a loud stretch that is not a cycle says when quiet snores could be missed', () => {
+  const s = summarize(minutes(240, (i, m) => (m.backgroundDbfs = i >= 120 && i < 180 ? -81 : -89)));
+  assert.equal(s.masked.length, 1);
+  assert.match(
+    describe(s, at).join(' '),
+    /02:00–03:00: the room was 8 dB louder than at its quietest; quiet snores could be missed then\./,
+  );
+});

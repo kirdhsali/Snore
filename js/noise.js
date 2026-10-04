@@ -117,5 +117,189 @@
     }
   }
 
-  return { NoiseProfile, OCTAVES };
+  // ----- findings: the night's noise in a few plain statements -----
+
+  const SHOWN_BANDS = [31.5, 63, 125, 250, 500, 1000, 2000, 4000]; // the 8 kHz octave is mostly microphone noise
+  const median = (xs) => percentile(xs, 0.5);
+
+  /** Minutes in one shape, from a night record (`t`, `backgroundDb`…) or a data file (`offsetSec`, `backgroundDbfs`…). */
+  function normalise(noise) {
+    return (noise.minutes || []).map((m) => ({
+      t: m.t ?? m.offsetSec,
+      bg: m.backgroundDb ?? m.backgroundDbfs ?? null,
+      p90: m.p90Db ?? m.p90Dbfs ?? null,
+      bands: m.bandsDb ?? m.bandsDbfs ?? null,
+      hum: m.humHz ?? null,
+    }));
+  }
+
+  /** Runs of consecutive minutes where `test(i)` holds, allowing `gap` missing minutes inside a run. */
+  function runs(n, test, minLen, gap = 1) {
+    const out = [];
+    let start = -1;
+    let last = -1;
+    for (let i = 0; i <= n; i++) {
+      if (i < n && test(i)) {
+        if (start < 0) start = i;
+        last = i;
+      } else if (start >= 0 && (i === n || i - last > gap)) {
+        if (last - start + 1 >= minLen) out.push([start, last]);
+        start = -1;
+      }
+    }
+    return out;
+  }
+
+  /**
+   * The night's noise as findings, from the per-minute profile (`noise` of a night
+   * record or data file). `snoreTimes` (seconds, the night's clock): minutes with
+   * snoring, and the minute either side, are left out of the mid/high-pitch
+   * stretches, so the sleeper's own breathing is not blamed on the room. Times
+   * are seconds on the night's clock. Returns { background, tone, cycles,
+   * stretches, masked } (null or [] when not found).
+   */
+  function summarize(noise, snoreTimes = []) {
+    const minuteSec = (noise && noise.minuteSec) || 60;
+    const M = normalise(noise || {}).filter((m) => m.bg != null);
+    if (M.length < 10) return null;
+    const snoring = new Set();
+    for (const t of snoreTimes) for (const d of [-1, 0, 1]) snoring.add(Math.floor(t / minuteSec) + d);
+    const ownSounds = (i) => snoring.has(Math.floor(M[i].t / minuteSec));
+    const bgs = M.map((m) => m.bg);
+    const background = { median: median(bgs), quietest: percentile(bgs, 0.1), loudest: percentile(bgs, 0.9) };
+
+    // A steady tone: in a 10-minute window, 7 or more minutes within 6 Hz of the window's median pitch.
+    const marked = new Array(M.length).fill(false);
+    const pitches = [];
+    for (let i = 0; i + 10 <= M.length; i++) {
+      const hs = M.slice(i, i + 10)
+        .map((m) => m.hum)
+        .filter((h) => h != null);
+      if (hs.length < 7) continue;
+      const mid = median(hs);
+      if (hs.filter((h) => Math.abs(h - mid) <= 6).length < 7) continue;
+      pitches.push(mid);
+      for (let k = i; k < i + 10; k++) if (M[k].hum != null && Math.abs(M[k].hum - mid) <= 6) marked[k] = true;
+    }
+    const toneMinutes = marked.filter(Boolean).length;
+    let tone = null;
+    if (toneMinutes >= 10) {
+      const mains = pitches.every((h) => Math.abs(h - 50) <= 2 || Math.abs(h - 60) <= 2);
+      tone = { lowHz: percentile(pitches, 0.1), highHz: percentile(pitches, 0.9), share: toneMinutes / M.length, mains };
+    }
+
+    // A device switching on and off: the background steps up by 4 dB or more for 5+ minutes.
+    const smooth = M.map((_, i) => median(bgs.slice(Math.max(0, i - 1), i + 2)));
+    const base = percentile(smooth, 0.2);
+    const onRuns = runs(M.length, (i) => smooth[i] >= base + 4, 5, 1);
+    const minutesOf = ([a, b]) => (M[b].t - M[a].t) / minuteSec + 1;
+    // The longest chain of 3+ switch-ons at a steady rhythm (gaps within 25% of their median).
+    let chain = null;
+    for (let a = 0; a < onRuns.length; a++) {
+      for (let b = a + 2; b < onRuns.length; b++) {
+        const part = onRuns.slice(a, b + 1);
+        const gaps = part.slice(1).map((r, k) => (M[r[0]].t - M[part[k][0]].t) / minuteSec);
+        const g = median(gaps);
+        const lens = part.map(minutesOf);
+        const l = median(lens);
+        const steady = gaps.every((x) => Math.abs(x - g) <= 0.25 * g) && lens.every((x) => Math.abs(x - l) <= 0.5 * l);
+        if (steady && (!chain || part.length > chain.length)) chain = part;
+      }
+    }
+    let cycles = null;
+    const cycleRuns = chain || (onRuns.length >= 2 ? onRuns : []);
+    if (cycleRuns.length) {
+      const starts = cycleRuns.map(([a]) => M[a].t);
+      cycles = {
+        count: cycleRuns.length,
+        minutes: median(cycleRuns.map(minutesOf)),
+        period: chain ? median(starts.slice(1).map((x, k) => (x - starts[k]) / minuteSec)) : null,
+        regular: !!chain,
+        stepDb: median(cycleRuns.flatMap(([a, b]) => smooth.slice(a, b + 1))) - base,
+        from: starts[0],
+        to: M[cycleRuns[cycleRuns.length - 1][1]].t + minuteSec,
+        on: cycleRuns.map(([a, b]) => [M[a].t, M[b].t + minuteSec]),
+      };
+    }
+    const inCycle = (i) => !!cycles && cycles.on.some(([a, b]) => M[i].t >= a && M[i].t < b);
+
+    // Mid and high pitches (500 Hz-4 kHz) against their own quiet level: steady (ventilation) or restless
+    // (doors, water, voices). The 8 kHz octave is left out: in a quiet room it is mostly the microphone's own noise.
+    const bandsHz = (noise && noise.bandsHz) || OCTAVES;
+    const hiIdx = bandsHz.map((hz, i) => (hz >= 500 && hz <= 4000 ? i : -1)).filter((i) => i >= 0);
+    const hiDb = M.map((m) => (m.bands ? 10 * Math.log10(hiIdx.reduce((sum, i) => sum + Math.pow(10, m.bands[i] / 10), 0) + 1e-24) : null));
+    const hiBase = percentile(
+      hiDb.filter((v) => v != null),
+      0.2,
+    );
+    const stretches = [];
+    if (hiBase != null) {
+      const raised = (i) => hiDb[i] != null && hiDb[i] >= hiBase + 5 && !ownSounds(i);
+      for (const [a, b] of runs(M.length, raised, 10, 3)) {
+        const seg = M.slice(a, b + 1);
+        const jumpy = median(seg.map((m) => (m.p90 != null ? m.p90 - m.bg : 0)));
+        stretches.push({
+          start: M[a].t,
+          end: M[b].t + minuteSec,
+          riseDb: median(hiDb.slice(a, b + 1)) - hiBase,
+          kind: jumpy >= 4 ? 'restless' : 'steady',
+        });
+      }
+    }
+
+    // Other stretches where the background stood 6 dB or more above the night's quiet level (a
+    // cycling device is described above): quiet snores could be missed then. Close ones are merged.
+    const masked = runs(M.length, (i) => smooth[i] >= background.quietest + 6 && !inCycle(i), 10, 10).map(([a, b]) => ({
+      start: M[a].t,
+      end: M[b].t + minuteSec,
+      riseDb: median(smooth.slice(a, b + 1)) - background.quietest,
+    }));
+
+    return { minutes: M.length, background, tone, cycles, stretches, masked };
+  }
+
+  /** The findings as short sentences; `at(sec)` formats a time on the night's clock. */
+  function describe(summary, at) {
+    if (!summary) return [];
+    const out = [];
+    const min = (x) => `${Math.round(x)} min`;
+    const { tone, cycles, stretches, masked } = summary;
+    if (tone) {
+      const pitch =
+        tone.lowHz === tone.highHz || tone.highHz - tone.lowHz < 6
+          ? `about ${Math.round(tone.lowHz)} Hz`
+          : `${Math.round(tone.lowHz)}–${Math.round(tone.highHz)} Hz`;
+      const what = tone.mains
+        ? 'mains hum from an electrical device (a charger, fridge or lamp)'
+        : 'a motor or fan (ventilation, a fridge, a pump)';
+      out.push(`A steady low tone at ${pitch} for ${Math.round(tone.share * 100)}% of the night: typical of ${what}.`);
+    }
+    if (cycles) {
+      const often = cycles.regular ? ` between ${at(cycles.from)} and ${at(cycles.to)}, about every ${min(cycles.period)}` : '';
+      out.push(
+        `Something switched on ${cycles.count} times${often}, for about ${min(cycles.minutes)} each time, and made the room ${Math.round(cycles.stepDb)} dB louder (a fridge, heating or a pump?). While it ran, quiet snores could be missed.`,
+      );
+    }
+    const list = (items) => {
+      const spans = items.map((x) => `${at(x.start)}–${at(x.end)}`);
+      return spans.length > 1 ? `${spans.slice(0, -1).join(', ')} and ${spans[spans.length - 1]}` : spans[0];
+    };
+    const steady = stretches.filter((x) => x.kind === 'steady');
+    const restless = stretches.filter((x) => x.kind !== 'steady');
+    if (steady.length) {
+      const rise = Math.round(median(steady.map((x) => x.riseDb)));
+      out.push(
+        `${list(steady)}: a steady sound in the middle and high pitches (${rise} dB above their quiet level), such as breathing, ventilation or air conditioning.`,
+      );
+    }
+    if (restless.length) out.push(`${list(restless)}: restless, with many short sounds (doors, water, voices or traffic).`);
+    for (const m of masked)
+      out.push(
+        `${at(m.start)}–${at(m.end)}: the room was ${Math.round(m.riseDb)} dB louder than at its quietest; quiet snores could be missed then.`,
+      );
+    if (!out.length) out.push('The room stayed quiet and steady all night.');
+    return out;
+  }
+
+  return { NoiseProfile, OCTAVES, SHOWN_BANDS, summarize, describe };
 });
