@@ -61,6 +61,12 @@ test('report file is self-contained, script-free and plays the samples', () => {
   assert.ok(html.includes('9.9.9 (test)'));
   assert.ok(html.includes('Audio file: &lt;night&gt; &amp; &quot;dreams&quot;.wav'), 'file names are escaped');
   assert.ok(html.length < 600 * 1024, `report is ${Math.round(html.length / 1024)} KB`);
+  assert.doesNotMatch(html, /rush of air/, 'High does not check breath noise');
+  assert.match(
+    reportFor(s, { sensitivity: 'normal' }),
+    /on Normal sensitivity it must also carry the rush of air/,
+    'Normal explains its breath rule',
+  );
 });
 
 test('report embeds WAV audio that decodes back to the clip length', () => {

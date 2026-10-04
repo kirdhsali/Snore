@@ -27,8 +27,14 @@ test('evaluator reads the breath noise of each sound and can apply the breath-no
     events.map((e) => e.breathRise),
     [12, 10, 1.2],
   );
-  // Current rules (breath rule off): all three stay snores.
-  assert.equal(reevaluate(events).filter((e) => e.isSnore).length, 3);
+  // Without a breath rule (Low, High, Normal before 1.17.0) all three stay snores.
+  assert.equal(reevaluate(events, { minBreathRiseDb: null }).filter((e) => e.isSnore).length, 3);
+  // Current rules for Normal (6 dB since 1.17.0): the hum swell is rejected.
+  assert.deepEqual(
+    reevaluate(events).map((e) => e.reason),
+    [null, null, 'no-breath'],
+  );
+  assert.equal(reevaluate(events, { sensitivity: 'high' }).filter((e) => e.isSnore).length, 3, 'High has no breath rule');
   // Candidate rule, as in the background test: the hum swell is rejected.
   const withRule = reevaluate(eventsOf(report), { minBreathRiseDb: 3 });
   assert.deepEqual(
@@ -128,4 +134,26 @@ test("evaluator counts per hour in the night's own time zone", () => {
   const old = evaluateOutput(report, 'UTC');
   assert.match(old, /\n\s+23:00\s+3\s+3\b/, old);
   assert.match(old, /this computer's time zone/);
+});
+
+test("evaluator applies the breath-noise rule of the night's sensitivity and shows what it takes away (1.17.0)", () => {
+  // Recorded before 1.17.0 on Normal: two snores and three hum swells that confirmed each other.
+  const report = {
+    app: 'Snorewatch',
+    startedAt: '2026-10-01T23:00:00.000Z',
+    timeZone: 'UTC',
+    sensitivity: 'normal',
+    summary: { elapsed: 3600 },
+    snores: [feature(2, 12), feature(6, 10), feature(30, 2), feature(34, 4), feature(38, 1.5)].map((x) => ({ ...x, confirmed: true })),
+    ignored: [],
+  };
+  const out = evaluateOutput(report, 'UTC');
+  assert.match(out, /breath-noise rule: recorded none, current rules 6 dB/, out);
+  assert.match(out, /confirmed snores\s+5\s+2\n/, out);
+  assert.match(out, /without the breath-noise rule: 5 confirmed/, out);
+  // High has no breath rule: nothing changes and there is nothing to compare.
+  const high = evaluateOutput({ ...report, sensitivity: 'high' }, 'UTC');
+  assert.match(high, /breath-noise rule: recorded none, current rules none/, high);
+  assert.match(high, /confirmed snores\s+5\s+5\n/, high);
+  assert.doesNotMatch(high, /without the breath-noise rule/);
 });

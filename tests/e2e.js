@@ -84,8 +84,6 @@ async function main() {
     await page.keyboard.press('ArrowUp');
     assert.deepEqual(await page.evaluate(() => window.__snorewatch.sensitivities), {
       main: 'normal',
-      breath: 'normal',
-      breath6: 'normal',
       auto: 'auto',
     });
 
@@ -121,7 +119,7 @@ async function main() {
     assert.match(verdict, /snore/);
     assert.ok((await page.$$('#report-clips .clip')).length >= 4, 'report lists snore clips');
 
-    assert.match(await page.textContent('#shadow-note'), /breath-noise rule .* automatic sensitivity/);
+    assert.match(await page.textContent('#shadow-note'), /automatic sensitivity .* breath-noise rule set aside \d+ sound/);
     const [jsonDl] = await Promise.all([page.waitForEvent('download'), page.click('#dl-json')]);
     const report = JSON.parse(fs.readFileSync(await jsonDl.path(), 'utf8'));
     assert.equal(report.schemaVersion, 2, 'data file carries its schema version');
@@ -131,12 +129,11 @@ async function main() {
     assert.ok(first.sampleRate > 0 && first.timeZone);
     assert.equal(report.timeZone, first.timeZone, 'data file names the time zone of the night');
     assert.equal(report.sensitivity, 'normal');
-    assert.equal(report.shadows.breath.sensitivity, 'normal');
+    assert.equal(report.minBreathRiseDb, 6, 'Normal counts with the 6 dB breath-noise rule');
     assert.ok(await page.isEnabled('#sensitivity'), 'sensitivity can be changed again after Stop');
+    assert.deepEqual(Object.keys(report.shadows), ['auto']);
     assert.equal(report.shadows.auto.sensitivity, 'auto');
-    assert.equal(report.shadows.breath.minBreathRiseDb, 3);
-    assert.equal(report.shadows.breath6.sensitivity, 'normal');
-    assert.equal(report.shadows.breath6.minBreathRiseDb, 6);
+    assert.equal(report.shadows.auto.minBreathRiseDb, 3);
     assert.equal(report.shadows.auto.minLowRiseDb, 8, 'auto test: snore-band rule');
     assert.ok(
       report.snores.every((x) => typeof x.lowRiseDb === 'number'),
@@ -163,7 +160,7 @@ async function main() {
     }
     console.log(`  test clips (auto snores Normal missed): ${testClipsInFile}`);
     console.log(
-      `  background tests: breath rule ${report.shadows.breath.summary.snoreCount}, 6 dB ${report.shadows.breath6.summary.snoreCount}, auto + breath ${report.shadows.auto.summary.snoreCount} snores`,
+      `  background test: auto + breath + snore band ${report.shadows.auto.summary.snoreCount} snores; no breath noise ${report.summary.ignoredByReason['no-breath'] || 0}`,
     );
 
     console.log('Playback: tapping the loudest snore…');

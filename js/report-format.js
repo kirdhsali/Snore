@@ -80,6 +80,8 @@
       })),
       screenWakeLock: night.screenWakeLock,
       sensitivity: night.sensitivity,
+      // Breath-noise rule the counts used (Normal 6 dB since 1.17.0; null = not checked).
+      minBreathRiseDb: night.config && night.config.minBreathRiseDb != null ? night.config.minBreathRiseDb : null,
       summary: night.summary,
       // The room's background per minute of the night's clock: no sound, only levels (dBFS).
       noise: night.noise
@@ -210,6 +212,7 @@
       endedAt: r.endedAt ? Date.parse(r.endedAt) : null,
       timeZone: r.timeZone || null,
       sensitivity: r.sensitivity || null,
+      minBreathRiseDb: r.minBreathRiseDb ?? null, // from 1.17.0; before, the counts had no breath rule
       summary: r.summary || null,
       elapsed: r.summary ? r.summary.elapsed : null,
       noise: r.noise || null, // from 1.15.0

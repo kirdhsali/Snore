@@ -24,8 +24,9 @@
  *      2-12 s before or after it. It waits up to 12 s for that snore.
  *   3b'. Breath noise: a snore is air rushing through a narrowed throat, so the
  *      150-1500 Hz band rises above the room noise. `breathRise` measures that
- *      rise; with `minBreathRiseDb` set, sounds without it (hum, rumble, a lift)
- *      are ignored as 'no-breath'. Off by default, tested in the background.
+ *      rise; sounds without it (hum, rumble, a lift) are ignored as 'no-breath'.
+ *      Normal sensitivity requires 6 dB (since 1.17.0, after background tests on
+ *      real nights); Low and High do not check it unless `minBreathRiseDb` is set.
  *   3b''. Snore band: a snore's flutter raises the 50-800 Hz band above that
  *      band's own room noise. `lowRise` measures it; with `minLowRiseDb` set,
  *      sounds that barely change it (quiet breathing over a room's hum) are
@@ -57,7 +58,8 @@
   // quiet bedrooms at around -80 dBFS, so this gate matters in practice.
   const SENSITIVITY = {
     low: { triggerDb: 12, releaseDb: 6, minAbsDb: -65 },
-    normal: { triggerDb: 8, releaseDb: 4, minAbsDb: -75 },
+    // minBreathRiseDb: the breath-noise rule of this sensitivity (see 3b' above), unless the options set one.
+    normal: { triggerDb: 8, releaseDb: 4, minAbsDb: -75, minBreathRiseDb: 6 },
     high: { triggerDb: 5, releaseDb: 3, minAbsDb: -85 },
     // Starts like normal, then sets the margins from how much the room noise
     // fluctuates (see _autoUpdate). The absolute gate only guards against silence.
@@ -74,7 +76,7 @@
     maxPeaks: 2, // loudness bursts inside one event (syllables, knocks)
     peakDropDb: 6,
     maxSubBass: 0.85, // share of energy 20-60 Hz (of 20-4000 Hz); above = deep rumble
-    minBreathRiseDb: null, // rise of 150-1500 Hz above the room noise a snore needs; null = not checked
+    minBreathRiseDb: undefined, // rise of 150-1500 Hz above the room noise a snore needs; undefined = the sensitivity's, null = not checked
     minLowRiseDb: null, // rise of 50-800 Hz above that band's room noise a snore needs; null = not checked
     // Rhythm rescue of choppy but snore-like sounds
     rhythmMinSec: Stats.RHYTHM_MIN_SEC, // start-to-start distance to an accepted snore (js/stats.js)
@@ -315,6 +317,7 @@
       this.sampleRate = sampleRate;
       this.opts = Object.assign({}, DEFAULTS, options);
       this.setSensitivity(this.opts.sensitivity);
+      this.opts.minBreathRiseDb = breathRuleDb(this.opts);
 
       this.frameSize = nextPow2(Math.round(sampleRate * 0.04));
       this.hopSec = this.frameSize / sampleRate;
@@ -672,15 +675,23 @@
     }
   }
 
+  /** The breath-noise rule in force (dB, or null when not checked): the options' own, else the sensitivity's. */
+  function breathRuleDb(o) {
+    if (o.minBreathRiseDb !== undefined) return o.minBreathRiseDb;
+    const s = SENSITIVITY[o.sensitivity || DEFAULTS.sensitivity];
+    return s && s.minBreathRiseDb != null ? s.minBreathRiseDb : null;
+  }
+
   function classify(f, o) {
     const opts = Object.assign({}, DEFAULTS, o);
+    const minBreathRiseDb = breathRuleDb(opts);
     let reason = null;
     if (f.tooLong || f.duration > opts.maxDuration) reason = 'too-long';
     else if (f.duration < opts.minDuration) reason = 'too-short';
     else if (f.subBass != null && f.subBass > opts.maxSubBass) reason = 'rumble';
     else if (f.highRatio > opts.maxHighRatio || f.centroid > opts.maxCentroid) reason = 'too-bright';
     else if (f.lowRatio < opts.minLowRatio) reason = 'not-low';
-    else if (opts.minBreathRiseDb != null && f.breathRise != null && f.breathRise < opts.minBreathRiseDb) reason = 'no-breath';
+    else if (minBreathRiseDb != null && f.breathRise != null && f.breathRise < minBreathRiseDb) reason = 'no-breath';
     else if (opts.minLowRiseDb != null && f.lowRise != null && f.lowRise < opts.minLowRiseDb) reason = 'no-low-rise';
     else if (f.peaks > opts.maxPeaks) reason = 'choppy';
     const margins = [
@@ -781,6 +792,7 @@
     RhythmGate,
     SessionStats,
     classify,
+    breathRuleDb,
     isRhythmCandidate,
     subBassShare,
     countPeaks,

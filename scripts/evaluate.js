@@ -9,7 +9,7 @@
 // filter is skipped, without loudFill the knock check of the rhythm rule is.
 'use strict';
 const fs = require('fs');
-const { classify, isRhythmCandidate, RhythmGate, SessionStats, DEFAULTS, REASONS } = require('../js/detector.js');
+const { classify, isRhythmCandidate, RhythmGate, SessionStats, DEFAULTS, REASONS, breathRuleDb } = require('../js/detector.js');
 const { fromReport } = require('../js/report-format.js');
 const Noise = require('../js/noise.js');
 
@@ -70,7 +70,9 @@ function report(file) {
   const r = JSON.parse(fs.readFileSync(file, 'utf8'));
   const night = fromReport(r);
   const events = eventsOf(r);
-  const after = reevaluate(events, DEFAULTS, night.interruptions);
+  // Classification rules depend on the sensitivity only through the breath-noise rule (Normal 6 dB since 1.17.0).
+  const current = { sensitivity: night.sensitivity || DEFAULTS.sensitivity };
+  const after = reevaluate(events, current, night.interruptions);
   const hours = r.summary.elapsed / 3600;
   const start = night.startedAt;
   const explain = {
@@ -84,6 +86,8 @@ function report(file) {
   console.log(`\n${file}`);
   const length = hours >= 1 ? `${hours.toFixed(1)} h` : `${Math.round(hours * 60)} min`;
   console.log(`  ${r.startedAt} · ${length} · sensitivity ${r.sensitivity} · recorded with ${r.version || 'unknown version'}`);
+  const rule = (db) => (db == null ? 'none' : `${db} dB`);
+  console.log(`  breath-noise rule: recorded ${rule(night.minBreathRiseDb)}, current rules ${rule(breathRuleDb(current))}`);
   if (missing.length) console.log(`  missing: ${missing.join('; ')}`);
   const before = count(events, (e) => e.wasSnore);
   const now = count(after, (e) => e.isSnore);
@@ -113,6 +117,11 @@ function report(file) {
     const b = count(events, (e) => e.wasReason === k);
     const a = count(after, (e) => e.reason === k);
     if (a || b) console.log(`  ${REASONS[k].padEnd(34).slice(0, 34)} ${pad(b, 4)}   ${pad(a, 13)}`);
+  }
+  if (breathRuleDb(current) != null && !night.missing.includes('breathRiseDb')) {
+    // What the breath-noise rule takes away: the same night without it (Normal before 1.17.0).
+    const none = confirmedOf(reevaluate(events, { ...current, minBreathRiseDb: null }, night.interruptions).filter((e) => e.isSnore));
+    console.log(`  without the breath-noise rule: ${none} confirmed (${(none / hours).toFixed(0)}/h)`);
   }
   const shadows = r.shadows || (r.shadow ? { auto: r.shadow } : {});
   for (const [name, sh] of Object.entries(shadows)) compareShadow(r, sh, name, hours, night.interruptions);
