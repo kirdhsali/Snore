@@ -94,7 +94,13 @@ function inRoom({ sampleRate: sr, x }, seed) {
   rms = Math.sqrt(rms / room.length);
   for (let i = 0; i < room.length; i++) room[i] *= quiet / rms;
   const at = Math.round(sr * 3);
-  for (let i = 0; i < x.length; i++) room[at + i] = room[at + i] * 0.3 + x[i] * gain;
+  // Faded in and out over 0.1 s (from 1.18.0): the clips are cut from longer recordings and
+  // often start mid-sound, which the sudden-start measure would take for a knock.
+  const fade = Math.round(sr * 0.1);
+  for (let i = 0; i < x.length; i++) {
+    const f = Math.min(1, i / fade, (x.length - 1 - i) / fade);
+    room[at + i] = room[at + i] * (1 - 0.7 * f) + x[i] * gain * f;
+  }
   return room;
 }
 
@@ -105,11 +111,12 @@ function main() {
     .trim()
     .split('\n')
     .slice(1);
-  // Current rules (Normal: breath-noise rule 6 dB since 1.17.0), and Normal without it or with 3 dB.
+  // Current rules (Normal: breath-noise rule 6 dB since 1.17.0), Normal without it or with 3 dB, and the knock test.
   const variants = {
     'current rules (Normal, breath-noise rule 6 dB)': {},
     'without the breath-noise rule (Normal before 1.17.0; Low and High)': { minBreathRiseDb: null },
     'with the 3 dB breath-noise rule': { minBreathRiseDb: 3 },
+    'with the sudden-start (knock) rule (background test)': { maxOnsetJumpDb: 20 },
   };
   const results = {};
   rows.forEach((line, i) => {

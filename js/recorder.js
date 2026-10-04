@@ -24,6 +24,9 @@
   // Breath-noise rule of the auto test. Normal counts with 6 dB since 1.17.0 (js/detector.js):
   // night 4 counted hum swells with 3-6 dB of breath noise as snores.
   const BREATH_RULE_DB = 3;
+  // Knock test: night 5's report counted knocks as snores. A knock reaches its full level at
+  // once (night 5: 21-42 dB within 20 ms), a snore swells (nights 4 and 5: 99 % under 17 dB).
+  const KNOCK_RULE_DB = 20;
   // Auto test: night 5 counted quiet breathing over a room tone as snores; a snore raises
   // the 50-800 Hz band well above its room noise, breathing hardly does.
   const SNORE_BAND_RULE_DB = 8;
@@ -319,6 +322,7 @@
         };
         s.sample = { kept: [], seen: 0 };
         s.shadows = {
+          knock: shadow({ sensitivity, maxOnsetJumpDb: KNOCK_RULE_DB }),
           auto: shadow({ sensitivity: 'auto', minBreathRiseDb: BREATH_RULE_DB, minLowRiseDb: SNORE_BAND_RULE_DB }, true),
         };
         s.tap = await createTap(env, ctx, input, (samples) => {

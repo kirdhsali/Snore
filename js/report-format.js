@@ -39,6 +39,7 @@
       loudFill: round(x.fill, 2),
       breathRiseDb: round(x.breathRise, 1),
       lowRiseDb: round(x.lowRise, 1), // snore band 50-800 Hz above its room noise (from 1.16.0)
+      onsetJumpDb: round(x.onsetJump, 1), // largest 20 ms rise at the start: knocks jump (from 1.18.0)
     };
   }
 
@@ -127,8 +128,10 @@
           name,
           {
             sensitivity: sh.options.sensitivity,
-            minBreathRiseDb: sh.options.minBreathRiseDb,
+            // The rules in force (the detector's configuration: Normal's breath rule is the sensitivity's).
+            minBreathRiseDb: (sh.config || sh.options).minBreathRiseDb ?? null,
             minLowRiseDb: sh.options.minLowRiseDb ?? null,
+            maxOnsetJumpDb: sh.options.maxOnsetJumpDb ?? null,
             summary: {
               snoreCount: sh.summary.snoreCount,
               possibleCount: sh.summary.possibleCount,
@@ -150,6 +153,7 @@
               aboveRoomDb: round(x.relDb, 1),
               breathRiseDb: round(x.breathRise, 1),
               lowRiseDb: round(x.lowRise, 1),
+              onsetJumpDb: round(x.onsetJump, 1),
               confirmed: !!x.confirmed,
               // In the test-clip WAV: the auto test's sample of snores the counting detector missed.
               wavStartSec: testWavStarts.has(x) ? round(testWavStarts.get(x), 2) : null,
@@ -176,6 +180,7 @@
       fill: x.loudFill ?? null,
       breathRise: x.breathRiseDb ?? null,
       lowRise: x.lowRiseDb ?? null,
+      onsetJump: x.onsetJumpDb ?? null,
       isSnore,
       reason: isSnore ? null : x.reason,
       rhythm: !!x.rhythmRescued,

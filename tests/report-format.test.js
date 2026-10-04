@@ -85,6 +85,7 @@ test('a finished night survives the round trip through the data file', () => {
     assert.equal(e.peaks, x.peaks);
     assert.ok(Math.abs(e.breathRise - x.breathRise) < 0.06);
     assert.ok(Math.abs(e.lowRise - x.lowRise) < 0.06, 'snore-band rise kept');
+    assert.ok(Math.abs(e.onsetJump - x.onsetJump) < 0.06, 'onset jump kept (1.18.0)');
   });
   assert.deepEqual(
     back.interruptions.map((g) => g.reason),
@@ -93,6 +94,9 @@ test('a finished night survives the round trip through the data file', () => {
   assert.ok(Math.abs(back.interruptions[0].end - back.interruptions[0].start - 5) < 0.06);
   assert.equal(back.shadows.auto.sensitivity, 'auto');
   assert.equal(back.shadows.auto.snores.length, night.shadows.auto.snores.length);
+  assert.equal(json.shadows.auto.minBreathRiseDb, 3);
+  assert.equal(json.shadows.auto.maxOnsetJumpDb, null);
+  assert.ok(json.shadows.auto.snores.every((x) => typeof x.onsetJumpDb === 'number'));
 });
 
 test('background-test clips are placed in the test-clip WAV', () => {

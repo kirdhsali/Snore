@@ -31,6 +31,10 @@
  *      band's own room noise. `lowRise` measures it; with `minLowRiseDb` set,
  *      sounds that barely change it (quiet breathing over a room's hum) are
  *      ignored as 'no-low-rise'. Off by default; the auto background test uses it.
+ *   3b'''. Sudden start: a knock or bump reaches its full level at once and
+ *      dies away; a snore swells with the breath. `onsetJump` measures the
+ *      largest rise over 20 ms at the start; with `maxOnsetJumpDb` set, sounds
+ *      above it are ignored as 'sudden'. Off by default; a background test uses 20 dB.
  *   3c. Snores repeat with the breathing. SessionStats marks a snore as
  *      confirmed when another snore lies 2-12 s before or after it; isolated
  *      ones are only "possible" and left out of the headline figures.
@@ -78,6 +82,7 @@
     maxSubBass: 0.85, // share of energy 20-60 Hz (of 20-4000 Hz); above = deep rumble
     minBreathRiseDb: undefined, // rise of 150-1500 Hz above the room noise a snore needs; undefined = the sensitivity's, null = not checked
     minLowRiseDb: null, // rise of 50-800 Hz above that band's room noise a snore needs; null = not checked
+    maxOnsetJumpDb: null, // largest 20 ms rise at a snore's start (knocks jump more); null = not checked
     // Rhythm rescue of choppy but snore-like sounds
     rhythmMinSec: Stats.RHYTHM_MIN_SEC, // start-to-start distance to an accepted snore (js/stats.js)
     rhythmMaxSec: Stats.RHYTHM_MAX_SEC,
@@ -113,6 +118,7 @@
     rumble: 'Deep rumble (traffic, building)',
     'no-breath': 'No breath noise (hum, rumble)',
     'no-low-rise': 'No rise in the snore band (breathing, room hum)',
+    sudden: 'Sudden start (knock, bump)',
   };
 
   function nextPow2(n) {
@@ -275,6 +281,37 @@
     }
     if (rising && track.length) count++;
     return count;
+  }
+
+  /**
+   * How suddenly a sound starts (dB), from its downsampled audio with the pre-roll in front:
+   * 20 ms windows every 10 ms; from just before the first window 10 dB above the room
+   * (median of the first 0.2 s) to the loudest one, the largest rise over 20 ms (windows
+   * that do not overlap, so a knock's full step counts wherever it falls). Real snores of
+   * nights 4 and 5 rose at most 23 dB (99 % under 17), the knocks of night 5 21-42 dB.
+   * Null without audio.
+   */
+  function onsetJump(samples, rate) {
+    const hop = Math.round(0.01 * rate);
+    const win = 2 * hop;
+    const e = [];
+    for (let i = 0; i + win < samples.length; i += hop) {
+      let sum = 0;
+      for (let k = i; k < i + win; k++) sum += samples[k] * samples[k];
+      e.push(10 * Math.log10(sum / win + 1e-14));
+    }
+    if (!e.length) return null;
+    const head = e.slice(0, Math.round(0.2 / 0.01)).sort((a, b) => a - b);
+    const m = head.length >> 1;
+    const room = head.length % 2 ? head[m] : (head[m - 1] + head[m]) / 2;
+    let peak = 0;
+    for (let i = 1; i < e.length; i++) if (e[i] > e[peak]) peak = i;
+    let start = e.findIndex((v) => v > room + 10);
+    if (start < 0) start = peak;
+    if (peak <= start) return e[peak] - room;
+    let jump = -Infinity;
+    for (let i = Math.max(1, start - 2); i <= peak; i++) jump = Math.max(jump, e[i] - e[Math.max(0, i - 2)]);
+    return jump;
   }
 
   /** Share of frames within 15 dB of the peak: high for a sustained sound, low for thuds with gaps. */
@@ -636,6 +673,7 @@
         fill: bodyShare(ev.track.slice(0, ev.lastLoud - ev.startFrame + 1), ev.peakDb),
         breathRise: ev.loudFrames ? 10 * Math.log10(ev.mid / ev.loudFrames + 1e-24) - ev.bgMid : null,
         lowRise: ev.loudFrames ? 10 * Math.log10(ev.lowBand / ev.loudFrames + 1e-24) - ev.bgLow : null,
+        onsetJump: audio ? onsetJump(audio, this.clipRate) : null,
       };
       const verdict = classify(Object.assign({ duration, tooLong: ev.tooLong }, features), o);
       const result = {
@@ -693,6 +731,7 @@
     else if (f.lowRatio < opts.minLowRatio) reason = 'not-low';
     else if (minBreathRiseDb != null && f.breathRise != null && f.breathRise < minBreathRiseDb) reason = 'no-breath';
     else if (opts.minLowRiseDb != null && f.lowRise != null && f.lowRise < opts.minLowRiseDb) reason = 'no-low-rise';
+    else if (opts.maxOnsetJumpDb != null && f.onsetJump != null && f.onsetJump > opts.maxOnsetJumpDb) reason = 'sudden';
     else if (f.peaks > opts.maxPeaks) reason = 'choppy';
     const margins = [
       (f.lowRatio - opts.minLowRatio) / (1 - opts.minLowRatio),
@@ -795,6 +834,7 @@
     breathRuleDb,
     isRhythmCandidate,
     subBassShare,
+    onsetJump,
     countPeaks,
     encodeWav,
     clipFromAudio,

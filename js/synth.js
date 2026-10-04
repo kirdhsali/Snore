@@ -197,6 +197,26 @@
     return out;
   }
 
+  /**
+   * A bump (a door, a bed, a neighbour; night 5): one low thud at full level at once,
+   * then dying away over half a second. Low and dull like a snore, but without its swell.
+   */
+  function bump(sr, rand, opts = {}) {
+    const amp = opts.amp || 0.3;
+    const decay = opts.decay || 0.12; // s
+    const n = Math.round(Math.max(0.3, 6 * decay) * sr);
+    const out = new Float32Array(n);
+    const f = 90 + rand() * 60;
+    const c = lpCoef(600, sr);
+    let lp = 0;
+    for (let i = 0; i < n; i++) {
+      const t = i / sr;
+      lp += c * (rand() * 2 - 1 - lp);
+      out[i] = amp * Math.exp(-t / decay) * (Math.sin(TAU * f * t) + 1.5 * lp);
+    }
+    return out;
+  }
+
   /** Cough: a sharp broadband burst. */
   function cough(sr, rand, opts = {}) {
     const dur = opts.duration || 0.35;
@@ -321,7 +341,7 @@
     return out;
   }
 
-  const MAKERS = { snore, rattle, rumble, swell, speech, knock, cough, car, breath };
+  const MAKERS = { snore, rattle, rumble, swell, speech, knock, bump, cough, car, breath };
 
   /**
    * Places sounds on a timeline over room noise.
@@ -389,6 +409,7 @@
     rumble,
     speech,
     knock,
+    bump,
     cough,
     car,
     roomNoise,
