@@ -195,6 +195,21 @@ body {
 .sw-snore { background: var(--snore); }
 .sw-ignored { background: var(--ignored); }
 .sw-line { height: 2px; width: 14px; border-radius: 1px; background: var(--fg-2); }
+.sw-heat { width: 28px; background: linear-gradient(90deg, var(--quiet), var(--accent)); }
+.sw-level { background: var(--accent); }
+
+/* Room noise: plain findings and a heatmap (SVG from js/share.js, also in the report file) */
+.noise-list { margin: 0; padding-left: 20px; display: grid; gap: 8px; font-size: 15px; line-height: 1.45; max-width: 72ch; }
+.noise { width: 100%; height: auto; display: block; }
+.noise .heat-bg { fill: var(--quiet); }
+.noise .cell { fill: var(--accent); }
+.noise .level { fill: none; stroke: var(--accent); stroke-width: 1.5; }
+.noise .tick { fill: var(--snore); }
+.noise .gap { fill: var(--line); opacity: 0.7; }
+.noise .grid { stroke: var(--surface); stroke-width: 1; }
+.noise text { fill: var(--muted); font-size: 11px; }
+.noise .ytick { text-anchor: end; dominant-baseline: middle; }
+.noise .xtick { text-anchor: middle; }
 
 .chart { display: block; width: 100%; }
 .chart-live { height: 120px; }

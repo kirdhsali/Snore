@@ -120,6 +120,12 @@ async function main() {
     assert.match(verdict, /snore/);
     assert.ok((await page.$$('#report-clips .clip')).length >= 4, 'report lists snore clips');
 
+    console.log('Room noise panel: shown, too short to describe the room, no heatmap for half a minute…');
+    assert.ok(await page.isVisible('#noise-panel'), 'room noise panel shown');
+    assert.match(await page.textContent('#noise-findings'), /described from 10 minutes of recording on/);
+    assert.equal(await page.isVisible('#noise-legend'), false, 'no heatmap legend without a heatmap');
+    assert.equal(await page.$$eval('#noise-chart svg', (x) => x.length), 0);
+
     assert.match(
       await page.textContent('#shadow-note'),
       /start suddenly \(knocks\) \d+ snores; with automatic sensitivity .* breath-noise rule set aside \d+ sound/,
@@ -216,6 +222,7 @@ async function main() {
       `  image ${Math.round(png.length / 1024)} KB, report ${Math.round(html.length / 1024)} KB with ${nAudio} snores; first plays ${clipSeconds.toFixed(2)} s`,
     );
     assert.ok(nAudio >= 6, 'report embeds the snores');
+    assert.match(html, /<h2>Room noise<\/h2>[\s\S]*described from 10 minutes/, 'report file: room noise section (too short for findings)');
 
     console.log('Failed restart: the previous night stays downloadable…');
     await page.evaluate(() => {

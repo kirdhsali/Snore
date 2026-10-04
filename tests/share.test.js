@@ -172,3 +172,58 @@ test('an interrupted night says so in the report file and the image; an uninterr
   assert.ok(!whole.some((t) => /interrupted|not recorded/.test(t)));
   assert.deepEqual(card({ elapsed: s.elapsed, captured: s.elapsed, gaps: [] }), whole);
 });
+
+/** A room-noise profile as the recorder keeps it: `count` minutes, 9 octave bands, one band louder in `loud` minutes. */
+function noiseProfile(count, loud = new Set(), band = 6) {
+  const bandsHz = [31.5, 63, 125, 250, 500, 1000, 2000, 4000, 8000];
+  const minutes = [];
+  for (let i = 0; i < count; i++) {
+    const bandsDb = bandsHz.map(() => -95);
+    if (loud.has(i)) bandsDb[band] += 15;
+    minutes.push({ t: i * 60, quietSec: 55, backgroundDb: loud.has(i) ? -85 : -90, bandsDb });
+  }
+  return { minuteSec: 60, bandsHz, minutes };
+}
+
+test('room noise heatmap: one row per shown band, loud minutes shaded and merged, snores and gaps marked', () => {
+  const noise = noiseProfile(60, new Set([10, 11, 12, 40]));
+  const svg = Share.noiseSvg(
+    {
+      startWall: Date.UTC(2026, 9, 3, 23, 0),
+      elapsed: 3600,
+      gaps: [{ start: 1800, end: 1900 }],
+      snores: [{ start: 600 }, { start: 604 }, { start: 2400 }],
+      noise,
+      noiseBands: [31.5, 63, 125, 250, 500, 1000, 2000, 4000],
+    },
+    360,
+  );
+  assert.match(svg, /^<svg class="noise" viewBox="0 0 360 \d+"/);
+  const labels = [...svg.matchAll(/class="ytick">([^<]+)</g)].map((m) => m[1]);
+  assert.deepEqual(labels, ['31.5 Hz', '63 Hz', '125 Hz', '250 Hz', '500 Hz', '1 kHz', '2 kHz', '4 kHz', 'level'], '8 kHz left out');
+  const cells = [...svg.matchAll(/<rect class="cell" x="([\d.]+)" y="\d+" width="([\d.]+)"[^>]*fill-opacity="([\d.]+)"/g)];
+  assert.equal(cells.length, 2, 'minutes 10-12 are one rectangle, minute 40 another; quiet minutes draw nothing');
+  assert.deepEqual(
+    cells.map((c) => c[3]),
+    ['1', '1'],
+    '15 dB above the quiet level is full colour',
+  );
+  assert.ok(Math.abs(Number(cells[0][2]) - 3 * ((360 - 50) / 60)) < 0.2, 'three minutes wide');
+  assert.equal((svg.match(/class="gap"/g) || []).length, 1);
+  assert.equal((svg.match(/class="tick"/g) || []).length, 2, 'snores 4 s apart share a tick');
+  assert.match(svg, /<path class="level" d="M[\d.,]+(L[\d.,]+){59}"/, 'one level line through all 60 minutes');
+});
+
+test('the report file has a room noise section with the findings, when the night has a profile', () => {
+  const s = demoSession();
+  const noise = noiseProfile(30, new Set([5, 6, 7]));
+  const html = reportFor(s, { noise, noiseBands: [63, 1000, 2000], noiseLines: ['A steady low tone at <50> Hz & more.'] });
+  assert.match(html, /<h2>Room noise<\/h2>/);
+  assert.ok(html.includes('<li>A steady low tone at &lt;50&gt; Hz &amp; more.</li>'), 'findings are escaped');
+  assert.match(html, /<svg class="noise" viewBox="0 0 720 /);
+  assert.doesNotMatch(html, /<script/i);
+  const short = reportFor(s, { noise: noiseProfile(2), noiseBands: [63], noiseLines: [] });
+  assert.match(short, /described from 10 minutes of recording on/);
+  assert.doesNotMatch(short, /<svg class="noise"/, 'no heatmap for two minutes');
+  assert.doesNotMatch(reportFor(s), /Room noise/, 'nights without a profile (before 1.15.0) have no section');
+});
