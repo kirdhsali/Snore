@@ -105,11 +105,11 @@ function main() {
     .trim()
     .split('\n')
     .slice(1);
-  // Current rules and the candidate breath-noise rules (tested in the background in the app).
+  // Current rules (Normal: breath-noise rule 6 dB since 1.17.0), and Normal without it or with 3 dB.
   const variants = {
-    'current rules': {},
-    'with breath-noise rule': { minBreathRiseDb: 3 },
-    'with the stricter breath-noise rule (6 dB)': { minBreathRiseDb: 6 },
+    'current rules (Normal, breath-noise rule 6 dB)': {},
+    'without the breath-noise rule (Normal before 1.17.0; Low and High)': { minBreathRiseDb: null },
+    'with the 3 dB breath-noise rule': { minBreathRiseDb: 3 },
   };
   const results = {};
   rows.forEach((line, i) => {

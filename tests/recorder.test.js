@@ -92,10 +92,11 @@ test('a night goes idle → requesting → recording → stopping → completed 
   assert.equal(night.sampleRate, 16000);
   assert.equal(night.summary.snoreCount, 16, 'the demo night counts as in the detector tests');
   assert.equal(night.summary.ignoredCount, 5);
-  assert.deepEqual(Object.keys(night.shadows), ['breath', 'breath6', 'auto']);
-  assert.deepEqual(night.shadows.breath6.options, { sensitivity: 'normal', minBreathRiseDb: 6 });
+  assert.equal(night.config.minBreathRiseDb, 6, 'Normal counts with the 6 dB breath-noise rule (1.17.0)');
+  assert.ok(night.summary.snoreCount === 16 && !night.summary.ignoredByReason['no-breath'], 'the demo snores have clear breath noise');
+  // The breath-noise background tests ended when Normal took the rule over; the data file holds what they showed.
+  assert.deepEqual(Object.keys(night.shadows), ['auto']);
   assert.deepEqual(night.shadows.auto.options, { sensitivity: 'auto', minBreathRiseDb: 3, minLowRiseDb: 8 });
-  assert.equal(night.shadows.breath6.summary.snoreCount, 16, 'the demo snores have clear breath noise');
   assert.deepEqual(night.noise.bandsHz, [31.5, 63, 125, 250, 500, 1000, 2000, 4000]); // 16 kHz: up to the 4 kHz octave
   assert.deepEqual(
     night.noise.minutes.map((m) => m.t),
@@ -279,7 +280,7 @@ test('the auto test keeps a random sample of clips of snores the counting detect
   assert.equal(kept.length, 5, 'capped');
   assert.ok(kept.every((x) => !overlapsMain(night, x) && x.clip instanceof Int16Array && x.clip.length > 0));
   assert.ok(
-    ['breath', 'breath6'].every((k) => night.shadows[k].snores.every((x) => !x.clip)),
+    Object.entries(night.shadows).every(([k, sh]) => k === 'auto' || sh.snores.every((x) => !x.clip)),
     'the other background tests keep no audio',
   );
 });

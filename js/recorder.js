@@ -21,9 +21,9 @@
 
   const { SnoreDetector, SessionStats } = Core;
   const STALL_MS = 2000; // no audio for this long while recording counts as an interruption
-  const BREATH_RULE_DB = 3; // candidate breath-noise rule, tested in the background
-  // Stricter candidate: night 4 counted hum swells with 3-6 dB of breath noise as snores.
-  const STRICT_BREATH_RULE_DB = 6;
+  // Breath-noise rule of the auto test. Normal counts with 6 dB since 1.17.0 (js/detector.js):
+  // night 4 counted hum swells with 3-6 dB of breath noise as snores.
+  const BREATH_RULE_DB = 3;
   // Auto test: night 5 counted quiet breathing over a room tone as snores; a snore raises
   // the 50-800 Hz band well above its room noise, breathing hardly does.
   const SNORE_BAND_RULE_DB = 8;
@@ -319,8 +319,6 @@
         };
         s.sample = { kept: [], seen: 0 };
         s.shadows = {
-          breath: shadow({ sensitivity, minBreathRiseDb: BREATH_RULE_DB }),
-          breath6: shadow({ sensitivity, minBreathRiseDb: STRICT_BREATH_RULE_DB }),
           auto: shadow({ sensitivity: 'auto', minBreathRiseDb: BREATH_RULE_DB, minLowRiseDb: SNORE_BAND_RULE_DB }, true),
         };
         s.tap = await createTap(env, ctx, input, (samples) => {

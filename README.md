@@ -160,12 +160,16 @@ Report, after Stop:
    nothing above 1 kHz, centroid under 400 Hz, sustained rather than separate
    thuds) and a snore accepted on its own lies 2–12 s before or after it. It
    waits up to 12 s for that snore; rescued snores do not anchor further rescues.
-   **Breath noise (testing in the background):** a snore is air rushing
-   through a narrowed throat, so the 150–1500 Hz band rises above the room
-   noise. Every sound gets `breathRiseDb`; with the rule (≥ 3 dB) deep hums,
-   rumble and machinery without breath noise are ignored as “no breath noise”.
-   A stricter variant (≥ 6 dB) is tested too: in a real night (night 4) hum
-   swells with 3–6 dB of breath noise still passed the 3 dB rule.
+   **Breath noise (Normal, since 1.17.0):** a snore is air rushing through a
+   narrowed throat, so the 150–1500 Hz band rises above the room noise. Every
+   sound gets `breathRiseDb`; on Normal a snore needs at least 6 dB, so deep
+   hums, rumble and machinery without breath noise are ignored as “no breath
+   noise”. It ran as a background test on two real nights first: in night 4
+   swells of a room hum (3–6 dB of breath noise) confirmed each other as snores
+   (961 confirmed without the rule, 661 with it: 214 of the 300 dropped after
+   07:30, where the clips held no snore, while the clear snoring stretches kept
+   499 of 510); in night 5 it changed 76 to 73. Low and High do not check it (no
+   real nights with them yet).
    **Automatic sensitivity (testing in the background):** every 30 s it measures
    how much quiet half-second stretches fluctuate above the room noise and sets
    its margins from that: 5 dB in a still room, up to 14 dB when restless (fan,
@@ -177,14 +181,15 @@ Report, after Stop:
    small, a sound must also raise the snore band (50–800 Hz) at least 8 dB above
    that band's own room noise (since 1.16.0): in a quiet room with a motor's low
    tone, quiet breathing otherwise passed as snoring.
-   The app runs three extra detectors on the same audio: **breath** (chosen
-   sensitivity + 3 dB breath rule), **breath6** (chosen sensitivity + 6 dB
-   breath rule) and **auto** (automatic sensitivity + 3 dB breath rule + 8 dB
-   snore-band rule). Every sound also gets `lowRiseDb` in the JSON. Their
-   counts, margins and snore times go into the JSON under `shadows`, the report
-   shows one line, and `npm run evaluate` compares them with the recorded result
-   (and re-counts the 3 dB tests with a 6 dB rule from their stored sounds). Only
-   **auto** keeps audio: the test clips described above.
+   The app runs an extra detector on the same audio: **auto** (automatic
+   sensitivity + 3 dB breath rule + 8 dB snore-band rule). Every sound also gets
+   `lowRiseDb` in the JSON. Its counts, margins and snore times go into the JSON
+   under `shadows`, the report shows one line, and `npm run evaluate` compares it
+   with the recorded result (and re-counts it with a 6 dB breath rule from its
+   stored sounds). It keeps audio only for the test clips described above. The
+   breath-rule background tests of 1.13–1.16 (**breath**, 3 dB; **breath6**, 6 dB)
+   ended when Normal took the rule over; `npm run evaluate` shows any night with
+   and without the rule from the stored sounds.
    **Confirmed snores:** snores come in runs with the breathing. The figures,
    charts and share outputs count a snore only when another snore lies 2–12 s
    before or after it. Isolated snore-like sounds (a footstep, a door, a single
@@ -199,15 +204,15 @@ Report, after Stop:
 
 `npm run eval:public` runs the detector on [ESC-50](https://github.com/karolpiczak/ESC-50)
 (CC BY-NC; downloaded for testing only, never committed). Each 5-second clip is
-placed in quiet room noise at bedside level. Results for version 1.13 (the current rules unchanged since 1.9; the
-breath-noise rules recognise the same 29 snoring clips):
+placed in quiet room noise at bedside level. Results for version 1.17 (Normal with the 6 dB
+breath-noise rule; all three variants recognise the same 29 snoring clips):
 
 | | any snore-like sound | confirmed snore |
 | --- | --- | --- |
-| snoring clips recognised | 29/40 (72.5 %) | 13/40 (32.5 %)* |
-| night sounds counted as snore (25 classes) | 100/1000 (10.0 %) | 23/1000 (2.3 %) |
-| … with the breath-noise rule (background test) | 87/1000 (8.7 %) | 19/1000 (1.9 %) |
-| … with the stricter 6 dB rule (background test) | 78/1000 (7.8 %) | 14/1000 (1.4 %); snoring 12/40 confirmed |
+| snoring clips recognised | 29/40 (72.5 %) | 12/40 (30.0 %)* |
+| night sounds counted as snore (25 classes) | 78/1000 (7.8 %) | 14/1000 (1.4 %) |
+| … without the breath-noise rule (Normal before 1.17; Low, High) | 100/1000 (10.0 %) | 23/1000 (2.3 %); snoring 13/40 confirmed |
+| … with a 3 dB breath-noise rule | 87/1000 (8.7 %) | 19/1000 (1.9 %); snoring 13/40 confirmed |
 
 \* Confirmation needs a second snore 2–12 s away inside the same 5-second
 clip, which most clips do not contain; over a real night snores come in runs,

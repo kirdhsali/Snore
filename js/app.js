@@ -263,7 +263,7 @@
     el.recLabel.textContent = 'Stop';
     el.goDark.hidden = false;
     el.controls.classList.add('is-locked');
-    // Locked for keyboards too: the background tests start with the same setting and must keep it.
+    // Locked for keyboards too: a night is counted with one setting from Start to Stop.
     el.sensitivity.disabled = true;
     el.liveClips.innerHTML = '<p class="empty">Snores appear here as soon as they are detected.</p>';
     renderLiveTiles();
@@ -563,11 +563,15 @@
       (n.gaps.length ? ` recorded · interrupted ${n.gaps.length}× (${fmtSpan(lost)} not recorded)` : '');
     el.verdict.textContent = verdictText(sum);
     el.shadowNote.hidden = false;
-    el.shadowNote.textContent = `Background tests, not counted yet: with the breath-noise rule ${fmtNum(
-      n.shadows.breath.summary.snoreCount,
-    )} snores (stricter rule: ${fmtNum(n.shadows.breath6.summary.snoreCount)}); with automatic sensitivity (breath-noise and snore-band rules) ${fmtNum(
-      n.shadows.auto.summary.snoreCount,
-    )} (this recording, ${n.sensitivity}: ${fmtNum(sum.snoreCount)}). Details are in the data file.`;
+    const noBreath = sum.ignoredByReason['no-breath'] || 0;
+    el.shadowNote.textContent =
+      `Background test, not counted yet: with automatic sensitivity (breath-noise and snore-band rules) ${fmtNum(
+        n.shadows.auto.summary.snoreCount,
+      )} snores (this recording, ${n.sensitivity}: ${fmtNum(sum.snoreCount)}). ` +
+      (n.config && n.config.minBreathRiseDb != null
+        ? `The breath-noise rule set aside ${fmtNum(noBreath)} ${noBreath === 1 ? 'sound' : 'sounds'} without the rush of air of a snore (hum, rumble). `
+        : '') +
+      'Details are in the data file.';
 
     el.reportTiles.innerHTML = [
       tile(

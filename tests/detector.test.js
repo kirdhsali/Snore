@@ -279,9 +279,9 @@ test('deep rumble is rejected although it is low and smooth', () => {
       assert.ok(events[0].subBass > 0.85);
     }
   }
-  // Without the rumble gate the same sound passes as a snore, as it did in real nights.
+  // Without the rumble gate (and the breath-noise rule) the same sound passes as a snore, as it did in real nights.
   const scenario = Synth.compose(48000, 10, [{ type: 'rumble', at: 3 }], 1);
-  assert.ok(run(scenario, { maxSubBass: 1 }).events[0].isSnore);
+  assert.ok(run(scenario, { maxSubBass: 1, minBreathRiseDb: null }).events[0].isSnore);
 });
 
 test('rattling snores within a run of snores count through the breathing rhythm', () => {
@@ -415,7 +415,7 @@ test('breath-noise rule: hum swells without breath noise stop counting, snores s
         swells,
       };
     };
-    const without = count({});
+    const without = count({ minBreathRiseDb: null });
     assert.ok(without.swellSnores >= 4, `without the rule the swells pass as snores (${without.swellSnores}/6 at ${sr} Hz)`);
     assert.ok(
       without.swells.every((e) => e.breathRise < 4),
@@ -424,7 +424,29 @@ test('breath-noise rule: hum swells without breath noise stop counting, snores s
     const withRule = count({ minBreathRiseDb: 3 });
     assert.ok(withRule.noBreath >= 5, `rule rejects swells: ${withRule.noBreath}/6 at ${sr} Hz`);
     assert.equal(withRule.snores, 6, 'real snores keep counting');
+    // Normal sensitivity applies the 6 dB rule by itself (1.17.0); Low and High do not.
+    const normal = count({});
+    assert.equal(normal.swellSnores, 0, `Normal counts no swell at ${sr} Hz`);
+    assert.ok(normal.noBreath >= 5, `most for missing breath noise (${normal.noBreath}/6; the rest is rumble)`);
+    assert.equal(normal.snores, 6, 'and keeps the snores');
+    assert.ok(count({ sensitivity: 'low' }).noBreath === 0, 'Low does not check breath noise');
   }
+});
+
+test('the breath-noise rule in force: the options set it, else the sensitivity (Normal 6 dB)', () => {
+  assert.equal(Core.breathRuleDb({}), 6, 'default sensitivity is Normal');
+  assert.equal(Core.breathRuleDb({ sensitivity: 'normal' }), 6);
+  assert.equal(Core.breathRuleDb({ sensitivity: 'low' }), null);
+  assert.equal(Core.breathRuleDb({ sensitivity: 'high' }), null);
+  assert.equal(Core.breathRuleDb({ sensitivity: 'auto' }), null);
+  assert.equal(Core.breathRuleDb({ sensitivity: 'normal', minBreathRiseDb: null }), null, 'null switches it off');
+  assert.equal(Core.breathRuleDb({ sensitivity: 'high', minBreathRiseDb: 3 }), 3);
+  assert.equal(new Core.SnoreDetector(48000).opts.minBreathRiseDb, 6, 'the detector records the rule it uses');
+  assert.equal(new Core.SnoreDetector(48000, { sensitivity: 'high' }).opts.minBreathRiseDb, null);
+  const f = { duration: 1, lowRatio: 0.9, highRatio: 0.01, centroid: 150, peaks: 1, subBass: 0.2, breathRise: 4 };
+  assert.equal(Core.classify(f, {}).reason, 'no-breath', '4 dB of breath noise is not enough on Normal');
+  assert.equal(Core.classify(f, { sensitivity: 'high' }).isSnore, true);
+  assert.equal(Core.classify({ ...f, breathRise: 6.5 }, {}).isSnore, true);
 });
 
 test('breath-noise rule keeps every snore of the demo night', () => {

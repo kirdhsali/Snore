@@ -45,6 +45,7 @@ function demoNight() {
     gaps: [{ start: startWall + clock * 1000, end: startWall + (clock + 5) * 1000, clock, reason: 'suspended' }],
     screenWakeLock: 'on',
     sensitivity: det.sensitivity,
+    config: { ...det.opts },
     summary: stats.summary(det.elapsed),
     snores: stats.snores,
     ignored: stats.ignored,
@@ -65,10 +66,12 @@ test('a finished night survives the round trip through the data file', () => {
   assert.equal(json.schemaVersion, SCHEMA_VERSION);
   assert.equal(json.interruptions.length, 1);
   assert.equal(json.timeZone, 'Europe/Berlin');
+  assert.equal(json.minBreathRiseDb, 6, 'the breath-noise rule Normal counted with (1.17.0)');
   assert.equal(json.noise.minutes.length, night.noise.minutes.length);
   assert.ok(json.noise.minutes.every((m) => typeof m.backgroundDbfs === 'number' && m.bandsDbfs.length === json.noise.bandsHz.length));
   const back = fromReport(json);
   assert.equal(back.timeZone, 'Europe/Berlin');
+  assert.equal(back.minBreathRiseDb, 6);
   assert.equal(back.schemaVersion, SCHEMA_VERSION);
   assert.deepEqual(back.missing, []);
   assert.equal(back.snores.length, night.snores.length);
