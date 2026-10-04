@@ -157,3 +157,46 @@ test("evaluator applies the breath-noise rule of the night's sensitivity and sho
   assert.match(high, /confirmed snores\s+5\s+5\n/, high);
   assert.doesNotMatch(high, /without the breath-noise rule/);
 });
+
+test('the sudden-start (knock) rule can be re-run on stored sounds (1.18.0)', () => {
+  // Night 5: knocks at full level at once confirmed each other; a snore run swells.
+  const report = {
+    snores: [
+      feature(41.6, 36, { onsetJumpDb: 36.7 }),
+      feature(45.3, 20, { onsetJumpDb: 24.2 }),
+      feature(47.7, 28, { onsetJumpDb: 21.4 }),
+      feature(300, 15, { onsetJumpDb: 9.8 }),
+      feature(304, 14, { onsetJumpDb: 16.3 }),
+    ],
+    ignored: [],
+  };
+  const events = eventsOf(report);
+  assert.equal(reevaluate(events).filter((e) => e.isSnore).length, 5, 'current rules count them all');
+  assert.deepEqual(
+    reevaluate(events, { maxOnsetJumpDb: 20 }).map((e) => e.reason),
+    ['sudden', 'sudden', 'sudden', null, null],
+  );
+  delete report.snores[0].onsetJumpDb;
+  assert.equal(reevaluate(eventsOf(report), { maxOnsetJumpDb: 20 })[0].isSnore, true, 'files before 1.18.0: no verdict from that rule');
+});
+
+test('evaluator lists the counted snores the knock test drops, with their place in the WAV', () => {
+  const report = {
+    app: 'Snorewatch',
+    startedAt: '2026-10-03T23:10:22.000Z',
+    timeZone: 'Europe/Paris',
+    sensitivity: 'normal',
+    summary: { elapsed: 3600 },
+    snores: [
+      feature(41.6, 36, { onsetJumpDb: 36.7, time: '2026-10-03T23:11:03.600Z', wavStartSec: 0, confirmed: true }),
+      feature(45.3, 20, { onsetJumpDb: 12.1, time: '2026-10-03T23:11:07.300Z', wavStartSec: 1.5, confirmed: true }),
+    ],
+    ignored: [],
+    shadows: {
+      knock: { sensitivity: 'normal', minBreathRiseDb: 6, maxOnsetJumpDb: 20, summary: {}, levels: [], snores: [] },
+    },
+  };
+  const out = evaluateOutput(report, 'UTC');
+  assert.match(out, /knock: sensitivity normal, breath-noise rule 6 dB, sudden-start rule 20 dB/, out);
+  assert.match(out, /normal's snores that start suddenly: 01:11:03 \(WAV 0 s\) \+36\.7 dB\n/, out);
+});

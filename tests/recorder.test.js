@@ -95,7 +95,10 @@ test('a night goes idle → requesting → recording → stopping → completed 
   assert.equal(night.config.minBreathRiseDb, 6, 'Normal counts with the 6 dB breath-noise rule (1.17.0)');
   assert.ok(night.summary.snoreCount === 16 && !night.summary.ignoredByReason['no-breath'], 'the demo snores have clear breath noise');
   // The breath-noise background tests ended when Normal took the rule over; the data file holds what they showed.
-  assert.deepEqual(Object.keys(night.shadows), ['auto']);
+  assert.deepEqual(Object.keys(night.shadows), ['knock', 'auto']);
+  assert.deepEqual(night.shadows.knock.options, { sensitivity: 'normal', maxOnsetJumpDb: 20 });
+  assert.equal(night.shadows.knock.config.minBreathRiseDb, 6, 'the knock test counts like Normal otherwise');
+  assert.equal(night.shadows.knock.summary.snoreCount, 16, 'the demo snores swell; none starts suddenly');
   assert.deepEqual(night.shadows.auto.options, { sensitivity: 'auto', minBreathRiseDb: 3, minLowRiseDb: 8 });
   assert.deepEqual(night.noise.bandsHz, [31.5, 63, 125, 250, 500, 1000, 2000, 4000]); // 16 kHz: up to the 4 kHz octave
   assert.deepEqual(

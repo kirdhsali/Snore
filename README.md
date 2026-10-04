@@ -181,12 +181,20 @@ Report, after Stop:
    small, a sound must also raise the snore band (50–800 Hz) at least 8 dB above
    that band's own room noise (since 1.16.0): in a quiet room with a motor's low
    tone, quiet breathing otherwise passed as snoring.
-   The app runs an extra detector on the same audio: **auto** (automatic
-   sensitivity + 3 dB breath rule + 8 dB snore-band rule). Every sound also gets
-   `lowRiseDb` in the JSON. Its counts, margins and snore times go into the JSON
-   under `shadows`, the report shows one line, and `npm run evaluate` compares it
-   with the recorded result (and re-counts it with a 6 dB breath rule from its
-   stored sounds). It keeps audio only for the test clips described above. The
+   **Sudden start (testing in the background, since 1.18.0):** a knock or a bump
+   reaches its full level at once and dies away; a snore swells with the breath.
+   Every sound gets `onsetJumpDb`, the largest rise over 20 ms at its start (from
+   the downsampled audio, 20 ms windows every 10 ms). The test ignores sounds
+   above 20 dB as “sudden start”. In night 5 four knocks passed every rule and
+   confirmed each other (21–42 dB); real snores of nights 4 and 5 rose at most
+   23 dB (99 % under 17); the rule would have dropped 2 of night 4's 955.
+   The app runs two extra detectors on the same audio: **knock** (chosen
+   sensitivity + sudden-start rule 20 dB) and **auto** (automatic sensitivity +
+   3 dB breath rule + 8 dB snore-band rule). Every sound also gets `lowRiseDb` in
+   the JSON. Their counts, margins and snore times go into the JSON under
+   `shadows`, the report shows one line, and `npm run evaluate` compares them with
+   the recorded result (and re-counts auto with a 6 dB breath rule from its stored
+   sounds). Only auto keeps audio, for the test clips described above. The
    breath-rule background tests of 1.13–1.16 (**breath**, 3 dB; **breath6**, 6 dB)
    ended when Normal took the rule over; `npm run evaluate` shows any night with
    and without the rule from the stored sounds.
@@ -204,15 +212,17 @@ Report, after Stop:
 
 `npm run eval:public` runs the detector on [ESC-50](https://github.com/karolpiczak/ESC-50)
 (CC BY-NC; downloaded for testing only, never committed). Each 5-second clip is
-placed in quiet room noise at bedside level. Results for version 1.17 (Normal with the 6 dB
-breath-noise rule; all three variants recognise the same 29 snoring clips):
+placed in quiet room noise at bedside level, faded in and out over 0.1 s (since 1.18: the
+clips often start mid-sound, which looked like a knock). Results for version 1.18 (Normal
+with the 6 dB breath-noise rule):
 
 | | any snore-like sound | confirmed snore |
 | --- | --- | --- |
-| snoring clips recognised | 29/40 (72.5 %) | 12/40 (30.0 %)* |
-| night sounds counted as snore (25 classes) | 78/1000 (7.8 %) | 14/1000 (1.4 %) |
-| … without the breath-noise rule (Normal before 1.17; Low, High) | 100/1000 (10.0 %) | 23/1000 (2.3 %); snoring 13/40 confirmed |
-| … with a 3 dB breath-noise rule | 87/1000 (8.7 %) | 19/1000 (1.9 %); snoring 13/40 confirmed |
+| snoring clips recognised | 29/40 (72.5 %) | 13/40 (32.5 %)* |
+| night sounds counted as snore (25 classes) | 76/1000 (7.6 %) | 13/1000 (1.3 %) |
+| … without the breath-noise rule (Normal before 1.17; Low, High) | 100/1000 (10.0 %) | 22/1000 (2.2 %); snoring 30/40, 14 confirmed |
+| … with a 3 dB breath-noise rule | 87/1000 (8.7 %) | 18/1000 (1.8 %); snoring 29/40, 13 confirmed |
+| … with the sudden-start rule (knock background test) | 50/1000 (5.0 %) | 8/1000 (0.8 %); snoring 28/40, 11 confirmed |
 
 \* Confirmation needs a second snore 2–12 s away inside the same 5-second
 clip, which most clips do not contain; over a real night snores come in runs,

@@ -204,7 +204,7 @@ function compareShadow(r, shadow, name, hours, gaps = []) {
   const both = main.filter((x) => near(x, auto)).length;
   const trig = shadow.levels.map((l) => l.triggerDb).sort((a, b) => a - b);
   const q = (p) => (trig.length ? trig[Math.floor(p * (trig.length - 1))].toFixed(1) : '-');
-  const label = `${name}: sensitivity ${shadow.sensitivity}${shadow.minBreathRiseDb != null ? `, breath-noise rule ${shadow.minBreathRiseDb} dB` : ''}${shadow.minLowRiseDb != null ? `, snore-band rule ${shadow.minLowRiseDb} dB` : ''}`;
+  const label = `${name}: sensitivity ${shadow.sensitivity}${shadow.minBreathRiseDb != null ? `, breath-noise rule ${shadow.minBreathRiseDb} dB` : ''}${shadow.minLowRiseDb != null ? `, snore-band rule ${shadow.minLowRiseDb} dB` : ''}${shadow.maxOnsetJumpDb != null ? `, sudden-start rule ${shadow.maxOnsetJumpDb} dB` : ''}`;
   console.log(`\n  background test ${label} vs ${r.sensitivity}:`);
   console.log(
     `    confirmed snores   ${r.sensitivity} ${main.length} (${(main.length / hours).toFixed(0)}/h)   ${name} ${auto.length} (${(auto.length / hours).toFixed(0)}/h)`,
@@ -216,6 +216,23 @@ function compareShadow(r, shadow, name, hours, gaps = []) {
   if (shadow.minBreathRiseDb != null && shadow.minBreathRiseDb < 6) {
     const n = stricterBreath(shadow, 6, gaps);
     console.log(`    with a 6 dB breath-noise rule instead (from its stored sounds): ${n} (${(n / hours).toFixed(0)}/h)`);
+  }
+  if (shadow.maxOnsetJumpDb != null) {
+    // The counted snores this rule drops, to check by ear in the snores WAV.
+    const sudden = r.snores.filter((x) => x.onsetJumpDb != null && x.onsetJumpDb > shadow.maxOnsetJumpDb);
+    const clock = (x) => {
+      const opts = { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' };
+      try {
+        return new Date(x.time).toLocaleTimeString('en-GB', { ...opts, timeZone: r.timeZone || undefined });
+      } catch {
+        return new Date(x.time).toLocaleTimeString('en-GB', opts);
+      }
+    };
+    const where = (x) => `${clock(x)}${x.wavStartSec != null ? ` (WAV ${x.wavStartSec} s)` : ''} +${x.onsetJumpDb} dB`;
+    if (sudden.length)
+      console.log(
+        `    ${r.sensitivity}'s snores that start suddenly: ${sudden.slice(0, 20).map(where).join(', ')}${sudden.length > 20 ? `, … (${sudden.length} in all)` : ''}`,
+      );
   }
   const clips = shadow.snores.filter((x) => x.wavStartSec != null).length;
   if (clips) console.log(`    ${clips} of its snores that ${r.sensitivity} missed are in the test-clip WAV (wavStartSec)`);

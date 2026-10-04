@@ -1,11 +1,12 @@
 # Snorewatch handover
 
-State at version **1.17.0**, prepared 2026-10-04. 1.12.0 was reviewed independently
+State at version **1.18.0**, prepared 2026-10-04. 1.12.0 was reviewed independently
 twice (v1.9.1 and `a87c1f3`); 1.12.1–1.12.4 fix the second review's C1, C2, C3 and C5.
 1.12.5–1.14.0 follow up the first real night recorded with 1.12.4 (night 4, §6a): data
 file and clips (1.12.5–1.12.6), the 6 dB breath test (1.13.0), auto sensitivity's release
 (1.13.1) and its test clips (1.14.0). 1.15.0 records the room noise; 1.16.0 follows up
-night 5 (§6b); 1.17.0 makes Normal count with the 6 dB breath rule (owner's decision).
+night 5 (§6b); 1.17.0 makes Normal count with the 6 dB breath rule (owner's decision);
+1.18.0 adds the knock background test.
 The tested revisions and all check results are in [`docs/VERIFICATION.md`](VERIFICATION.md);
 the finding-by-finding answers to both reviews are in [`docs/REVIEW-RESPONSE.md`](REVIEW-RESPONSE.md).
 Marks: **[verified]** checked against this repository or by running it;
@@ -135,12 +136,14 @@ expansion without behaviour change. Details per finding, with tests and results:
 | 1.16.0 | #41 | Night 5 (hotel): auto counted the sleeper's quiet breathing over a motor's 66–82 Hz tone (581 vs Normal 76; 59/60 test clips without a snore). New measure `lowRise` (50–800 Hz above its tracked room noise, like `breathRise`), saved per sound; the auto background test requires 8 dB. Normal unchanged |
 | (—) | #42 | Room noise step 2 logic: `summarize`/`describe` in `js/noise.js` (steady tone, on/off cycles, mid/high stretches outside snoring, loud stretches); printed by `npm run evaluate`; not shown in the app |
 | 1.17.0 | #43 | **Counting change (owner):** Normal requires 6 dB of breath noise (`SENSITIVITY.normal.minBreathRiseDb`, `breathRuleDb()`); night 4 961 → 661 confirmed, night 5 76 → 73; ESC-50 night sounds 100 → 78 (confirmed 23 → 14), snoring clips 29/40 kept (confirmed 13 → 12). Background tests `breath`/`breath6` removed (exactly re-computable offline); the JSON names the rule (`minBreathRiseDb`); the evaluator applies the night's sensitivity and prints the count without the rule |
+| 1.18.0 | #44 | Knock background test `knock` (chosen sensitivity + sudden-start rule): new measure `onsetJump`, the largest rise over 20 ms at a sound's start, stored per sound (`onsetJumpDb`); option `maxOnsetJumpDb` rejects as 'sudden'; the test uses 20 dB. Night 5's 4 knocks 21–42 dB, real snores ≤ 23 dB (2 of night 4's 955 above 20). Synthetic `bump`. `eval:public` fades clips in and out over 0.1 s (they started mid-sound, which looked like a knock); with the rule ESC-50 night sounds 76 → 50 / 1000, snoring clips 29 → 28 (confirmed 13 → 11). Headline unchanged |
 
 ## 4. Architecture
 
 ```
 mic or demo ─► js/recorder.js: AudioWorklet tap (ScriptProcessor fallback)
-                 ├─► SnoreDetector (chosen sensitivity) ─► SessionStats ─┬─► frozen night record on Stop
+                 ├─► SnoreDetector (chosen sensitivity) ─► SessionStats ─┐
+                 ├─► SnoreDetector (background "knock")  ─► SessionStats ─┼─► frozen night record on Stop
                  └─► SnoreDetector (background "auto")   ─► SessionStats ─┘
                states: idle → requesting → recording ⇄ interrupted → stopping → completed
 js/app.js (page) ◄── onState / onFrame / onEvent / onWakeLock
@@ -159,7 +162,7 @@ js/app.js (page) ◄── onState / onFrame / onEvent / onWakeLock
 | `js/charts.js` | Canvas drawing (live strip, timeline, clip waveform) |
 | `js/share.js` | Star-map image and script-free HTML report (also runs in Node) |
 | `js/report-format.js` | The data file: `toReport` (download), `fromReport` (reads schema 1 and 2) (`SnoreReport`) |
-| `js/recorder.js` | Recording controller (`SnoreRecorder`): audio graph, detectors (one counting, background tests: `auto`), interruptions, wake lock, state machine, `finishNight`. Browser APIs injected through `env` (unit-tested with fakes) |
+| `js/recorder.js` | Recording controller (`SnoreRecorder`): audio graph, detectors (one counting, background tests `knock` and `auto`), interruptions, wake lock, state machine, `finishNight`. Browser APIs injected through `env` (unit-tested with fakes) |
 | `js/night-store.js` | Storage interface + in-memory implementation (`SnoreStore`). **Not loaded by the page** |
 | `js/app.js` | The page only; never touches audio objects; test hooks on `window.__snorewatch` |
 | `scripts/serve.js` | Local static server for `npm start` (127.0.0.1 unless `HOST`) |
@@ -228,7 +231,7 @@ else rhythm candidate) → `RhythmGate` → `SessionStats` (confirmed = another 
 - **[suspected] Memory on long nights (R6, partly open):** clips are capped by count
   (1500, ~106 MB at worst per the review), not by bytes; event metadata of three
   detectors is unbounded; peak memory of the WAV export is not measured.
-- **[suspected]** Several detectors on the same audio (two since 1.17.0) may cost noticeable
+- **[suspected]** Several detectors on the same audio (three since 1.18.0) may cost noticeable
   CPU/battery on a phone; not measured.
 - Interruption handling is verified with simulated events in Chromium only; how iOS
   Safari reports a call, Siri or a locked screen is **untested on a device**.
@@ -296,8 +299,11 @@ Aggregate figures only; the files are not committed. Local time UTC+2 (Europe/Pa
   random one (01:11:04–01:11:17, a minute after Start) were knocks:** an instant attack
   (14–32 dB within 10 ms) and an exponential decay; they passed every rule and confirmed
   each other by rhythm. Across nights 4 and 5, real snores jump at most 16.7 dB within
-  10 ms (99% under 13 dB); a sudden-onset rule (≈ 15 dB) is a candidate, not built. **[owner]**
-  asked to identify them; the rule needs an owner decision and real nights first.
+  10 ms (99% under 13 dB). **Built as a background test in 1.18.0** with a steadier measure:
+  the largest rise over 20 ms (windows that do not overlap, so the knock's full step counts
+  wherever it falls in the 10 ms grid): knocks 21.4–41.6 dB, real snores at most 23.1 dB
+  (night 4, 99 % under 17), night 5's real snores at most 18.4 dB. Limit 20 dB: all 4 knocks
+  out, 2 of night 4's 955 confirmed snores (the 10 ms version at 15 dB: 3 knocks, 3 snores).
 - Auto: 59 of 60 test clips hold no snore (snore band +1.2 dB vs Normal's +15.8 dB). Its
   start margin sat 1.4 dB above the room's 90th-percentile flicker, so the sleeper's quiet
   breathing over a motor's 66–82 Hz tone passed. Fixed for the auto test in 1.16.0
@@ -356,10 +362,11 @@ when `CI tests` is green (Claude may merge its own PRs); bump `package.json` and
   still miss Normal's loud snores, night 4: 80 of 150?). Any further default change
   (planned v2.0: auto + breath rule) needs 2–3 such nights, `npm run eval:public` and the
   owner's approval.
-- **Next builds, owner agreed (2026-10-04):** (1) a sudden-onset (knock) rule as a
-  background test: night 5's shared report showed knocks (14–32 dB within 10 ms) counted
-  as snores; real snores rise at most 16.7 dB within 10 ms. (2) The room-noise section in
-  the report (below).
+- **Knock test (1.18.0, background):** check in the next nights which snores the `knock`
+  test drops (`npm run evaluate` lists its count; `onsetJumpDb` is stored per sound; listen
+  to Normal's snores above 20 dB). Make it count only after real nights and the owner's
+  approval.
+- **Next build, owner agreed (2026-10-04):** the room-noise section in the report (below).
 - **Next build, owner agreed (2026-10-03), after the auto work:** room noise for users.
   Step 1 (data only) done in 1.15.0: `noise` in the JSON. Step 2 logic done (not shown
   yet): `summarize`/`describe` in `js/noise.js` (steady tone held ≥ 7 of 10 minutes,

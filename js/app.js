@@ -565,9 +565,11 @@
     el.shadowNote.hidden = false;
     const noBreath = sum.ignoredByReason['no-breath'] || 0;
     el.shadowNote.textContent =
-      `Background test, not counted yet: with automatic sensitivity (breath-noise and snore-band rules) ${fmtNum(
+      `Background tests, not counted yet: without sounds that start suddenly (knocks) ${fmtNum(
+        n.shadows.knock.summary.snoreCount,
+      )} snores; with automatic sensitivity (breath-noise and snore-band rules) ${fmtNum(
         n.shadows.auto.summary.snoreCount,
-      )} snores (this recording, ${n.sensitivity}: ${fmtNum(sum.snoreCount)}). ` +
+      )} (this recording, ${n.sensitivity}: ${fmtNum(sum.snoreCount)}). ` +
       (n.config && n.config.minBreathRiseDb != null
         ? `The breath-noise rule set aside ${fmtNum(noBreath)} ${noBreath === 1 ? 'sound' : 'sounds'} without the rush of air of a snore (hum, rumble). `
         : '') +

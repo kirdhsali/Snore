@@ -433,6 +433,56 @@ test('breath-noise rule: hum swells without breath noise stop counting, snores s
   }
 });
 
+test('onset jump: a knock counts its full step wherever it starts; a swell rises slowly', () => {
+  const rate = 8000;
+  const room = (n, r) => Float32Array.from({ length: n }, () => (r() - 0.5) * 0.002);
+  for (let shift = 0; shift < 80; shift += 7) {
+    const r = Synth.rng(shift + 1);
+    const x = room(2400 + shift, r);
+    for (let i = 2000 + shift; i < x.length; i++) x[i] += 0.1 * Math.sin(i / 3) * Math.exp(-(i - 2000 - shift) / 2000);
+    const jump = Core.onsetJump(x, rate);
+    assert.ok(jump > 35, `40 dB knock starting ${shift} samples into a step: ${jump.toFixed(1)} dB`);
+  }
+  const r = Synth.rng(5);
+  const swell = room(6000, r);
+  // From the room's level to 40 dB above it over 0.3 s, evenly in dB.
+  for (let i = 2000; i < 6000; i++) swell[i] += 0.1 * Math.pow(10, -2 * (1 - Math.min(1, (i - 2000) / 2400))) * Math.sin(i / 3);
+  assert.ok(Core.onsetJump(swell, rate) < 10, `a sound that swells over 0.3 s: ${Core.onsetJump(swell, rate).toFixed(1)} dB`);
+  assert.equal(Core.onsetJump(new Float32Array(0), rate), null);
+});
+
+test('sudden-start rule: bumps that pass every other rule are set aside, snores stay (knock background test)', () => {
+  // Night 5: knocks reached full level at once, passed every rule and confirmed each other.
+  for (const sr of [48000, 44100, 16000]) {
+    for (let seed = 1; seed <= 3; seed++) {
+      const r = Synth.rng(seed);
+      const plan = [];
+      for (let i = 0; i < 5; i++) plan.push({ type: 'bump', at: 3 + i * 4 + r(), amp: 0.04 });
+      plan.push(...Synth.snoreRun(30, 8, r));
+      const scenario = Synth.compose(sr, 65, plan, seed);
+      const split = (options) => {
+        const { events } = run(scenario, options);
+        return { bumps: events.filter((e) => e.start < 28), snores: events.filter((e) => e.start >= 28) };
+      };
+      const normal = split({});
+      const where = `at ${sr} Hz, seed ${seed}`;
+      assert.ok(normal.bumps.filter((e) => e.isSnore).length >= 4, `Normal counts the bumps as snores ${where}`);
+      assert.ok(
+        normal.bumps.every((e) => e.onsetJump > 20) && normal.snores.every((e) => e.onsetJump < 15),
+        `bumps jump, snores swell ${where}`,
+      );
+      const knock = split({ maxOnsetJumpDb: 20 });
+      assert.ok(
+        knock.bumps.every((e) => e.reason === 'sudden'),
+        `the rule sets every bump aside ${where}`,
+      );
+      assert.equal(knock.snores.filter((e) => e.isSnore).length, normal.snores.filter((e) => e.isSnore).length, `snores stay ${where}`);
+    }
+  }
+  const { events } = run(Synth.demoScenario(48000), { maxOnsetJumpDb: 20 });
+  assert.equal(events.filter((e) => e.isSnore).length, 16, 'the demo night keeps its 16 snores');
+});
+
 test('the breath-noise rule in force: the options set it, else the sensitivity (Normal 6 dB)', () => {
   assert.equal(Core.breathRuleDb({}), 6, 'default sensitivity is Normal');
   assert.equal(Core.breathRuleDb({ sensitivity: 'normal' }), 6);
