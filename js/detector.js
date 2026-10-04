@@ -26,6 +26,10 @@
  *      150-1500 Hz band rises above the room noise. `breathRise` measures that
  *      rise; with `minBreathRiseDb` set, sounds without it (hum, rumble, a lift)
  *      are ignored as 'no-breath'. Off by default, tested in the background.
+ *   3b''. Snore band: a snore's flutter raises the 50-800 Hz band above that
+ *      band's own room noise. `lowRise` measures it; with `minLowRiseDb` set,
+ *      sounds that barely change it (quiet breathing over a room's hum) are
+ *      ignored as 'no-low-rise'. Off by default; the auto background test uses it.
  *   3c. Snores repeat with the breathing. SessionStats marks a snore as
  *      confirmed when another snore lies 2-12 s before or after it; isolated
  *      ones are only "possible" and left out of the headline figures.
@@ -71,6 +75,7 @@
     peakDropDb: 6,
     maxSubBass: 0.85, // share of energy 20-60 Hz (of 20-4000 Hz); above = deep rumble
     minBreathRiseDb: null, // rise of 150-1500 Hz above the room noise a snore needs; null = not checked
+    minLowRiseDb: null, // rise of 50-800 Hz above that band's room noise a snore needs; null = not checked
     // Rhythm rescue of choppy but snore-like sounds
     rhythmMinSec: Stats.RHYTHM_MIN_SEC, // start-to-start distance to an accepted snore (js/stats.js)
     rhythmMaxSec: Stats.RHYTHM_MAX_SEC,
@@ -105,6 +110,7 @@
     choppy: 'Choppy rhythm (speech, knocking)',
     rumble: 'Deep rumble (traffic, building)',
     'no-breath': 'No breath noise (hum, rumble)',
+    'no-low-rise': 'No rise in the snore band (breathing, room hum)',
   };
 
   function nextPow2(n) {
@@ -235,6 +241,7 @@
         centroid: total > 0 ? weighted / total : 0,
         zcr: crossings / n,
         midDb: 10 * Math.log10(mid / n + 1e-24),
+        lowDb: 10 * Math.log10(low / n + 1e-24), // the snore band, 50-800 Hz
       };
     }
   }
@@ -343,6 +350,8 @@
       this.autoBlock = { power: 0, n: 0, size: Math.max(1, Math.round(this.opts.autoBlockSec / this.hopSec)) };
       this.bgMid = null; // room noise level in the breath band (dB), tracked like the floor
       this.calibMid = [];
+      this.bgLow = null; // room noise level in the snore band (dB), tracked like the floor
+      this.calibLow = [];
       this.lastEventEndFrame = -Infinity;
       this.levels = []; // history of auto margins: {t, triggerDb, releaseDb, spreadDb, floorDb}
     }
@@ -499,11 +508,14 @@
       if (this.floor === null) {
         this.calib.push(f.db);
         this.calibMid.push(f.midDb);
+        this.calibLow.push(f.lowDb);
         if (this.calib.length * this.hopSec >= o.calibrationSec) {
           this.floor = Math.max(-100, percentile(this.calib, 0.3));
           this.bgMid = percentile(this.calibMid, 0.3);
+          this.bgLow = percentile(this.calibLow, 0.3);
           this.calib = [];
           this.calibMid = [];
+          this.calibLow = [];
         }
       } else if (!this.event) {
         if (f.db > this.floor + this.triggerDb && f.db > this.minAbsDb) {
@@ -513,6 +525,8 @@
             floor: this.floor,
             bgMid: this.bgMid,
             mid: 0,
+            bgLow: this.bgLow,
+            lowBand: 0,
             w: 0,
             low: 0,
             high: 0,
@@ -532,6 +546,8 @@
           this.floor = Math.max(-100, this.floor);
           const tauMid = f.midDb < this.bgMid ? 0.5 : 8;
           this.bgMid += (this.hopSec / tauMid) * (f.midDb - this.bgMid);
+          const tauLow = f.lowDb < this.bgLow ? 0.5 : 8;
+          this.bgLow += (this.hopSec / tauLow) * (f.lowDb - this.bgLow);
           if (this.auto) this._autoCollect(f, index);
         }
       } else {
@@ -544,6 +560,7 @@
         const tau = ev.tooLong ? 8 : 60;
         this.floor += (this.hopSec / tau) * (f.db - this.floor);
         this.bgMid += (this.hopSec / tau) * (f.midDb - this.bgMid);
+        this.bgLow += (this.hopSec / tau) * (f.lowDb - this.bgLow);
         if ((index - ev.lastLoud) * this.hopSec >= o.hangoverSec) finished = this._finish();
       }
       if (this.auto && this.floor !== null && index % Math.round(o.autoUpdateSec / this.hopSec) === 0) {
@@ -587,6 +604,7 @@
       ev.zcr += f.zcr;
       ev.energy += f.power;
       ev.mid += Math.pow(10, f.midDb / 10);
+      ev.lowBand += Math.pow(10, f.lowDb / 10);
       ev.loudFrames++;
       if (f.db > ev.peakDb) ev.peakDb = f.db;
       ev.track.push(f.db);
@@ -614,6 +632,7 @@
         subBass: audio ? subBassShare(audio, this.clipRate) : null,
         fill: bodyShare(ev.track.slice(0, ev.lastLoud - ev.startFrame + 1), ev.peakDb),
         breathRise: ev.loudFrames ? 10 * Math.log10(ev.mid / ev.loudFrames + 1e-24) - ev.bgMid : null,
+        lowRise: ev.loudFrames ? 10 * Math.log10(ev.lowBand / ev.loudFrames + 1e-24) - ev.bgLow : null,
       };
       const verdict = classify(Object.assign({ duration, tooLong: ev.tooLong }, features), o);
       const result = {
@@ -662,6 +681,7 @@
     else if (f.highRatio > opts.maxHighRatio || f.centroid > opts.maxCentroid) reason = 'too-bright';
     else if (f.lowRatio < opts.minLowRatio) reason = 'not-low';
     else if (opts.minBreathRiseDb != null && f.breathRise != null && f.breathRise < opts.minBreathRiseDb) reason = 'no-breath';
+    else if (opts.minLowRiseDb != null && f.lowRise != null && f.lowRise < opts.minLowRiseDb) reason = 'no-low-rise';
     else if (f.peaks > opts.maxPeaks) reason = 'choppy';
     const margins = [
       (f.lowRatio - opts.minLowRatio) / (1 - opts.minLowRatio),

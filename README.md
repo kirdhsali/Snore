@@ -173,10 +173,14 @@ Report, after Stop:
    room (floor below −78 dBFS) where flicker is not restlessness. A sound ends
    only once the level is back within the room's usual quiet range (since 1.13.1:
    a wavering hum keeps that range a few dB above the quietest moments). Its
-   absolute gate only guards against silence (−95 dBFS).
+   absolute gate only guards against silence (−95 dBFS). Because its margins are
+   small, a sound must also raise the snore band (50–800 Hz) at least 8 dB above
+   that band's own room noise (since 1.16.0): in a quiet room with a motor's low
+   tone, quiet breathing otherwise passed as snoring.
    The app runs three extra detectors on the same audio: **breath** (chosen
    sensitivity + 3 dB breath rule), **breath6** (chosen sensitivity + 6 dB
-   breath rule) and **auto** (automatic sensitivity + 3 dB breath rule). Their
+   breath rule) and **auto** (automatic sensitivity + 3 dB breath rule + 8 dB
+   snore-band rule). Every sound also gets `lowRiseDb` in the JSON. Their
    counts, margins and snore times go into the JSON under `shadows`, the report
    shows one line, and `npm run evaluate` compares them with the recorded result
    (and re-counts the 3 dB tests with a 6 dB rule from their stored sounds). Only

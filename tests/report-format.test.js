@@ -81,6 +81,7 @@ test('a finished night survives the round trip through the data file', () => {
     assert.equal(e.rhythm, !!x.rhythm);
     assert.equal(e.peaks, x.peaks);
     assert.ok(Math.abs(e.breathRise - x.breathRise) < 0.06);
+    assert.ok(Math.abs(e.lowRise - x.lowRise) < 0.06, 'snore-band rise kept');
   });
   assert.deepEqual(
     back.interruptions.map((g) => g.reason),

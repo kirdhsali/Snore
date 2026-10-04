@@ -283,21 +283,23 @@
 
   /**
    * Soft breathing between snores: band noise around 200-1500 Hz, a few dB above
-   * a very quiet room, rising and falling over 1-2 s.
+   * a very quiet room, rising and falling over 1-2 s. `dull`: the muffled breathing
+   * of a sleeper heard from the bedside (mostly 250-1000 Hz, no hiss; night 5).
    */
   function breath(sr, rand, opts = {}) {
-    const dur = opts.duration || 1.2 + rand() * 0.8;
+    const dur = opts.duration || (opts.dull ? 1.0 : 1.2) + rand() * 0.8;
     const amp = opts.amp || 0.0001;
     const n = Math.round(dur * sr);
     const out = new Float32Array(n);
-    const lo = lpCoef(1500, sr);
-    const hi = lpCoef(200, sr);
-    let a = 0;
+    const lo = lpCoef(opts.dull ? 1000 : 1500, sr);
+    const hi = lpCoef(opts.dull ? 250 : 200, sr);
+    const y = [0, 0, 0];
     let b = 0;
     for (let i = 0; i < n; i++) {
-      a += lo * (rand() * 2 - 1 - a);
+      let a = rand() * 2 - 1;
+      for (let k = 0; k < (opts.dull ? 3 : 1); k++) a = y[k] += lo * (a - y[k]);
       b += hi * (a - b);
-      out[i] = amp * 3 * (a - b) * Math.pow(Math.sin((Math.PI * i) / n), 1.5);
+      out[i] = amp * (opts.dull ? 4 : 3) * (a - b) * Math.pow(Math.sin((Math.PI * i) / n), 1.5);
     }
     return out;
   }
@@ -393,5 +395,7 @@
     gustyNoise,
     deepRoomNoise,
     swell,
+    breath,
+    humRoomNoise,
   };
 });
