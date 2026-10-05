@@ -235,6 +235,45 @@ async function main() {
     assert.ok(nAudio >= 6, 'report embeds the snores');
     assert.match(html, /<h2>Room noise<\/h2>[\s\S]*described from 10 minutes/, 'report file: room noise section (too short for findings)');
 
+    console.log('Share image of a long interrupted night (AM/PM times, real fonts): every text inside the image…');
+    const cardPage = await browser.newPage({ locale: 'en-US', timezoneId: 'Europe/Berlin' });
+    await cardPage.goto(url);
+    const texts = await cardPage.evaluate(() => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const fill = ctx.fillText.bind(ctx);
+      const out = [];
+      ctx.fillText = (t, x, y, maxWidth) => {
+        const w = Math.min(ctx.measureText(t).width, maxWidth ?? Infinity);
+        const left = ctx.textAlign === 'right' ? x - w : ctx.textAlign === 'center' ? x - w / 2 : x;
+        out.push({ t: String(t), left, right: left + w, y });
+        if (maxWidth == null) fill(t, x, y);
+        else fill(t, x, y, maxWidth);
+      };
+      const gaps = [
+        [3600, 4200],
+        [9000, 9600],
+        [20000, 20600],
+      ].map(([start, end]) => ({ start, end }));
+      window.SnoreShare.drawShareCard(canvas, {
+        startWall: Date.UTC(2026, 9, 5, 20, 0), // 22:00 in Berlin
+        elapsed: 8 * 3600,
+        captured: 7.5 * 3600,
+        gaps,
+        snores: [],
+        summary: new window.SnoreCore.SessionStats().summary(7.5 * 3600),
+        version: 'e2e',
+        sensitivity: 'normal',
+      });
+      return out;
+    });
+    await cardPage.close();
+    const header = texts.filter((x) => x.y >= 150 && x.y < 220);
+    console.log(`  header: ${header.map((x) => `"${x.t}" ${Math.round(x.left)}–${Math.round(x.right)} px`).join(', ')}`);
+    assert.match(header.map((x) => x.t).join(' · '), /^10:00 PM – 06:00 AM · 7 h 30 min of 8 h 0 min recorded · interrupted 3×$/);
+    for (const x of texts) assert.ok(x.left >= 0 && x.right <= 1080, `"${x.t}" spans ${x.left}–${x.right} px of 1080`);
+    for (const x of header) assert.ok(x.right <= 1080 - 72 + 0.5, `"${x.t}" ends at ${x.right} px, past the margin`);
+
     console.log('Failed restart: the previous night stays downloadable…');
     await page.evaluate(() => {
       window.__realGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);

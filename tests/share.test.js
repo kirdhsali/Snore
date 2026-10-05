@@ -232,3 +232,48 @@ test('the report file has a room noise section with the findings, when the night
   assert.doesNotMatch(short, /<svg class="noise"/, 'no heatmap for two minutes');
   assert.doesNotMatch(reportFor(s), /Room noise/, 'nights without a profile (before 1.15.0) have no section');
 });
+
+test('the image keeps the times and coverage of a long interrupted night inside its margins (review N4)', () => {
+  // Text about as wide as the 28 px header font: the review measured 1021 px for the one-line header.
+  const drawn = [];
+  const ctx = new Proxy(
+    {
+      textAlign: 'left',
+      fillText(t, x, y, maxWidth) {
+        drawn.push({ t: String(t), x, y, align: this.textAlign, width: String(t).length * 16, maxWidth });
+      },
+      measureText: (t) => ({ width: String(t).length * 16 }),
+      createLinearGradient: () => ({ addColorStop() {} }),
+    },
+    {
+      get: (o, k) => (k in o ? o[k] : typeof k === 'string' && /^[a-z]/.test(k) ? () => {} : undefined),
+      set: (o, k, v) => ((o[k] = v), true),
+    },
+  );
+  const hour = 3600;
+  Share.drawShareCard(
+    { getContext: () => ctx },
+    {
+      startWall: Date.UTC(2026, 9, 5, 23, 0),
+      elapsed: 8 * hour,
+      captured: 7.5 * hour,
+      gaps: [
+        { start: 3600, end: 4200 },
+        { start: 9000, end: 9600 },
+        { start: 20000, end: 20600 },
+      ],
+      snores: [],
+      summary: new Core.SessionStats().summary(7.5 * hour),
+      version: 't',
+      sensitivity: 'normal',
+    },
+  );
+  const header = drawn.filter((d) => d.y >= 150 && d.y < 220);
+  assert.ok(header.length >= 2, header.map((d) => d.t).join(' | '));
+  for (const d of header) {
+    assert.equal(d.align, 'left');
+    assert.ok(d.x + d.width <= 1080 - 72, `"${d.t}" ends at ${d.x + d.width}`);
+    assert.ok(d.maxWidth <= 1080 - 2 * 72, 'and is held inside the margins even if a font runs wide');
+  }
+  assert.match(header.map((d) => d.t).join(' · '), /– .* · 7 h 30 min of 8 h 0 min recorded · interrupted 3×$/, 'nothing is left out');
+});
