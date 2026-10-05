@@ -1,5 +1,76 @@
 # Verification record
 
+## Checkpoint 1.22.0 (review and fresh-session handover, 2026-10-05)
+
+**Tested code revision:** `687b1f7780e1cfe19b62ff5f2ffce094dcfc21c5` (`main` after PR #50,
+version 1.22.0, tagged `v1.22.0`, deployed). The review branch
+`claude/review-checkpoint-1.22` adds documentation (`docs/HANDOVER.md`,
+`docs/REVIEW-RESPONSE.md`, this file, two lines of `README.md`) and one verification script,
+`docs/review-probes/full-demo-run.cjs` (linted); application and test code are unchanged:
+`git diff 687b1f7 -- js scripts tests index.html css package.json package-lock.json .github eslint.config.js`
+is empty.
+
+**Environment:** Linux 6.18 container (Claude cloud session); Node v22.22.0, npm 10.9.4;
+Playwright 1.63.0, ESLint 10.11.0, Prettier 3.9.9 (from `package-lock.json`). Browser:
+preinstalled Chromium **141.0.7390.37** at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`
+via `CHROMIUM_PATH`; `npx playwright install chromium` was **not run** (this environment
+provides its browser and forbids downloading one; at 1.12.0 the download was blocked).
+ESC-50 checkout `33c8ce9eb2cf0b1c2f8bcf322eb349b6be34dbb6` outside the repository.
+
+| Command | Result |
+| --- | --- |
+| `git status --short --branch`, `git diff --stat`, `git diff --cached --stat` | clean before the checks (branch at the handover commit `d28940c` on top of `687b1f7`) |
+| `npm ci --no-audit --no-fund` | passed, 82 packages |
+| `npm test` | **passed**, 92/92 (detector, share, serve, evaluate, report-format, recorder, night-store, noise) |
+| `npm run lint` | **passed** (ESLint and Prettier clean) |
+| `node --check` over `js/*.js scripts/*.js tests/*.js docs/review-probes/*.cjs` | **passed**, 29 files |
+| `npm run build` | **passed**, `dist/snorewatch.html` and `dist/snorewatch-embed.html` (208 KB each; not committed) |
+| `npm audit` | **passed**, 0 vulnerabilities (dev dependencies only) |
+| `CHROMIUM_PATH=… npm run test:e2e` | **passed**: fake mic 30 s → 6 snores, 1 ignored; Darken screen fixed; keyboard lock (main normal, knock normal, auto auto, high high); night screen; room-noise panel; background tests 6/6/6; playback 1.33 s at peak 0.70; PNG 297 KB + HTML 284 KB, first clip plays 1.79 s; failed restart keeps the night; wake lock refused + mic switched off shown and in the JSON; demo suspended 3 s → gap 4 s, nothing confirmed across it |
+| `CHROMIUM_PATH=… node docs/review-probes/full-demo-run.cjs "$PWD" <out>` (full 90 s `#demo` night) | **passed**: 16 confirmed, 0 possible, 5 ignored (too bright 3, choppy 1, too long 1); background tests knock 16, auto 16, high 16; schema 2, `minBreathRiseDb` 6, 2 noise minutes; saved `snore-report_2026-10-05_1244.json`, `snores_2026-10-05_1244.wav` (456 790 bytes), `snore-report_2026-10-05_1244.html`, `snore-night_2026-10-05_1244.png`; no test clips (no background test heard a snore Normal missed); no page errors; console: the blocked Google Fonts request and a 404 for `/favicon.ico` |
+| `npm run evaluate -- <out>/snore-report_2026-10-05_1244.json` | **passed**: 16 → 16 snore-like, 16 → 16 confirmed; without the breath rule 16; each background test 16, found by both 16; High re-count 16 at 3 / 4.5 / 6 dB; auto pre-rise table 16 in every cell |
+| `npm run evaluate -- tests/fixtures/rhythm-boundary-report.json` | 1 → 2 snore-like, 0 → 2 confirmed (the R3 fix) |
+| `ESC50_DIR=… npm run eval:public` | **passed**, identical to 1.18.0: Normal snoring 29/40 (13 confirmed), night sounds 76/1000 (13), other 158/1960 (31); without the breath rule 30/40 (14), 100/1000 (22); 3 dB 29/40 (13), 87/1000 (18); knock rule 28/40 (11), 50/1000 (8) |
+| R5 ring check (command under 1.12.0 below) | 51 600 non-zero samples after `flush()`, **0 after `release()`** |
+| `node docs/review-probes/server-probes-adapted.cjs "$PWD"` | traversal 403 (body "Bad request"), `/.git/HEAD` 404, malformed 400, still running, next request 200 |
+| `CHROMIUM_PATH=… node docs/review-probes/browser-probes-adapted.cjs "$PWD"` | suspended → "Recording interrupted: the system paused the microphone. Trying to resume…"; reported stop 1 ms after the real stop, gap 2.4 s, wall 4 s = 1.7 s analysed + gap; failed restart: same night id, no page errors; wake lock refused shown; keyboard: control disabled, detectors unchanged (main/knock normal, auto, high); ended track shown; 4000 dark-screen snores → 6 queued, 6 cards, 48 ms |
+| `node docs/review-probes/controller-store-probes.cjs "$PWD"` | unchanged from 1.12.4: C1 `suspended 6` / `interrupted 6`; C5 `completed off 1`; C3 old-call verdict (the probe omits the fields the app passes); C4 `false 1 999`, C6 `3660 30.016` (deferred) |
+| Targeted regression tests, `node --test --test-name-pattern …` | R1 7/7, R2 1/1, R3 10/10, R4 1/1, R5 6/6 (incl. both test-clip samples), R6 1/1 (+ e2e card queue), R8 1/1, R9 11/11 (test names in `REVIEW-RESPONSE.md`) |
+
+**Counts against the original baseline (v1.9.1, `e4eea25`):**
+- Demo night unchanged: 16 confirmed, 5 ignored.
+- ESC-50 (current harness, clips faded since 1.18.0): snoring clips 29/40 (13 confirmed), night sounds 76/1000 (13 confirmed).
+- Baseline: 29/40 (13), 100/1000 (22, old harness).
+- Explained by three changes:
+  - the rhythm fix (R3, 1.10.0, owner-approved): night sounds 22 → 23;
+  - the fade in the benchmark (1.18.0, harness only): the same rules give 30/40 (14), 100/1000 (22);
+  - the 6 dB breath rule on Normal (1.17.0, owner-approved): 30 → 29 snoring clips (14 → 13 confirmed), 100 → 76 night sounds (22 → 13 confirmed).
+
+**CI and deployment:** on `main` at `687b1f7` the workflows `CI` (`CI tests`), `Tag release`
+(`v1.22.0`) and `Deploy to GitHub Pages` passed, so the deployed site should be that commit
+(the deploy stamps the footer `Snorewatch 1.22.0 (687b1f7)`). The live site itself was not
+opened: outbound requests to `kirdhsali.github.io` are blocked in this container.
+
+**Found during this verification (not fixed here, cosmetic):**
+- the page requests `/favicon.ico`, which does not exist (404 in the console);
+- `npm run evaluate` prints an empty "room noise:" heading for recordings shorter than 10 minutes;
+- `scripts/serve.js` still answers a refused path with 403 and the body "Bad request".
+
+**Not run / not available:**
+- **Physical iPhone: not tested in this session.** No overnight run, no real call, Siri or
+  screen-lock interruption, no share sheet or clip playback, no battery/CPU/memory
+  measurement with four detectors.
+- Safari/WebKit and Firefox: not automated.
+- Long nights: memory (clip byte budget, event metadata of four detectors, two clip
+  reservoirs) and WAV export peak memory not measured.
+- The original review's `core-probes.cjs` and `full-demo.cjs` are not available in this
+  environment (the evidence bundle was never in the repository); replaced by the
+  targeted tests above and `full-demo-run.cjs`.
+- Public-dataset tests (APSAA, PSG-Audio, Khan clips): **not run**, by the owner's choice,
+  for a new session (HANDOVER §10).
+- The real-night analyses of nights 4–6 (HANDOVER §8) used the owner's files, which are
+  not in the repository; they cannot be re-run from it.
+
 ## Checkpoint 1.13.0 (real night 4 follow-up, 2026-10-03)
 
 **Tested code revision:** `45c507d8597e715035fdffd4d5e078113cac0fd3` (`main` after PR #36, version 1.13.0; tested on the
