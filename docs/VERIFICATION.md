@@ -34,8 +34,11 @@ not run). ESC-50 checkout `33c8ce9eb2cf0b1c2f8bcf322eb349b6be34dbb6` outside the
 
 **CI and deployment:** on `main` at `7095f5f`, `CI` (`CI tests`), `Tag release` (`v1.22.3`)
 and `Deploy to GitHub Pages` passed; tags `v1.22.1` (`146e586`) and `v1.22.2` (`3851896`)
-were created by their merges. Their Pages deploys were **cancelled** by the next merge to
-`main` (one concurrency group), so 1.22.1 and 1.22.2 were never live; 1.22.3 is. Pages
+were created by their merges. Their Pages deploys were **cancelled by pushes to the work
+branch** about a minute later (14:41:49Z and 14:45:58Z): `pages.yml` runs on every branch and
+all runs share one concurrency group with `cancel-in-progress`, so a branch push cancels a
+running `main` deploy (the third review's point). 1.22.1 and 1.22.2 were never live; 1.22.3
+is, and contains both. Pages
 finished at 14:50:31Z and CI at 14:51:34Z: publishing again did not wait for the full suite
 (third review, workflow leftovers). The live site was not opened from this container.
 
