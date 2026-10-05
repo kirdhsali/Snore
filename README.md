@@ -300,8 +300,8 @@ type checker. Agent instructions: `CLAUDE.md` / `AGENTS.md`; general working rul
 | `tests/` | unit tests (`node --test`) and the browser test |
 | `docs/HANDOVER.md` | state of the project, decisions, known issues, next task |
 | `docs/VERIFICATION.md` | verification commands, results and a manual smoke test |
-| `docs/REVIEW-RESPONSE.md` | answer to the review of v1.9.1, finding by finding |
-| `docs/review-probes/` | scripts that re-run the review's checks and the full demo night (see `docs/VERIFICATION.md`) |
+| `docs/REVIEW-RESPONSE.md` | answers to the reviews (v1.9.1, `a87c1f3`, `8e05d2b`), finding by finding; the reviews themselves are in `docs/reviews/` |
+| `docs/review-probes/` | scripts that re-run the reviews' checks and the full demo night (see `docs/VERIFICATION.md`) |
 
 ### How changes are made
 
