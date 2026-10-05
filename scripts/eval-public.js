@@ -114,7 +114,7 @@ function main() {
   // Current rules (Normal: breath-noise rule 6 dB since 1.17.0), Normal without it or with 3 dB, and the knock test.
   const variants = {
     'current rules (Normal, breath-noise rule 6 dB)': {},
-    'without the breath-noise rule (Normal before 1.17.0; Low and High)': { minBreathRiseDb: null },
+    'without the breath-noise rule (Normal before 1.17.0, Low before 1.21.0, High)': { minBreathRiseDb: null },
     'with the 3 dB breath-noise rule': { minBreathRiseDb: 3 },
     'with the sudden-start (knock) rule (background test)': { maxOnsetJumpDb: 20 },
   };

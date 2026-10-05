@@ -1,13 +1,14 @@
 # Snorewatch handover
 
-State at version **1.20.0**, prepared 2026-10-05. 1.12.0 was reviewed independently
+State at version **1.21.0**, prepared 2026-10-05. 1.12.0 was reviewed independently
 twice (v1.9.1 and `a87c1f3`); 1.12.1–1.12.4 fix the second review's C1, C2, C3 and C5.
 1.12.5–1.14.0 follow up the first real night recorded with 1.12.4 (night 4, §6a): data
 file and clips (1.12.5–1.12.6), the 6 dB breath test (1.13.0), auto sensitivity's release
 (1.13.1) and its test clips (1.14.0). 1.15.0 records the room noise; 1.16.0 follows up
 night 5 (§6b); 1.17.0 makes Normal count with the 6 dB breath rule (owner's decision);
 1.18.0 adds the knock background test; 1.19.0 shows the room noise in the report; 1.19.1
-follows up night 6 (§6c); 1.20.0 adds the rise over the moment before to the auto test.
+follows up night 6 (§6c); 1.20.0 adds the rise over the moment before to the auto test;
+1.21.0 applies the breath rule to Low.
 The tested revisions and all check results are in [`docs/VERIFICATION.md`](VERIFICATION.md);
 the finding-by-finding answers to both reviews are in [`docs/REVIEW-RESPONSE.md`](REVIEW-RESPONSE.md).
 Marks: **[verified]** checked against this repository or by running it;
@@ -54,6 +55,13 @@ Requirements:
   (Wake Lock) and covers it with black; screen-off recording needs a native app.
 
 Owner decisions (**[owner]**), most recent first:
+- **After night 6 (2026-10-05):** the breath rule for Low and High "if it made Normal better
+  and makes sense; if in doubt explain": applied to **Low** (1.21.0; no loss of snores in
+  ESC-50 or simulation, false snores from hum swells gone); **High left without it** and
+  explained to the owner (it would cost High's quiet snores: ESC-50 confirmed 11 → 8,
+  simulated quiet snorer 49 → 43 of 210; a 3–4.5 dB rule kept them in simulation but
+  night 4's real swells carried 3–6 dB). The auto test gets the rise over the moment
+  before (1.20.0); the owner asked to compare window lengths.
 - **After nights 4 and 5 (2026-10-04):** the 6 dB breath rule counts for **Normal**
   (1.17.0; Low and High unchanged, no real nights with them). The breath-rule background
   tests end with it; `npm run evaluate` shows any night with and without the rule. A
@@ -141,6 +149,7 @@ expansion without behaviour change. Details per finding, with tests and results:
 | 1.19.0 | #45 | Room noise step 2 in the report: "Room noise" panel with the plain findings (`js/noise.js`, from 10 minutes) and a heatmap (`Share.noiseSvg`: octave bands × minutes, shaded 0–15 dB above each band's quiet level; background level line; snore ticks; drawn at the panel's width); the same section in the shared HTML report. The star-map image is unchanged |
 | 1.19.1 | #46 | Night 6 follow-up: ignored sounds keep `lowRise` and `onsetJump` in the data file (were `null` since 1.16.0/1.18.0); a mains hum is recognised although its readings scatter by a few Hz (night 6: 46–55 Hz around 50.0 was called "a motor or fan") |
 | 1.20.0 | #47 | Auto background test: a sound must rise 6 dB above the moment before it (median snore band over the 1 s before; night 6's false snores 2–3 dB, real snores 13–22 dB over 0.25 s). New per-sound `preRise25/50/100` (0.25 / 0.5 / 1 s), option `minPreRiseDb` + `preRiseSec`, reason `no-pre-rise`; background tests hand over what their own rules set aside (`setAside`); the evaluator re-counts the auto test for each window and 4 / 6 / 8 dB. Headline unchanged |
+| 1.21.0 | #48 | **Counting change (owner):** Low requires 6 dB of breath noise like Normal (`SENSITIVITY.low.minBreathRiseDb`). ESC-50 at Low: snoring clips 30/40 either way, night sounds 73 → 70 (confirmed 19 → 17); simulated rooms: hum swells between snores 127 false → 0, 64 → 56 of 140 snores found, other rooms unchanged. High unchanged (see owner decisions) |
 
 ## 4. Architecture
 

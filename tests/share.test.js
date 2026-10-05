@@ -63,6 +63,11 @@ test('report file is self-contained, script-free and plays the samples', () => {
   assert.ok(html.length < 600 * 1024, `report is ${Math.round(html.length / 1024)} KB`);
   assert.doesNotMatch(html, /rush of air/, 'High does not check breath noise');
   assert.match(
+    reportFor(s, { sensitivity: 'low' }),
+    /on Low sensitivity it must also carry the rush of air/,
+    'Low has it too since 1.21.0',
+  );
+  assert.match(
     reportFor(s, { sensitivity: 'normal' }),
     /on Normal sensitivity it must also carry the rush of air/,
     'Normal explains its breath rule',
