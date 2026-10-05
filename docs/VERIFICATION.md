@@ -11,7 +11,7 @@ found N1–N4; each fix was its own PR, tested before merging and again on `main
 **Environment:** as for 1.22.0 (Linux container, Claude cloud session; Node v22.22.0, npm
 10.9.4; Playwright 1.63.0, ESLint 10.11.0, Prettier 3.9.9; Chromium 141.0.7390.37 via
 `CHROMIUM_PATH=/opt/pw-browsers/chromium-1194/chrome-linux/chrome`; `npx playwright install`
-not run). No ESC-50 checkout in this container.
+not run). ESC-50 checkout `33c8ce9eb2cf0b1c2f8bcf322eb349b6be34dbb6` outside the repository.
 
 | Command | Result |
 | --- | --- |
@@ -30,6 +30,7 @@ not run). No ESC-50 checkout in this container.
 | `npm run evaluate -- tests/fixtures/rhythm-boundary-report.json` | unchanged: 1 → 2 snore-like, 0 → 2 confirmed |
 | New tests against the old code (each fix's code stashed) | N2/N3: the 3 new evaluator tests fail (and the 1.22.0 High test, whose label changed); N1: the 3 new room-noise tests fail; N4: the new share test and the e2e step fail |
 | Old vs new `summarize`/`describe`, 400 random nights without gaps (scratch script) | identical output; 399 of the nights had findings |
+| `npm run eval:public` (fresh ESC-50 clone, on 1.22.3) | **identical to 1.22.0**: Normal snoring 29/40 (13 confirmed), night sounds 76/1000 (13), other 158/1960 (31); without the breath rule 30/40 (14), 100/1000 (22); 3 dB 29/40 (13), 87/1000 (18); knock rule 28/40 (11), 50/1000 (8) |
 
 **CI and deployment:** on `main` at `7095f5f`, `CI` (`CI tests`), `Tag release` (`v1.22.3`)
 and `Deploy to GitHub Pages` passed; tags `v1.22.1` (`146e586`) and `v1.22.2` (`3851896`)
@@ -40,8 +41,8 @@ finished at 14:50:31Z and CI at 14:51:34Z: publishing again did not wait for the
 
 **Counts:** no detection rule, threshold or default changed in 1.22.1–1.22.3; the counting
 detector, the background tests' live counts and the demo night (16 confirmed, 5 ignored)
-are unchanged. The ESC-50 benchmark was not re-run (no detection change; the dataset tests
-will start with a fresh run).
+are unchanged, and the ESC-50 benchmark gives the same figures as at 1.22.0 (the baseline for
+the dataset tests).
 
 **Not run / not available:** physical iPhone, Safari/WebKit, Firefox; long-night memory on
 a phone; the public-dataset tests (next task, HANDOVER §10); the owner's real-night files

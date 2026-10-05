@@ -346,8 +346,9 @@ tags. Rules: `CLAUDE.md` (= `AGENTS.md`) and `docs/WORKING-RULES.md`.
 **Agreed next (owner):** public-dataset tests, prepared but not run (the third review's
 fixes came first, 1.22.1–1.22.3). Run every rule variant as its own full detector pass over
 the audio, as `scripts/eval-public.js` does, never as a re-count of stored sounds (third
-review N2); start with a fresh `npm run eval:public` baseline (the reviewer could not
-reproduce the ESC-50 figures). Keep the harness and all outputs outside the repository.
+review N2). The fresh `npm run eval:public` baseline on 1.22.3 matches 1.22.0 (VERIFICATION,
+checkpoint 1.22.3; the reviewer had not run it). Keep the harness and all outputs outside the
+repository.
 1. **APSAA** (Zenodo DOI 10.5281/zenodo.14096541, CC BY 4.0; 32 whole nights, audio WAV
    plus polygraph incl. a snore channel from the nasal cannula): count snores with High
    without the rule and with 3 / 4.5 / 6 dB, and Normal, against the snore channel.
