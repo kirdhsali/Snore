@@ -95,7 +95,9 @@ test('a night goes idle → requesting → recording → stopping → completed 
   assert.equal(night.config.minBreathRiseDb, 6, 'Normal counts with the 6 dB breath-noise rule (1.17.0)');
   assert.ok(night.summary.snoreCount === 16 && !night.summary.ignoredByReason['no-breath'], 'the demo snores have clear breath noise');
   // The breath-noise background tests ended when Normal took the rule over; the data file holds what they showed.
-  assert.deepEqual(Object.keys(night.shadows), ['knock', 'auto']);
+  assert.deepEqual(Object.keys(night.shadows), ['knock', 'auto', 'high']);
+  assert.deepEqual(night.shadows.high.options, { sensitivity: 'high', minBreathRiseDb: null }, 'High without the breath rule (1.22.0)');
+  assert.equal(night.shadows.high.config.minBreathRiseDb, null);
   assert.deepEqual(night.shadows.knock.options, { sensitivity: 'normal', maxOnsetJumpDb: 20 });
   assert.equal(night.shadows.knock.config.minBreathRiseDb, 6, 'the knock test counts like Normal otherwise');
   assert.equal(night.shadows.knock.summary.snoreCount, 16, 'the demo snores swell; none starts suddenly');
@@ -290,7 +292,37 @@ test('the auto test keeps a random sample of clips of snores the counting detect
   assert.equal(kept.length, 5, 'capped');
   assert.ok(kept.every((x) => !overlapsMain(night, x) && x.clip instanceof Int16Array && x.clip.length > 0));
   assert.ok(
-    Object.entries(night.shadows).every(([k, sh]) => k === 'auto' || sh.snores.every((x) => !x.clip)),
-    'the other background tests keep no audio',
+    night.shadows.knock.snores.every((x) => !x.clip),
+    'the knock test keeps no audio',
+  );
+});
+
+test('the High test keeps clips only of snores the counting detector missed with 3-6 dB of breath noise (1.22.0)', async () => {
+  const r = Synth.rng(1);
+  const plan = [];
+  for (let t = 30; t < 280; t += 40) plan.push(...Synth.snoreRun(t, 6, r).map((p) => ({ ...p, amp: 0.0004 * (0.5 + r()) })));
+  const samples = Synth.compose(16000, 300, plan, 1, 0.00006).samples;
+  const overlapsMain = (night, x) => night.snores.some((m) => m.start < x.end + 0.2 && m.end > x.start - 0.2);
+  const record = async (highTestClips) => {
+    const b = fakeBrowser();
+    const rec = createRecorder({ version: 'test', env: { ...b.env, random: Synth.rng(9) }, highTestClips });
+    await rec.start({ source: 'mic', sensitivity: 'normal' });
+    b.feed(samples);
+    return rec.stop();
+  };
+  const inBand = (x) => x.breathRise >= 3 && x.breathRise < 6;
+  const night = await record(1000);
+  const high = night.shadows.high.snores;
+  const missed = high.filter((x) => x.isSnore && !overlapsMain(night, x));
+  assert.ok(missed.some(inBand) && missed.some((x) => !inBand(x)), 'High misses-of-Normal on both sides of the band');
+  assert.deepEqual(
+    high.filter((x) => x.clip),
+    missed.filter(inBand),
+    'a clip for each of those in the band and nothing else',
+  );
+  const none = await record(0);
+  assert.ok(
+    none.shadows.high.snores.every((x) => !x.clip),
+    'no clips when switched off',
   );
 });

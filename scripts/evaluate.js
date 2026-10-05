@@ -238,10 +238,17 @@ function compareShadow(r, shadow, name, hours, gaps = []) {
     `    found by both ${both}, only ${r.sensitivity} ${main.length - both}, only ${name} ${auto.filter((x) => !near(x, main)).length}`,
   );
   if (trig.length) console.log(`    trigger margin over the night: min ${q(0)}, median ${q(0.5)}, max ${q(1)} dB`);
-  if (shadow.minBreathRiseDb != null && shadow.minBreathRiseDb < 6) {
-    const n = stricterBreath(shadow, 6, gaps);
-    console.log(`    with a 6 dB breath-noise rule instead (from its stored sounds): ${n} (${(n / hours).toFixed(0)}/h)`);
-  }
+  // Stricter breath-noise rules from its stored sounds (the High test runs without one: 3, 4.5 or 6 dB?).
+  const stricter = [3, 4.5, 6].filter((db) => shadow.minBreathRiseDb == null || db > shadow.minBreathRiseDb);
+  if (stricter.length)
+    console.log(
+      `    with a breath-noise rule of ${stricter
+        .map((db) => {
+          const n = stricterBreath(shadow, db, gaps);
+          return `${db} dB: ${n} (${(n / hours).toFixed(0)}/h)`;
+        })
+        .join(', ')} (from its stored sounds)`,
+    );
   if (shadow.maxOnsetJumpDb != null) {
     // The counted snores this rule drops, to check by ear in the snores WAV.
     const sudden = r.snores.filter((x) => x.onsetJumpDb != null && x.onsetJumpDb > shadow.maxOnsetJumpDb);

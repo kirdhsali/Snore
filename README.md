@@ -131,10 +131,11 @@ Report, after Stop:
   The JSON also holds the **room noise per minute** under `noise` (since 1.15.0): the
   usual background level, the quietest and loudest moments, octave bands from 31.5 Hz
   and the strongest low tone (a mains hum or a fan), all as levels, never as sound.
-  When the automatic-sensitivity background test heard snores the counting detector
-  did not, up to 60 of them (a random sample) can be downloaded as **test clips**
-  (`.wav`) to check by ear; the JSON gives their place as `wavStartSec` under
-  `shadows.auto.snores`
+  When the background tests heard snores the counting detector did not, a random sample
+  can be downloaded as **test clips** (`.wav`) to check by ear: up to 60 from the
+  automatic-sensitivity test and (since 1.22.0) up to 30 from the High test, only those
+  with 3–6 dB of breath noise. The JSON gives their place as `wavStartSec` under
+  `shadows.auto.snores` and `shadows.high.snores`
 
 ## How detection works
 
@@ -206,13 +207,16 @@ Report, after Stop:
    above 20 dB as “sudden start”. In night 5 four knocks passed every rule and
    confirmed each other (21–42 dB); real snores of nights 4 and 5 rose at most
    23 dB (99 % under 17); the rule would have dropped 2 of night 4's 955.
-   The app runs two extra detectors on the same audio: **knock** (chosen
-   sensitivity + sudden-start rule 20 dB) and **auto** (automatic sensitivity +
-   3 dB breath rule + 8 dB snore-band rule + 6 dB over the second before). Every sound also gets `lowRiseDb` in
-   the JSON. Their counts, margins and snore times go into the JSON under
-   `shadows`, the report shows one line, and `npm run evaluate` compares them with
-   the recorded result (and re-counts auto with a 6 dB breath rule from its stored
-   sounds). Only auto keeps audio, for the test clips described above. The
+   The app runs three extra detectors on the same audio: **knock** (chosen
+   sensitivity + sudden-start rule 20 dB), **auto** (automatic sensitivity +
+   3 dB breath rule + 8 dB snore-band rule + 6 dB over the second before) and,
+   since 1.22.0, **high** (High sensitivity without the breath rule: would a gentler
+   rule of 3–4.5 dB suit High's quiet snorers better than 6 dB?). Every sound also
+   gets `lowRiseDb` in the JSON. Their counts, margins and snore times go into the
+   JSON under `shadows`, the report shows one line, and `npm run evaluate` compares
+   them with the recorded result (and re-counts auto and high with stricter breath
+   rules from their stored sounds: 4.5 / 6 dB and 3 / 4.5 / 6 dB). Auto and high keep
+   audio for the test clips described above. The
    breath-rule background tests of 1.13–1.16 (**breath**, 3 dB; **breath6**, 6 dB)
    ended when Normal took the rule over; `npm run evaluate` shows any night with
    and without the rule from the stored sounds.
@@ -222,7 +226,8 @@ Report, after Stop:
    cough) are listed as “possible” and not counted.
 4. Only sounds classified as snores keep their audio (downsampled to 8 kHz, 16-bit): the
    counting detector's snores, plus at most 60 test clips of snores only the automatic-
-   sensitivity background test heard. A rolling buffer
+   sensitivity background test heard and at most 30 of the High test's (3–6 dB of breath
+   noise). A rolling buffer
    of a few seconds exists only to capture the start of a snore; it is
    continuously overwritten and wiped when the recording stops.
 

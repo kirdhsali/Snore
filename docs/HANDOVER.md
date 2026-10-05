@@ -43,7 +43,7 @@ User journeys:
 Requirements:
 - One-button UI, live view, report on Stop. **[verified]**
 - **Privacy:** only short snore clips keep audio (since 1.14.0 also up to 60 test clips of
-  snores only the auto test heard, **[owner]**); everything runs on the device; no
+  snores only the auto test heard, since 1.22.0 up to 30 of the High test's, **[owner]**); everything runs on the device; no
   backend, uploads or accounts. Non-snore audio exists only in a ~6.5 s rolling
   buffer and as a rhythm candidate (≤ 12 s); ignored sounds keep features only; all
   buffers are wiped on Stop. Clips include 0.25 s before / 0.15 s after a snore and
@@ -150,6 +150,7 @@ expansion without behaviour change. Details per finding, with tests and results:
 | 1.19.1 | #46 | Night 6 follow-up: ignored sounds keep `lowRise` and `onsetJump` in the data file (were `null` since 1.16.0/1.18.0); a mains hum is recognised although its readings scatter by a few Hz (night 6: 46–55 Hz around 50.0 was called "a motor or fan") |
 | 1.20.0 | #47 | Auto background test: a sound must rise 6 dB above the moment before it (median snore band over the 1 s before; night 6's false snores 2–3 dB, real snores 13–22 dB over 0.25 s). New per-sound `preRise25/50/100` (0.25 / 0.5 / 1 s), option `minPreRiseDb` + `preRiseSec`, reason `no-pre-rise`; background tests hand over what their own rules set aside (`setAside`); the evaluator re-counts the auto test for each window and 4 / 6 / 8 dB. Headline unchanged |
 | 1.21.0 | #48 | **Counting change (owner):** Low requires 6 dB of breath noise like Normal (`SENSITIVITY.low.minBreathRiseDb`). ESC-50 at Low: snoring clips 30/40 either way, night sounds 73 → 70 (confirmed 19 → 17); simulated rooms: hum swells between snores 127 false → 0, 64 → 56 of 140 snores found, other rooms unchanged. High unchanged (see owner decisions) |
+| 1.22.0 | #50 | High background test `high` (owner, 2026-10-05): High sensitivity without the breath rule, so `npm run evaluate` re-counts each night for High with 3 / 4.5 / 6 dB; keeps up to 30 test clips of its snores the counting detector missed with 3–6 dB of breath noise (owner: keep the clips). Clip sampling per background test (`sample: {max, accept}`). Headline unchanged |
 
 ## 4. Architecture
 
