@@ -93,6 +93,8 @@
           subBass: ev.subBass,
           fill: ev.fill,
           breathRise: ev.breathRise,
+          lowRise: ev.lowRise,
+          onsetJump: ev.onsetJump,
         });
       }
     }

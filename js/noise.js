@@ -184,7 +184,11 @@
     const toneMinutes = marked.filter(Boolean).length;
     let tone = null;
     if (toneMinutes >= 10) {
-      const mains = pitches.every((h) => Math.abs(h - 50) <= 2 || Math.abs(h - 60) <= 2);
+      // Mains hum sits at exactly 50 or 60 Hz, but the readings scatter by a few Hz (FFT bins of
+      // about 23 Hz; night 6: 46-55 Hz around 50.0). A motor's tone drifts away from it.
+      const mid = median(pitches);
+      const net = [50, 60].find((f) => Math.abs(mid - f) <= 1.5);
+      const mains = net != null && pitches.filter((h) => Math.abs(h - net) <= 4).length >= 0.8 * pitches.length;
       tone = { lowHz: percentile(pitches, 0.1), highHz: percentile(pitches, 0.9), share: toneMinutes / M.length, mains };
     }
 
