@@ -1,12 +1,13 @@
 # Snorewatch handover
 
-State at version **1.19.0**, prepared 2026-10-04. 1.12.0 was reviewed independently
+State at version **1.19.1**, prepared 2026-10-05. 1.12.0 was reviewed independently
 twice (v1.9.1 and `a87c1f3`); 1.12.1–1.12.4 fix the second review's C1, C2, C3 and C5.
 1.12.5–1.14.0 follow up the first real night recorded with 1.12.4 (night 4, §6a): data
 file and clips (1.12.5–1.12.6), the 6 dB breath test (1.13.0), auto sensitivity's release
 (1.13.1) and its test clips (1.14.0). 1.15.0 records the room noise; 1.16.0 follows up
 night 5 (§6b); 1.17.0 makes Normal count with the 6 dB breath rule (owner's decision);
-1.18.0 adds the knock background test; 1.19.0 shows the room noise in the report.
+1.18.0 adds the knock background test; 1.19.0 shows the room noise in the report; 1.19.1
+follows up night 6 (§6c).
 The tested revisions and all check results are in [`docs/VERIFICATION.md`](VERIFICATION.md);
 the finding-by-finding answers to both reviews are in [`docs/REVIEW-RESPONSE.md`](REVIEW-RESPONSE.md).
 Marks: **[verified]** checked against this repository or by running it;
@@ -138,6 +139,7 @@ expansion without behaviour change. Details per finding, with tests and results:
 | 1.17.0 | #43 | **Counting change (owner):** Normal requires 6 dB of breath noise (`SENSITIVITY.normal.minBreathRiseDb`, `breathRuleDb()`); night 4 961 → 661 confirmed, night 5 76 → 73; ESC-50 night sounds 100 → 78 (confirmed 23 → 14), snoring clips 29/40 kept (confirmed 13 → 12). Background tests `breath`/`breath6` removed (exactly re-computable offline); the JSON names the rule (`minBreathRiseDb`); the evaluator applies the night's sensitivity and prints the count without the rule |
 | 1.18.0 | #44 | Knock background test `knock` (chosen sensitivity + sudden-start rule): new measure `onsetJump`, the largest rise over 20 ms at a sound's start, stored per sound (`onsetJumpDb`); option `maxOnsetJumpDb` rejects as 'sudden'; the test uses 20 dB. Night 5's 4 knocks 21–42 dB, real snores ≤ 23 dB (2 of night 4's 955 above 20). Synthetic `bump`. `eval:public` fades clips in and out over 0.1 s (they started mid-sound, which looked like a knock); with the rule ESC-50 night sounds 76 → 50 / 1000, snoring clips 29 → 28 (confirmed 13 → 11). Headline unchanged |
 | 1.19.0 | #45 | Room noise step 2 in the report: "Room noise" panel with the plain findings (`js/noise.js`, from 10 minutes) and a heatmap (`Share.noiseSvg`: octave bands × minutes, shaded 0–15 dB above each band's quiet level; background level line; snore ticks; drawn at the panel's width); the same section in the shared HTML report. The star-map image is unchanged |
+| 1.19.1 | #46 | Night 6 follow-up: ignored sounds keep `lowRise` and `onsetJump` in the data file (were `null` since 1.16.0/1.18.0); a mains hum is recognised although its readings scatter by a few Hz (night 6: 46–55 Hz around 50.0 was called "a motor or fan") |
 
 ## 4. Architecture
 
@@ -312,6 +314,36 @@ Aggregate figures only; the files are not committed. Local time UTC+2 (Europe/Pa
 - Room noise (first real profile): very quiet (−89 dBFS), a drifting 70–83 Hz tone for
   ~46% of the night; mid/high-pitch stretches mostly coincide with snoring (the sleeper's
   breathing), which the findings now leave out.
+
+## 6c. Real night 6 (home, recorded 2026-10-05 with 1.19.0)
+
+Aggregate figures only; the files are not committed. Local time UTC+2 (Europe/Zurich).
+
+- 01:34–06:45, 5 h 11 min, Normal with the 6 dB breath rule; two interruptions at the very
+  end (06:45, muted 23 s and stalled 6 s: the stop). 223 confirmed (43/h), 55 possible.
+  **[verified]**
+- **Breath rule (first night counting):** without it 290 confirmed. The 100 sounds it set
+  aside look like night 4's hum swells: centroid median 72 Hz (snores 115), breath noise
+  3 dB (snores 23), −73 dBFS, only 7 within 12 s of a confirmed snore. No audio is kept for
+  them, so this rests on their features. **[verified from features]**
+- **Snoring:** 01:46–02:40 clear harmonic snores (snore band 22 dB above the 0.25 s before,
+  median); 04:28–05:18 snore-like over the device's noise (11 dB). **06:39–06:44 (45 confirmed):
+  a different sound**, an almost pure tone at 170–200 Hz, sometimes gliding down, without the
+  harmonics of the earlier snores, at a breathing rhythm (median 4.8 s); often already
+  sounding before the event starts. Open: a tonal snore or something else (alarm, bed, a
+  whistle). The owner can listen at about 345–360 s in the snores WAV. **[open]**
+- **Knock test:** 223, identical; 2 sounds set aside as sudden; Normal's confirmed snores
+  rose at most 17.2 dB within 20 ms. **[verified]**
+- **Auto test:** 757 (146/h); 593 only auto, 300 of them in the first hour while snoring.
+  Test clips: the sound's spectrum matches the 0.25 s before it (snore-band rise median
+  2.3 dB); stored `lowRise` of auto-only snores median 8.8 dB, just over its 8 dB rule,
+  because the tracked snore-band noise sits at the troughs of the 50 Hz hum. Offline
+  candidate: a rise of ≥ 6 dB over the 0.25 s before would drop 83 % of the test clips and
+  keep 94 % of the clear snores (83 % of all confirmed). **[recommendation]**, not built.
+- **Room:** mains hum at 50 Hz all night (called "a motor or fan" until 1.19.1); a device
+  switching on 6 times every 53 min for 22 min, 10 dB louder (night 4: every 52 min for
+  21 min; probably the fridge). 160 of 223 snores fell in its on-periods, but 3 of the 6
+  on-periods had none; no causal link shown.
 
 **How auto sensitivity works (exact, 1.16.0).** Starts like Normal (trigger 8 dB, release
 4 dB above the floor) but with an absolute gate of −95 dBFS instead of −75. The floor follows

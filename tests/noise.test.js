@@ -117,6 +117,13 @@ test('a steady tone is reported only when its pitch holds; mains hum is told apa
   const mains = summarize(minutes(120, (i, m) => (m.humHz = 50 + (i % 3) * 0.4)));
   assert.ok(mains.tone && mains.tone.mains && mains.tone.share > 0.9);
   assert.match(describe(mains, at)[0], /about 50 Hz .* mains hum/);
+  // Night 6: a real mains hum read as 46-55 Hz from minute to minute (coarse FFT bins), median 50.
+  const readings = [50, 49, 52, 50, 51, 53, 50, 48, 54, 50, 49, 52];
+  const home = summarize(minutes(120, (i, m) => (m.humHz = readings[i % readings.length])));
+  assert.ok(home.tone && home.tone.mains, 'scattered readings around 50 Hz are still mains hum');
+  assert.match(describe(home, at)[0], /mains hum/);
+  const near = summarize(minutes(120, (i, m) => (m.humHz = 54 + (i % 2))));
+  assert.ok(near.tone && !near.tone.mains, 'a motor near 54 Hz is not mains hum');
   const motor = summarize(minutes(120, (i, m) => (m.humHz = 74 + (i % 5))));
   assert.ok(motor.tone && !motor.tone.mains);
   assert.match(describe(motor, at)[0], /motor or fan/);

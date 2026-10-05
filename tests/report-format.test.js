@@ -76,6 +76,15 @@ test('a finished night survives the round trip through the data file', () => {
   assert.deepEqual(back.missing, []);
   assert.equal(back.snores.length, night.snores.length);
   assert.equal(back.ignored.length, night.ignored.length);
+  // Ignored sounds keep the newer measures too (they were left out before 1.19.1).
+  assert.ok(
+    back.ignored.every((e) => typeof e.lowRise === 'number'),
+    'snore-band rise of ignored sounds',
+  );
+  assert.ok(
+    back.ignored.filter((e) => e.reason !== 'too-long').every((e) => typeof e.onsetJump === 'number'),
+    'onset jump of ignored sounds (too-long ones have no audio to measure)',
+  );
   const inOrder = [...night.snores].sort((a, b) => a.start - b.start);
   back.snores.forEach((e, i) => {
     const x = inOrder[i];
