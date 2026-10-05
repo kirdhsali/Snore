@@ -340,8 +340,9 @@ Aggregate figures only; the files are not committed. Local time UTC+2 (Europe/Zu
   median); 04:28–05:18 snore-like over the device's noise (11 dB). **06:39–06:44 (45 confirmed):
   a different sound**, an almost pure tone at 170–200 Hz, sometimes gliding down, without the
   harmonics of the earlier snores, at a breathing rhythm (median 4.8 s); often already
-  sounding before the event starts. Open: a tonal snore or something else (alarm, bed, a
-  whistle). The owner can listen at about 345–360 s in the snores WAV. **[open]**
+  sounding before the event starts. **[owner] listened (2026-10-05):** unlike the bad clips
+  of earlier nights, almost all have snoring in the background, sometimes with a sound like
+  moaning; treat them as real snores for now and revisit with more data.
 - **Knock test:** 223, identical; 2 sounds set aside as sudden; Normal's confirmed snores
   rose at most 17.2 dB within 20 ms. **[verified]**
 - **Auto test:** 757 (146/h); 593 only auto, 300 of them in the first hour while snoring.
@@ -417,8 +418,18 @@ when `CI tests` is green (Claude may merge its own PRs); bump `package.json` and
   blocks over the last 180 s, every 30 s). Not testable offline (the data file holds no
   continuous audio) and a simulated flickering room did not fool auto; each variant would
   need its own background detector. Try it if the rule above does not fix auto.
-- **Late sounds of night 6 (06:39–06:44):** the owner was sent the clips to listen to;
-  depending on the answer, a rule against pure tones (no harmonics) may be worth testing.
+- **Late sounds of night 6 (06:39–06:44):** the owner judged them real snores (snoring in
+  the background, sometimes moaning); keep them counted, revisit with more nights.
+- **Breath rule for High (owner, 2026-10-05):** the app should work for many people, so the
+  owner sees 3–4.5 dB as a possible middle ground for High and asked how to confirm it.
+  Evidence so far: ESC-50 played at the benchmark level / 10 dB / 16 dB quieter (High
+  without → 3 / 4.5 / 6 dB): snoring clips 29 → 27/27/27, 29 → 29/29/28, 31 → 30/28/28;
+  false night sounds 120 → 94/84/74, 117 → 91/82/72, 115 → 83/71/63. Night 4's hum swells
+  after 07:30 (Normal): 260 → 169/90/46. The limits cost about the same snores and differ
+  in how many false sounds they remove. To confirm (proposed to the owner): a `high`
+  background test (High without the rule, breath noise per snore, possibly a few test clips
+  of its 3–6 dB snores to check by ear), and above all nights from other people, quiet
+  snorers in other rooms, recorded on High.
 - **Knock test (1.18.0, background):** check in the next nights which snores the `knock`
   test drops (`npm run evaluate` lists its count; `onsetJumpDb` is stored per sound; listen
   to Normal's snores above 20 dB). Make it count only after real nights and the owner's
