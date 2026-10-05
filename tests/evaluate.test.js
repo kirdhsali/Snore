@@ -2,7 +2,7 @@
 // scripts/evaluate.js re-runs a downloaded night's stored features through the rules.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { eventsOf, reevaluate, stricterBreath } = require('../scripts/evaluate.js');
+const { eventsOf, reevaluate, stricterBreath, preRiseVariant } = require('../scripts/evaluate.js');
 
 const feature = (offsetSec, breathRiseDb, extra = {}) => ({
   offsetSec,
@@ -199,4 +199,21 @@ test('evaluator lists the counted snores the knock test drops, with their place 
   const out = evaluateOutput(report, 'UTC');
   assert.match(out, /knock: sensitivity normal, breath-noise rule 6 dB, sudden-start rule 20 dB/, out);
   assert.match(out, /normal's snores that start suddenly: 01:11:03 \(WAV 0 s\) \+36\.7 dB\n/, out);
+});
+
+test('the auto test can be re-counted with another window or limit for the rise over the moment before (1.20.0)', () => {
+  const rise = (r25, r100) => ({ preRise25Db: r25, preRise50Db: (r25 + r100) / 2, preRise100Db: r100 });
+  const shadow = {
+    snores: [2, 6].map((t) => ({ offsetSec: t, durationSec: 1, aboveRoomDb: 12, ...rise(9, 9) })),
+    setAside: [
+      { offsetSec: 10, durationSec: 1, aboveRoomDb: 9, reason: 'no-pre-rise', bursts: 1, ...rise(4, 7) },
+      { offsetSec: 14, durationSec: 1, aboveRoomDb: 9, reason: 'no-pre-rise', bursts: 1, ...rise(4, 7) },
+      { offsetSec: 18, durationSec: 1, aboveRoomDb: 9, reason: 'no-pre-rise', bursts: 4, ...rise(4, 7) },
+    ],
+  };
+  assert.equal(preRiseVariant(shadow, 1, 6).length, 4, 'over 1 s the two set-aside sounds pass; the choppy one does not count');
+  assert.equal(preRiseVariant(shadow, 0.25, 6).length, 2);
+  assert.equal(preRiseVariant(shadow, 1, 8).length, 2);
+  assert.equal(preRiseVariant(shadow, 1, 6, [{ start: 7, end: 9 }]).length, 4, 'pairs on each side of a gap still confirm');
+  assert.equal(preRiseVariant(shadow, 1, 6, [{ start: 3, end: 5 }]).length, 3, '2 s loses its partner across the gap');
 });

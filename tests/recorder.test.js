@@ -99,7 +99,14 @@ test('a night goes idle → requesting → recording → stopping → completed 
   assert.deepEqual(night.shadows.knock.options, { sensitivity: 'normal', maxOnsetJumpDb: 20 });
   assert.equal(night.shadows.knock.config.minBreathRiseDb, 6, 'the knock test counts like Normal otherwise');
   assert.equal(night.shadows.knock.summary.snoreCount, 16, 'the demo snores swell; none starts suddenly');
-  assert.deepEqual(night.shadows.auto.options, { sensitivity: 'auto', minBreathRiseDb: 3, minLowRiseDb: 8 });
+  assert.deepEqual(night.shadows.auto.options, {
+    sensitivity: 'auto',
+    minBreathRiseDb: 3,
+    minLowRiseDb: 8,
+    minPreRiseDb: 6,
+    preRiseSec: 1,
+  });
+  assert.ok(Array.isArray(night.shadows.auto.setAside), 'the sounds its own rules set aside are handed over');
   assert.deepEqual(night.noise.bandsHz, [31.5, 63, 125, 250, 500, 1000, 2000, 4000]); // 16 kHz: up to the 4 kHz octave
   assert.deepEqual(
     night.noise.minutes.map((m) => m.t),

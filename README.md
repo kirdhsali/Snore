@@ -187,7 +187,13 @@ Report, after Stop:
    absolute gate only guards against silence (−95 dBFS). Because its margins are
    small, a sound must also raise the snore band (50–800 Hz) at least 8 dB above
    that band's own room noise (since 1.16.0): in a quiet room with a motor's low
-   tone, quiet breathing otherwise passed as snoring.
+   tone, quiet breathing otherwise passed as snoring. Since 1.20.0 a sound must also
+   rise 6 dB above **the moment before it** (the median of the snore band over the
+   second before the sound): at home (night 6) auto still counted the room's own
+   flicker, about 2–3 dB above the moment before, while real snores rose 13–22 dB.
+   Every sound gets this rise over 0.25, 0.5 and 1 s (`preRise25Db`, `preRise50Db`,
+   `preRise100Db`); the auto test also hands over the sounds this rule set aside, so
+   `npm run evaluate` can re-count the night with each window and with 4, 6 or 8 dB.
    **Sudden start (testing in the background, since 1.18.0):** a knock or a bump
    reaches its full level at once and dies away; a snore swells with the breath.
    Every sound gets `onsetJumpDb`, the largest rise over 20 ms at its start (from
@@ -197,7 +203,7 @@ Report, after Stop:
    23 dB (99 % under 17); the rule would have dropped 2 of night 4's 955.
    The app runs two extra detectors on the same audio: **knock** (chosen
    sensitivity + sudden-start rule 20 dB) and **auto** (automatic sensitivity +
-   3 dB breath rule + 8 dB snore-band rule). Every sound also gets `lowRiseDb` in
+   3 dB breath rule + 8 dB snore-band rule + 6 dB over the second before). Every sound also gets `lowRiseDb` in
    the JSON. Their counts, margins and snore times go into the JSON under
    `shadows`, the report shows one line, and `npm run evaluate` compares them with
    the recorded result (and re-counts auto with a 6 dB breath rule from its stored

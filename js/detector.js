@@ -35,6 +35,11 @@
  *      dies away; a snore swells with the breath. `onsetJump` measures the
  *      largest rise over 20 ms at the start; with `maxOnsetJumpDb` set, sounds
  *      above it are ignored as 'sudden'. Off by default; a background test uses 20 dB.
+ *   3b''''. Rise over the moment before: a snore stands out from the second before
+ *      it, a flicker of the room's own noise does not. `preRise25/50/100` compare
+ *      the sound's snore band with its median over the 0.25, 0.5 and 1 s before
+ *      the sound; with `minPreRiseDb` set, sounds below it (over `preRiseSec`) are
+ *      ignored as 'no-pre-rise'. Off by default; the auto background test uses it.
  *   3c. Snores repeat with the breathing. SessionStats marks a snore as
  *      confirmed when another snore lies 2-12 s before or after it; isolated
  *      ones are only "possible" and left out of the headline figures.
@@ -83,6 +88,8 @@
     minBreathRiseDb: undefined, // rise of 150-1500 Hz above the room noise a snore needs; undefined = the sensitivity's, null = not checked
     minLowRiseDb: null, // rise of 50-800 Hz above that band's room noise a snore needs; null = not checked
     maxOnsetJumpDb: null, // largest 20 ms rise at a snore's start (knocks jump more); null = not checked
+    minPreRiseDb: null, // rise of 50-800 Hz over the moment before the sound a snore needs; null = not checked
+    preRiseSec: 0.25, // ...measured over this long before it (one of PRE_RISE_SEC)
     // Rhythm rescue of choppy but snore-like sounds
     rhythmMinSec: Stats.RHYTHM_MIN_SEC, // start-to-start distance to an accepted snore (js/stats.js)
     rhythmMaxSec: Stats.RHYTHM_MAX_SEC,
@@ -109,6 +116,11 @@
     onEvent: null,
   };
 
+  // Lengths of "the moment before" a sound (s) over which its rise is measured (3b'''').
+  const PRE_RISE_SEC = [0.25, 0.5, 1];
+  /** Feature name of the rise over `sec` before a sound: preRise25, preRise50, preRise100. */
+  const preRiseKey = (sec) => `preRise${Math.round(sec * 100)}`;
+
   const REASONS = {
     'too-short': 'Too short (click, knock)',
     'too-long': 'Too long (continuous noise)',
@@ -119,6 +131,7 @@
     'no-breath': 'No breath noise (hum, rumble)',
     'no-low-rise': 'No rise in the snore band (breathing, room hum)',
     sudden: 'Sudden start (knock, bump)',
+    'no-pre-rise': 'Not above the moment before (room flicker)',
   };
 
   function nextPow2(n) {
@@ -393,6 +406,9 @@
       this.bgLow = null; // room noise level in the snore band (dB), tracked like the floor
       this.calibLow = [];
       this.lastEventEndFrame = -Infinity;
+      // Snore-band level of the latest frames, for the rise over the moment before a sound.
+      this.lowHist = new Float32Array(Math.ceil(Math.max(...PRE_RISE_SEC) / this.hopSec) + 1);
+      this.lowHistCount = 0;
       this.levels = []; // history of auto margins: {t, triggerDb, releaseDb, spreadDb, floorDb}
     }
 
@@ -472,6 +488,7 @@
     resumeAfterGap(gapSec) {
       if (this.event) this.gate.decide(this._finish());
       this.gate.breakRhythm();
+      this.lowHistCount = 0; // nothing before a gap counts as "the moment before"
       this.timeOffset += Math.max(0, gapSec);
       return this._takeEmitted();
     }
@@ -566,6 +583,7 @@
             bgMid: this.bgMid,
             mid: 0,
             bgLow: this.bgLow,
+            lowBefore: this._lowBefore(),
             lowBand: 0,
             w: 0,
             low: 0,
@@ -613,6 +631,7 @@
         this.noise.add(index * this.hopSec + this.timeOffset, f.db, quiet, this.analyzer.re, this.analyzer.im);
       }
 
+      this.lowHist[this.lowHistCount++ % this.lowHist.length] = f.lowDb;
       this.frameIndex++;
       if (o.onFrame) {
         o.onFrame({
@@ -663,6 +682,7 @@
       const end = audioEnd + this.timeOffset;
       const w = ev.w || 1;
       const audio = ev.tooLong ? null : this._ringSegment(audioStart - o.preRollSec, audioEnd + o.postRollSec);
+      const soundLow = ev.loudFrames ? 10 * Math.log10(ev.lowBand / ev.loudFrames + 1e-24) : null; // snore band, dB
       const features = {
         lowRatio: ev.low / w,
         highRatio: ev.high / w,
@@ -672,8 +692,11 @@
         subBass: audio ? subBassShare(audio, this.clipRate) : null,
         fill: bodyShare(ev.track.slice(0, ev.lastLoud - ev.startFrame + 1), ev.peakDb),
         breathRise: ev.loudFrames ? 10 * Math.log10(ev.mid / ev.loudFrames + 1e-24) - ev.bgMid : null,
-        lowRise: ev.loudFrames ? 10 * Math.log10(ev.lowBand / ev.loudFrames + 1e-24) - ev.bgLow : null,
+        lowRise: soundLow == null ? null : soundLow - ev.bgLow,
         onsetJump: audio ? onsetJump(audio, this.clipRate) : null,
+        ...Object.fromEntries(
+          PRE_RISE_SEC.map((sec, i) => [preRiseKey(sec), soundLow == null || ev.lowBefore[i] == null ? null : soundLow - ev.lowBefore[i]]),
+        ),
       };
       const verdict = classify(Object.assign({ duration, tooLong: ev.tooLong }, features), o);
       const result = {
@@ -699,6 +722,20 @@
       // Candidates keep their audio only while they wait; it is dropped if no snore confirms them.
       if ((result.isSnore || result.rhythmCandidate) && o.keepClips) result.clip = clipFromAudio(audio);
       return result;
+    }
+
+    /** Median snore-band level (dB) of the frames just before this one, over each of PRE_RISE_SEC (null if too few). */
+    _lowBefore() {
+      const h = this.lowHist;
+      const have = Math.min(this.lowHistCount, h.length);
+      return PRE_RISE_SEC.map((sec) => {
+        const k = Math.min(have, Math.round(sec / this.hopSec));
+        if (k < 2) return null;
+        const v = [];
+        for (let j = 1; j <= k; j++) v.push(h[(this.lowHistCount - j) % h.length]);
+        v.sort((a, b) => a - b);
+        return k % 2 ? v[k >> 1] : (v[k / 2 - 1] + v[k / 2]) / 2;
+      });
     }
 
     /** Downsampled audio between two times, as far as the rolling buffer still holds it. */
@@ -731,6 +768,8 @@
     else if (f.lowRatio < opts.minLowRatio) reason = 'not-low';
     else if (minBreathRiseDb != null && f.breathRise != null && f.breathRise < minBreathRiseDb) reason = 'no-breath';
     else if (opts.minLowRiseDb != null && f.lowRise != null && f.lowRise < opts.minLowRiseDb) reason = 'no-low-rise';
+    else if (opts.minPreRiseDb != null && f[preRiseKey(opts.preRiseSec)] != null && f[preRiseKey(opts.preRiseSec)] < opts.minPreRiseDb)
+      reason = 'no-pre-rise';
     else if (opts.maxOnsetJumpDb != null && f.onsetJump != null && f.onsetJump > opts.maxOnsetJumpDb) reason = 'sudden';
     else if (f.peaks > opts.maxPeaks) reason = 'choppy';
     const margins = [
@@ -835,6 +874,8 @@
     isRhythmCandidate,
     subBassShare,
     onsetJump,
+    preRiseKey,
+    PRE_RISE_SEC,
     countPeaks,
     encodeWav,
     clipFromAudio,
