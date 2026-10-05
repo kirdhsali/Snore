@@ -35,7 +35,7 @@ test('evaluator reads the breath noise of each sound and can apply the breath-no
     reevaluate(events).map((e) => e.reason),
     [null, null, 'no-breath'],
   );
-  assert.equal(reevaluate(events, { sensitivity: 'high' }).filter((e) => e.isSnore).length, 3, 'High has no breath rule');
+  assert.equal(reevaluate(events, { sensitivity: 'high' }).filter((e) => e.isSnore).length, 2, 'High has the rule too (1.23.0)');
   // Candidate rule, as in the background test: the hum swell is rejected.
   const withRule = reevaluate(eventsOf(report), { minBreathRiseDb: 3 });
   assert.deepEqual(
@@ -152,11 +152,11 @@ test("evaluator applies the breath-noise rule of the night's sensitivity and sho
   assert.match(out, /breath-noise rule: recorded none, current rules 6 dB/, out);
   assert.match(out, /confirmed snores\s+5\s+2\n/, out);
   assert.match(out, /without the breath-noise rule: 5 confirmed/, out);
-  // High has no breath rule: nothing changes and there is nothing to compare.
+  // High has had the rule since 1.23.0: a High night recorded before is re-counted with it too.
   const high = evaluateOutput({ ...report, sensitivity: 'high' }, 'UTC');
-  assert.match(high, /breath-noise rule: recorded none, current rules none/, high);
-  assert.match(high, /confirmed snores\s+5\s+5\n/, high);
-  assert.doesNotMatch(high, /without the breath-noise rule/);
+  assert.match(high, /breath-noise rule: recorded none, current rules 6 dB/, high);
+  assert.match(high, /confirmed snores\s+5\s+2\n/, high);
+  assert.match(high, /without the breath-noise rule: 5 confirmed/, high);
 });
 
 test('the sudden-start (knock) rule can be re-run on stored sounds (1.18.0)', () => {

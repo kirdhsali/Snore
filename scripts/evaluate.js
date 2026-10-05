@@ -279,7 +279,7 @@ function compareShadow(r, shadow, name, hours, gaps = []) {
   const estimate = 'approximate: this file is older than 1.22.1, so rhythm rescues are not redone';
   // Its own rules on the stored sounds should give its own count back (features are rounded in the file).
   if (exact) console.log(`    re-counted from its stored sounds with its own rules: ${recount(shadow, {}, gaps).length} confirmed`);
-  // Stricter breath-noise rules from its stored sounds (the High test runs without one: 3, 4.5 or 6 dB?).
+  // Stricter breath-noise rules from its stored sounds (the High test of 1.22.x ran without one: 3, 4.5 or 6 dB?).
   const stricter = [3, 4.5, 6].filter((db) => shadow.minBreathRiseDb == null || db > shadow.minBreathRiseDb);
   if (stricter.length && shadow.snores.length && !shadow.snores.some((x) => x.breathRiseDb != null))
     console.log('    with a stricter breath-noise rule: not evaluable (this file has no breath-noise measurements for it)');

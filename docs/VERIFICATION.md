@@ -1,5 +1,38 @@
 # Verification record
 
+## Checkpoint 1.23.0 (High counts with the breath-noise rule, 2026-10-05)
+
+**Tested code revision:** the PR branch of 1.23.0 on top of `main` with the public-dataset study
+(`research/`). **Counting change, decided by the owner:** High needs 6 dB of breath noise like
+Normal and Low; the `high` background test (1.22.0) and its test clips are removed. The evidence
+is in [`research/RESULTS.md`](../research/RESULTS.md) §2, §3 and §8: on APSAA (32 nights) and
+PSG-Audio (6 nights) the sounds High counted with 3–6 dB of breath noise were at or below chance
+for snoring.
+
+**Environment:** as for 1.22.3 (Node v22.22.0, npm 10.9.4; Chromium 141.0.7390.37 via
+`CHROMIUM_PATH=/opt/pw-browsers/chromium-1194/chrome-linux/chrome`). ESC-50 checkout
+`33c8ce9eb2cf0b1c2f8bcf322eb349b6be34dbb6` outside the repository.
+
+| Command | Result |
+| --- | --- |
+| `npm test` | **passed**, 98/98 (99 at 1.22.3 minus the High test-clip test; the hum-swell, breath-rule, classify, recorder and evaluator tests now expect High with 6 dB) |
+| `npm run lint` | **passed** |
+| `node --check` over `js/*.js scripts/*.js tests/*.js docs/review-probes/*.cjs` | **passed**, 31 files |
+| `npm audit` | 0 vulnerabilities |
+| `CHROMIUM_PATH=… npm run test:e2e` | **passed**; background tests `knock` and `auto` only, the report's background-test line without High |
+| `CHROMIUM_PATH=… node docs/review-probes/full-demo-run.cjs "$PWD" <out>` | **passed**: version "1.23.0 (dev)", 16 confirmed, 0 possible, 5 ignored (too bright 3, choppy 1, too long 1); background tests knock 16, auto 16; no page errors; console: the blocked Google Fonts request and the `/favicon.ico` 404 |
+| `npm run evaluate -- <out>/snore-report_….json` | 16 → 16 confirmed; knock and auto "re-counted from its stored sounds with its own rules: 16 confirmed" |
+| Demo night on High, 1.22.3 vs 1.23.0 (scratch script, detector only) | 16 → 16 confirmed (the demo night has no hum swells); the hum-swell unit test shows the change: High counted the swells without the rule, none with it |
+| `npm run eval:public` | **identical to 1.22.3** (it runs Normal and its variants; one label now reads "High before 1.23.0"): Normal 29/40 (13), 76/1000 (13), 158/1960 (31); without the rule 30/40 (14), 100/1000 (22); 3 dB 29/40 (13), 87/1000 (18) |
+
+**Counts:** Normal, Low and the background tests `knock` and `auto` are unchanged. High now sets
+aside sounds with less than 6 dB of breath noise. Earlier High runs on ESC-50 at the benchmark
+level (HANDOVER §10 of 1.22.3), without the rule → 6 dB: snoring clips 29 → 27, night sounds
+counted 120 → 74 of 1000. Data files from 1.22.x
+keep their `shadows.high`; `npm run evaluate` still reads and re-counts it.
+
+**Not run / not available:** physical iPhone, Safari/WebKit, Firefox; a real night on High.
+
 ## Checkpoint 1.22.3 (third review fixes, 2026-10-05)
 
 **Tested code revision:** `7095f5f567a850147684d1a7a696640d761f0046` (`main` after PR #54, version 1.22.3; checked in a clean worktree). The third

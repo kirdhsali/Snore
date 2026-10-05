@@ -424,12 +424,17 @@ test('breath-noise rule: hum swells without breath noise stop counting, snores s
     const withRule = count({ minBreathRiseDb: 3 });
     assert.ok(withRule.noBreath >= 5, `rule rejects swells: ${withRule.noBreath}/6 at ${sr} Hz`);
     assert.equal(withRule.snores, 6, 'real snores keep counting');
-    // Normal applies the 6 dB rule by itself (1.17.0), Low too (1.21.0); High does not.
-    const normal = count({});
-    assert.equal(normal.swellSnores, 0, `Normal counts no swell at ${sr} Hz`);
-    assert.ok(normal.noBreath >= 5, `most for missing breath noise (${normal.noBreath}/6; the rest is rumble)`);
-    assert.equal(normal.snores, 6, 'and keeps the snores');
-    assert.ok(count({ sensitivity: 'high' }).noBreath === 0, 'High does not check breath noise');
+    // Normal applies the 6 dB rule by itself (1.17.0), Low too (1.21.0), High too (1.23.0).
+    for (const sensitivity of ['normal', 'high']) {
+      const c = count({ sensitivity });
+      assert.equal(c.swellSnores, 0, `${sensitivity} counts no swell at ${sr} Hz`);
+      assert.ok(c.noBreath >= 5, `most for missing breath noise (${c.noBreath}/6; the rest is rumble)`);
+      assert.equal(c.snores, 6, 'and keeps the snores');
+    }
+    assert.ok(
+      count({ sensitivity: 'high', minBreathRiseDb: null }).swellSnores >= 4,
+      'High without the rule (before 1.23.0) counted the swells',
+    );
   }
 });
 
@@ -537,15 +542,17 @@ test('the breath-noise rule in force: the options set it, else the sensitivity (
   assert.equal(Core.breathRuleDb({}), 6, 'default sensitivity is Normal');
   assert.equal(Core.breathRuleDb({ sensitivity: 'normal' }), 6);
   assert.equal(Core.breathRuleDb({ sensitivity: 'low' }), 6, 'Low too since 1.21.0');
-  assert.equal(Core.breathRuleDb({ sensitivity: 'high' }), null);
+  assert.equal(Core.breathRuleDb({ sensitivity: 'high' }), 6, 'High too since 1.23.0');
   assert.equal(Core.breathRuleDb({ sensitivity: 'auto' }), null);
   assert.equal(Core.breathRuleDb({ sensitivity: 'normal', minBreathRiseDb: null }), null, 'null switches it off');
   assert.equal(Core.breathRuleDb({ sensitivity: 'high', minBreathRiseDb: 3 }), 3);
   assert.equal(new Core.SnoreDetector(48000).opts.minBreathRiseDb, 6, 'the detector records the rule it uses');
-  assert.equal(new Core.SnoreDetector(48000, { sensitivity: 'high' }).opts.minBreathRiseDb, null);
+  assert.equal(new Core.SnoreDetector(48000, { sensitivity: 'high' }).opts.minBreathRiseDb, 6);
+  assert.equal(new Core.SnoreDetector(48000, { sensitivity: 'high', minBreathRiseDb: null }).opts.minBreathRiseDb, null);
   const f = { duration: 1, lowRatio: 0.9, highRatio: 0.01, centroid: 150, peaks: 1, subBass: 0.2, breathRise: 4 };
   assert.equal(Core.classify(f, {}).reason, 'no-breath', '4 dB of breath noise is not enough on Normal');
-  assert.equal(Core.classify(f, { sensitivity: 'high' }).isSnore, true);
+  assert.equal(Core.classify(f, { sensitivity: 'high' }).reason, 'no-breath', 'nor on High (1.23.0)');
+  assert.equal(Core.classify(f, { sensitivity: 'high', minBreathRiseDb: 3 }).isSnore, true, 'unless a test sets a gentler rule');
   assert.equal(Core.classify({ ...f, breathRise: 6.5 }, {}).isSnore, true);
 });
 
