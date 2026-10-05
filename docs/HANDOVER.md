@@ -1,10 +1,12 @@
 # Snorewatch handover
 
-State at version **1.22.0** (`main` at `687b1f7`, deployed to GitHub Pages), prepared
-2026-10-05 for an independent review and a fresh development session. The checks of this
-checkpoint are recorded in [`docs/VERIFICATION.md`](VERIFICATION.md) ("Checkpoint
-1.22.0"); the answers to both earlier reviews (v1.9.1 and `a87c1f3`) are in
-[`docs/REVIEW-RESPONSE.md`](REVIEW-RESPONSE.md). Version history with reasons: §4.
+State at version **1.22.3** (`main` at `7095f5f`, deployed to GitHub Pages), 2026-10-05.
+1.22.0 was prepared for an independent review and a fresh session; that third review
+(of `8e05d2b`, N1–N4) was answered with 1.22.1–1.22.3, before the public-dataset tests
+(§10). The checks are recorded in [`docs/VERIFICATION.md`](VERIFICATION.md)
+("Checkpoint 1.22.3" and "Checkpoint 1.22.0"); the answers to all three reviews (v1.9.1,
+`a87c1f3`, `8e05d2b`) are in [`docs/REVIEW-RESPONSE.md`](REVIEW-RESPONSE.md). Version
+history with reasons: §4.
 Marks: **[verified]** checked against this repository or by running it;
 **[assumption]** believed, not proven; **[suspected]** probable problem;
 **[owner]** decided by the owner; **[recommendation]** Claude's advice, not decided.
@@ -30,7 +32,8 @@ What it does now **[verified by unit and browser tests]**:
    and 8 loudest + 5 random snores (share sheet on phones, download elsewhere).
 4. **Downloads for a developer:** snores (.wav), data (.json, schema 2), test clips (.wav,
    only when a background test kept some), copy summary. `npm run evaluate -- <file>.json`
-   re-counts a night with the current or candidate rules.
+   re-counts a night with the current or candidate rules (background tests exactly from
+   1.22.1 files, approximately from older ones).
 5. **Demo:** `…/Snore/#demo` plays a simulated 90 s night (16 snores, 5 distractors).
 
 Limits: the page must stay open with the screen on (iOS stops web microphones when the
@@ -44,8 +47,9 @@ Requirements:
 - One-button UI, live view, report on Stop.
 - **Privacy:** everything runs on the device; no backend, uploads or accounts. Only short
   snore clips keep audio: the counting detector's snores (0.25 s before to 0.15 s after,
-  8 kHz, 16-bit), plus test clips of two background tests (up to 60 of the auto test's and,
-  since 1.22.0, up to 30 of the High test's; **[owner]**). Non-snore audio exists only in a
+  8 kHz from a 48 kHz or 16 kHz microphone, 7,350 Hz from 44.1 kHz; 16-bit), plus test
+  clips of two background tests (up to 60 of the auto test's and, since 1.22.0, up to 30
+  of the High test's; **[owner]**). Non-snore audio exists only in a
   ~6.5 s rolling buffer and as a rhythm candidate (≤ 12 s); ignored sounds keep features
   only; all buffers are wiped on Stop. Clips can hold nearby sounds or be mistakes, so the
   UI promises "only short snore clips", not "only snores". Google Fonts is the only network
@@ -53,6 +57,10 @@ Requirements:
 - Static site, plain HTML/CSS/JS, no build step, no runtime dependencies; GitHub Pages.
 
 Owner decisions (**[owner]**), most recent first:
+- **2026-10-05, after the third review:** merge the 1.22.0 checkpoint docs (#51); fix the
+  review's findings N1–N4 and write the review response **before** the public-dataset
+  tests (the fixes are quick, the datasets slow). Dataset harnesses stay in a scratch
+  directory at first; a data-free script may be proposed later.
 - **2026-10-05, review preparation:** a background trial for High (1.22.0, keep its test
   clips). Public datasets for later tests: **APSAA** (Zenodo), **PSG-Audio** (Hugging Face /
   Science Data Bank) and the **Khan** clips (GitHub mirror, no clear licence) may be used
@@ -116,7 +124,10 @@ own starts 2–12 s before or after it). A snore is **confirmed** (counted in th
 when another snore lies 2–12 s away, never across an interruption.
 
 Background tests (extra detectors on the same audio; counts go into the data file and
-one line of the report, never the headline):
+one line of the report, never the headline). Since 1.22.1 each stores every feature of its
+snores and of the sounds it set aside (its own rules' rejections and its choppy sounds no
+snore rescued), so `npm run evaluate` can re-run it with other limits, rhythm rescue
+included:
 
 | Test | Settings | Keeps audio |
 | --- | --- | --- |
@@ -160,6 +171,11 @@ Real-night phase (this session, owner's nights 4–6, §8):
 | 1.21.0 | #48 | **Counting change:** Low needs 6 dB of breath noise |
 | — | #49 | Handover notes (late sounds, High question) |
 | 1.22.0 | #50 | Background test `high` with test clips; clip sampling per test |
+| — | #51 | Review checkpoint 1.22.0: handover, review response, verification |
+| 1.22.1 | #52 | Third review N2/N3: background tests store all features and choppy set-asides; the evaluator re-runs their rules with the rhythm rescue; "not evaluable" without breath values |
+| 1.22.2 | #53 | Third review N1: room-noise findings follow clock minutes, never across a gap |
+| 1.22.3 | #54 | Third review N4: the share image's coverage line wraps inside the margins |
+| — | #55 | Third review saved, review response, verification 1.22.3, this handover |
 
 ## 5. Architecture
 
@@ -190,13 +206,13 @@ js/app.js (page) ◄── onState / onFrame / onEvent / onWakeLock
 | `js/night-store.js` | Storage interface + in-memory implementation. **Not loaded by the page** |
 | `js/app.js` | The page only; test hooks on `window.__snorewatch` |
 | `scripts/serve.js` | Local static server (`npm start`, 127.0.0.1 unless `HOST`) |
-| `scripts/evaluate.js` | Re-counts a downloaded night (current rules for its sensitivity, without the breath rule, background tests with stricter rules and other pre-rise windows, per hour with room noise, room findings) |
+| `scripts/evaluate.js` | Re-counts a downloaded night (current rules for its sensitivity, without the breath rule, background tests with stricter rules and other pre-rise windows via `recount`, exact from 1.22.1 files, per hour with room noise, room findings) |
 | `scripts/eval-public.js` | ESC-50 benchmark (downloads ~600 MB outside the repo; clips faded in/out) |
 | `scripts/make-sample.js`, `scripts/build-standalone.js` | Synthetic sample WAV; single-file builds in `dist/` (not deployed, not maintained) |
 | `tests/*.test.js` | `node:test`: detector, share, serve, evaluate, report-format, recorder, night-store, noise |
 | `tests/e2e.js` | Playwright/Chromium at 390 × 844 with a fake microphone playing the synthetic night |
 | `tests/fixtures/` | Synthetic reports only |
-| `docs/review-probes/` | Adapted probes from the first review and the second review's controller/store probe |
+| `docs/review-probes/` | Adapted probes from the first review, the second review's controller/store probe, the full demo run (1.22.0) and the third review's N1/N2 probe |
 | `.github/workflows/` | `ci.yml` (`CI tests`: unit, lint, e2e), `pages.yml` (`Tests before deploy` → deploy, `main` only), `release.yml` (`Tests before release` → tag `vX.Y.Z`) |
 
 **How a night flows:**
@@ -214,7 +230,8 @@ js/app.js (page) ◄── onState / onFrame / onEvent / onWakeLock
 - **Exports:** JSON via `toReport` (schema 2; top level incl. `timeZone`, `interruptions`,
   `minBreathRiseDb`, `noise`; per sound the features incl. `breathRiseDb`, `lowRiseDb`,
   `onsetJumpDb`, `preRise25/50/100Db`, `wavStartSec`; `shadows.<test>` with its rules,
-  summary, levels, snores and `setAside`); snores WAV in time order; test-clip WAV (auto +
+  summary, levels, snores and `setAside`, each sound with every feature and, for snores,
+  `rhythmRescued` since 1.22.1); snores WAV in time order; test-clip WAV (auto +
   high samples, positions as `wavStartSec` under `shadows.*.snores`); PNG/HTML share.
 - **Persistence:** none. A reload, crash or iOS eviction loses the night.
 
@@ -248,7 +265,10 @@ js/app.js (page) ◄── onState / onFrame / onEvent / onWakeLock
 - **[suspected] Phone load:** four detectors on the same audio and two clip reservoirs
   (up to 120 auto + 60 high clips held until Stop); CPU, battery and memory on an iPhone are
   not measured. Clips are capped by count (1500), not bytes; event metadata of all detectors
-  is unbounded; WAV export peak memory not measured (R6).
+  is unbounded (R6). The third review measured a worst case in Node: 1,500 four-second
+  clips at 8,820 Hz = 105.84 MB of PCM, WAV 116.42 MB, Blob another 116.42 MB, 338.82 MB of
+  ArrayBuffers at the export peak (real clips run at 8,000 or 7,350 Hz, so somewhat less);
+  an iPhone night is not measured.
 - **Untested on a device:** overnight run, real interruptions (call, Siri, lock), share sheet,
   clip playback. Automated browser tests are Chromium only; the ScriptProcessor fallback has
   only a fake-browser unit test; the e2e demo step uses a random seed.
@@ -260,9 +280,18 @@ js/app.js (page) ◄── onState / onFrame / onEvent / onWakeLock
   is 720 units wide, so its labels are small on a phone; the e2e run is too short for a
   heatmap (checked in unit tests and a one-off 3.5 min browser run).
 - `npm run evaluate` reads features rounded to 3 decimals (6 night-4 sounds at exactly
-  0.850 flip). No Content-Security-Policy; Google Fonts reveals the visitor's IP. No type
-  checker. `dist/` builds not maintained. `eval:public` not in CI. Event times are analysed
-  audio plus interruptions, not raw wall clock.
+  0.850 flip; for background tests the "own rules" line shows any such flip). Its
+  background-test re-counts are exact only for files from 1.22.1; nights 4–6 (older files)
+  get the labelled estimate, which can keep a rattle after the snore that rescued it is
+  dropped (third review N2). No Content-Security-Policy; Google Fonts reveals the visitor's
+  IP. No type checker. `dist/` builds not maintained. `eval:public` not in CI. Event times
+  are analysed audio plus interruptions, not raw wall clock.
+- **Third review leftovers (owner or later):** Pages publishes before the full CI suite
+  finishes on `main` (12:27:40Z vs 12:28:40Z on `687b1f7`), workflow-wide write permissions,
+  one Pages concurrency group for all branches, actions pinned by tag, the ruleset does not
+  require up-to-date branches (settings: owner); `fromReport` is not a boundary for hostile
+  input (revisit before reading arbitrary files); the room-noise summary cannot see gaps
+  shorter than a minute (the heatmap shows them).
 - R4 leftover: the dev server's 403 body says "Bad request".
 
 ## 8. Real nights (aggregate figures only; files never committed)
@@ -314,7 +343,12 @@ tags. Rules: `CLAUDE.md` (= `AGENTS.md`) and `docs/WORKING-RULES.md`.
 
 ## 10. Next task
 
-**Agreed next (new session, owner):** public-dataset tests, prepared but not run.
+**Agreed next (owner):** public-dataset tests, prepared but not run (the third review's
+fixes came first, 1.22.1–1.22.3). Run every rule variant as its own full detector pass over
+the audio, as `scripts/eval-public.js` does, never as a re-count of stored sounds (third
+review N2). The fresh `npm run eval:public` baseline on 1.22.3 matches 1.22.0 (VERIFICATION,
+checkpoint 1.22.3; the reviewer had not run it). Keep the harness and all outputs outside the
+repository.
 1. **APSAA** (Zenodo DOI 10.5281/zenodo.14096541, CC BY 4.0; 32 whole nights, audio WAV
    plus polygraph incl. a snore channel from the nasal cannula): count snores with High
    without the rule and with 3 / 4.5 / 6 dB, and Normal, against the snore channel.
@@ -335,7 +369,9 @@ benchmark level / 10 dB / 16 dB quieter, High without → 3 / 4.5 / 6 dB: snorin
 **With each new real night** (owner sends JSON, snores WAV, test-clip WAV): run
 `npm run evaluate`; check the breath rule's set-aside sounds, the knock test, the auto table
 "rise over the moment before" (0.25 / 0.5 / 1 s × 4 / 6 / 8 dB) and its clips, the High
-re-count 3 / 4.5 / 6 dB and its clips, the room findings.
+re-count 3 / 4.5 / 6 dB and its clips, the room findings. These re-counts are exact for
+nights recorded with 1.22.1 or later ("re-counted from its stored sounds"); for older files
+they are labelled approximate.
 
 **Later / owner's decisions pending:** room-noise wording; episodes at interruptions; the
 on-phone interruption check (a call or Siri with the screen dark); auto adjustment timing

@@ -1,5 +1,54 @@
 # Verification record
 
+## Checkpoint 1.22.3 (third review fixes, 2026-10-05)
+
+**Tested code revision:** `7095f5f567a850147684d1a7a696640d761f0046` (`main` after PR #54, version 1.22.3; checked in a clean worktree). The third
+review of `8e05d2b` (saved in [`reviews/2026-10-05-8e05d2b-review.md`](reviews/2026-10-05-8e05d2b-review.md))
+found N1–N4; each fix was its own PR, tested before merging and again on `main` at the end:
+#52 (1.22.1, N2/N3), #53 (1.22.2, N1), #54 (1.22.3, N4). Response per finding:
+[`REVIEW-RESPONSE.md`](REVIEW-RESPONSE.md), "Third review of 8e05d2b".
+
+**Environment:** as for 1.22.0 (Linux container, Claude cloud session; Node v22.22.0, npm
+10.9.4; Playwright 1.63.0, ESLint 10.11.0, Prettier 3.9.9; Chromium 141.0.7390.37 via
+`CHROMIUM_PATH=/opt/pw-browsers/chromium-1194/chrome-linux/chrome`; `npx playwright install`
+not run). ESC-50 checkout `33c8ce9eb2cf0b1c2f8bcf322eb349b6be34dbb6` outside the repository.
+
+| Command | Result |
+| --- | --- |
+| `npm ci --no-audit --no-fund` | passed, 82 packages |
+| `npm test` | **passed**, 99/99 (92 at 1.22.0 + 3 evaluator, 3 room noise, 1 share; recorder and report-format tests extended) |
+| `npm run lint` | **passed** |
+| `node --check` over `js/*.js scripts/*.js tests/*.js docs/review-probes/*.cjs` | **passed**, 30 files on `main` (31 with this docs PR's probe) |
+| `npm audit` | 0 vulnerabilities |
+| `CHROMIUM_PATH=… npm run test:e2e` | **passed**, incl. the new step: share image of a 22:00–06:00 night (en-US, Europe/Berlin) with 3 interruptions, header "10:00 PM – 06:00 AM · 7 h 30 min of 8 h 0 min recorded" at 72–856 px and "interrupted 3×" at 72–280 px; every text inside 0–1080 px |
+| Same e2e step with `js/share.js` of 1.22.2 | **fails** as expected: one header line at 72–1090.4 px on the 1080 px image (the review measured 72–1092.6 px with one interruption) |
+| `CHROMIUM_PATH=… node docs/review-probes/full-demo-run.cjs "$PWD" <out>` | **passed**: version "1.22.3 (dev)", 16 confirmed, 0 possible, 5 ignored (too bright 3, choppy 1, too long 1); background tests knock 16, auto 16, high 16; JSON 46,800 bytes, WAV 434,948, HTML 513,697, PNG 344,514; no page errors; console: the blocked Google Fonts request and the `/favicon.ico` 404 |
+| `npm run evaluate -- <out>/snore-report_….json` | 16 → 16 confirmed; each background test "re-counted from its stored sounds with its own rules: 16 confirmed"; High 16 at 3 / 4.5 / 6 dB, auto 16 at 4.5 / 6 dB and in every pre-rise cell, all "re-counted from its stored sounds" |
+| `node docs/review-probes/noise-evaluator-probes.cjs <checkout>` at 1.22.0 (`2ea0749`) | N1: stretches `[[1200,5520]]`, masked `[[1200,5520]]`, text "0:20–1:32: a steady sound…", "0:20–1:32: the room was 8 dB louder…"; N2: estimate / full rules `2 0` (breath 6 dB) and `2 0` (pre-rise 8 dB) |
+| the same on `main` (`7095f5f`) | N1: none, "The room stayed quiet and steady while it was recorded."; N2: estimate `2`, full rules `0`, `recount` own rules 3, breath 6 dB 0, pre-rise 8 dB 0 (the estimate is kept, labelled approximate, for files before 1.22.1) |
+| `npm run evaluate -- tests/fixtures/v1.8-report.json` | 1.22.0: "with a breath-noise rule of 3 dB: 0 (0/h), 4.5 dB: 0 (0/h), 6 dB: 0 (0/h)"; now: "with a stricter breath-noise rule: not evaluable (this file has no breath-noise measurements for it)" |
+| `npm run evaluate -- tests/fixtures/rhythm-boundary-report.json` | unchanged: 1 → 2 snore-like, 0 → 2 confirmed |
+| New tests against the old code (each fix's code stashed) | N2/N3: the 3 new evaluator tests fail (and the 1.22.0 High test, whose label changed); N1: the 3 new room-noise tests fail; N4: the new share test and the e2e step fail |
+| Old vs new `summarize`/`describe`, 400 random nights without gaps (scratch script) | identical output; 399 of the nights had findings |
+| `npm run eval:public` (fresh ESC-50 clone, on 1.22.3) | **identical to 1.22.0**: Normal snoring 29/40 (13 confirmed), night sounds 76/1000 (13), other 158/1960 (31); without the breath rule 30/40 (14), 100/1000 (22); 3 dB 29/40 (13), 87/1000 (18); knock rule 28/40 (11), 50/1000 (8) |
+
+**CI and deployment:** on `main` at `7095f5f`, `CI` (`CI tests`), `Tag release` (`v1.22.3`)
+and `Deploy to GitHub Pages` passed; tags `v1.22.1` (`146e586`) and `v1.22.2` (`3851896`)
+were created by their merges. Their Pages deploys were **cancelled** by the next merge to
+`main` (one concurrency group), so 1.22.1 and 1.22.2 were never live; 1.22.3 is. Pages
+finished at 14:50:31Z and CI at 14:51:34Z: publishing again did not wait for the full suite
+(third review, workflow leftovers). The live site was not opened from this container.
+
+**Counts:** no detection rule, threshold or default changed in 1.22.1–1.22.3; the counting
+detector, the background tests' live counts and the demo night (16 confirmed, 5 ignored)
+are unchanged, and the ESC-50 benchmark gives the same figures as at 1.22.0 (the baseline for
+the dataset tests).
+
+**Not run / not available:** physical iPhone, Safari/WebKit, Firefox; long-night memory on
+a phone; the public-dataset tests (next task, HANDOVER §10); the owner's real-night files
+(not in the repository), so nights 4–6 were not re-evaluated with the new evaluator (their
+files are older than 1.22.1 and would get the labelled estimate anyway).
+
 ## Checkpoint 1.22.0 (review and fresh-session handover, 2026-10-05)
 
 **Tested code revision:** `687b1f7780e1cfe19b62ff5f2ffce094dcfc21c5` (`main` after PR #50,

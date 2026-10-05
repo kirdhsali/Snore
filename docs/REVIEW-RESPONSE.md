@@ -13,6 +13,8 @@ gained real-night follow-ups (1.12.5–1.22.0, see `HANDOVER.md` §4): two owner
 counting changes (the breath rule on Normal and Low) and four background tests' worth of
 changes; none of them touched the code paths of R1, R2, R4, R7 or R8 except where noted.
 Environment and full results: [`VERIFICATION.md`](VERIFICATION.md), "Checkpoint 1.22.0".
+A third review of that checkpoint (N1–N4) and the fixes in 1.22.1–1.22.3 are in
+[Third review of 8e05d2b](#third-review-of-8e05d2b).
 
 Evidence used: the review report and, at 1.12.0, its evidence bundle (probe scripts
 `core-probes.cjs`, `server-probes.cjs`, `browser-probes.cjs`, `full-demo.cjs` and their
@@ -58,6 +60,113 @@ After 1.12.1–1.12.4: C1 `interrupted 6`; C5 `completed off 1`; C3 (with the fi
 app now passes) "6 snores in 30 s recorded." plus the gap; C4 and C6 unchanged
 (deferred). Each fix is one PR with a test that fails on the old code; results in
 [`VERIFICATION.md`](VERIFICATION.md), checkpoint 1.12.4.
+
+## Third review of 8e05d2b
+
+An independent review of the 1.22.0 checkpoint `8e05d2b` (2026-10-05), saved as
+[`reviews/2026-10-05-8e05d2b-review.md`](reviews/2026-10-05-8e05d2b-review.md),
+agreed with the status recorded here for R1–R9 and C1–C6 (R1 and R6 partly fixed; C4, C6
+and the gap edge deferred), found no automatic upload of audio or night data, and reported
+four new findings, N1–N4. Its appendix reproductions of N1 and N2 are in
+[`review-probes/noise-evaluator-probes.cjs`](review-probes/noise-evaluator-probes.cjs)
+(takes the checkout as an argument). The owner chose to fix them before the public-dataset
+tests. Each fix is one PR with tests that fail on the old code; no detection rule,
+threshold or default changed. Results: [`VERIFICATION.md`](VERIFICATION.md), checkpoint
+1.22.3.
+
+| ID | Finding | Status | Evidence |
+| --- | --- | --- | --- |
+| N1 | Medium: room-noise findings joined minutes across an hour not recorded | **Fixed** in 1.22.2 (#53) | probe: `[[1200,5520]]` → none; 3 tests; 400 random gap-free nights give the same findings as before |
+| N2 | Medium: `npm run evaluate` re-counted background tests without redoing the rhythm rescue | **Fixed** in 1.22.1 (#52) for data files from 1.22.1; older files get the estimate, labelled approximate | probe: estimate 2, full rules 0, `recount` 0; demo night: every test's re-count equals its live count |
+| N3 | Low: files without breath measurements printed 0 at 3 / 4.5 / 6 dB | **Fixed** in 1.22.1 (#52) | v1.8 file: "not evaluable" |
+| N4 | Low: the share image's coverage line ran past the right edge | **Fixed** in 1.22.3 (#54) | Chromium e2e: 72–1090 px of 1080 → two lines, 72–856 and 72–280 px |
+
+### N1 — Room-noise findings across a gap · fixed
+
+- **Change:** `summarize` in `js/noise.js` works on clock minutes instead of list
+  neighbours. Runs, the 3-minute smoothing and the 10-minute tone windows never join
+  across a minute the recording did not cover. A minute without a background measurement
+  counts as recorded but not qualifying, as minutes below a threshold already did. A run
+  that borders either kind of minute has no known start or end, so it is not counted as a
+  device switching on. With minutes missing, the text says "of the recorded time" and
+  "while it was recorded" instead of "of the night" and "all night"; the summary carries
+  `complete`.
+- **Files:** `js/noise.js`; consumers unchanged (`js/app.js`, the shared HTML,
+  `scripts/evaluate.js`).
+- **Tests:** `tests/noise.test.js`: "findings never join minutes across an hour that was
+  not recorded (review N1)" (the review's fixture, and 15 + 15 louder minutes giving two
+  findings at 20–35 and 95–110 min), "minutes without a background measurement are not
+  treated as neighbours…", "a steady tone needs 7 of 10 clock minutes…". All three fail on
+  1.22.1.
+- **Probe:** before, one stretch and one loud period `1200–5520 s` with the text
+  "0:20–1:32: …"; after, none, and "The room stayed quiet and steady while it was
+  recorded." Old and new `summarize`/`describe` gave identical output on 400 random nights
+  without gaps (399 with findings).
+- **Remaining:** gaps shorter than a minute leave no missing minute, so they are not
+  visible to the summary (the heatmap still marks every gap).
+
+### N2 — Background-test re-counts without the rhythm rescue · fixed (from 1.22.1 files)
+
+- **Change:** background tests now store every sound feature of their snores and set-aside
+  sounds (as the counting detector's) plus `rhythmRescued`, and hand over their choppy
+  sounds no snore rescued. `recount()` in `scripts/evaluate.js` re-runs classification,
+  `RhythmGate` and confirmation on them with the changed limit, so stricter and looser
+  breath and pre-rise limits give the live answer. A check line shows each test's own rules
+  giving its count back. Files from 1.22.0 and earlier (all of the owner's nights so far)
+  lack the features: they keep the old estimate, now labelled "approximate: … rhythm rescues
+  are not redone".
+- **Files:** `js/recorder.js`, `js/report-format.js` (`shadowEvents`), `scripts/evaluate.js`.
+- **Tests:** `tests/evaluate.test.js`: the review's case written through `toReport`
+  (own rules 3, breath 6 dB → 0, pre-rise 8 dB → 0; the estimate still 2), a looser limit
+  that needs a stored choppy sound (exact 2, estimate 0); `tests/recorder.test.js`: the
+  demo night's data file re-counts every test to its live count;
+  `tests/report-format.test.js`: the stored fields.
+- **Remaining:** stored features are rounded (3 decimals), so a borderline sound can still
+  flip; the check line shows it. The data file grows by about 150 bytes per background-test
+  sound. New nights must be recorded with 1.22.1 or later for exact High re-counts.
+
+### N3 — False zeroes for old files · fixed
+
+- **Change:** when a background test's snores have no breath measurement, the stricter
+  breath line says "not evaluable (this file has no breath-noise measurements for it)". In
+  the estimate, a single sound without a measurement now passes, as live.
+- **Test:** "old files without breath measurements say a background test's breath re-count
+  cannot be made (review N3)" on `tests/fixtures/v1.8-report.json`.
+
+### N4 — Share image coverage line · fixed
+
+- **Change:** `drawShareCard` in `js/share.js` joins the times and coverage parts at
+  " · " into as many lines as fit the margins (a second line at y = 198, kept clear of
+  decorative stars) and passes `maxWidth` to `fillText` as a last guard.
+- **Tests:** `tests/share.test.js` (header-wide text, 8 h night, 3 interruptions: every
+  header line inside the margins, nothing left out); `tests/e2e.js` draws the card in
+  Chromium with real font metrics (en-US, 22:00–06:00, 3 interruptions) and checks every
+  text lies inside the image. Both fail on 1.22.2 (Chromium: 72–1090 px).
+
+### Other points of the third review
+
+- **R6 measurements (recorded, still unresolved):** in a Node fixture of 1,501 four-second
+  clips at 8,820 Hz, 1,500 clips held 105.84 MB of PCM, the WAV 116.42 MB, the Blob another
+  116.42 MB, ArrayBuffers 338.82 MB in all. A clip byte budget, bounded event metadata, a
+  smaller export peak and a measured iPhone night are still needed (HANDOVER §7).
+  **Correction (disputed in detail):** the review says clips from a 44.1 kHz input run at
+  8,820 Hz; `js/detector.js` decimates by `round(44100 / 8000) = 6`, i.e. 7,350 Hz (48 kHz
+  and 16 kHz give exactly 8,000 Hz). The fixture is therefore a slightly larger case than a
+  real night; the conclusion stands.
+- **Workflows (deferred, owner):** on `main` at `687b1f7` Pages finished at 12:27:40Z and
+  CI at 12:28:40Z: publishing does not wait for the full suite. Permissions are
+  workflow-wide; Pages listens to all branches with one concurrency group; actions are
+  pinned by tag. The ruleset does not require branches to be up to date. Changing these
+  touches permissions and repository settings, so they wait for the owner.
+- **E2E demo seed (open):** the demo step uses a random seed and wall-clock timing; making
+  it deterministic would help diagnosis.
+- **Imported JSON (noted):** `fromReport` checks only a small part of a file's shape; it
+  is not a boundary for hostile input. To be revisited before the app reads arbitrary
+  files (saved nights, imports).
+- **Architecture (agreed):** the review's order matches HANDOVER §2: C4 and a persisted
+  schema before saved nights; a byte budget and device measurements before unattended use;
+  a capture adapter separating browser audio from the recorder before native work; an
+  explicit privacy decision before accounts or sync.
 
 | ID | Finding | Status |
 | --- | --- | --- |

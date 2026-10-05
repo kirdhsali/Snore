@@ -2,8 +2,8 @@
 
 Snorewatch: a static browser app that records a night with the phone microphone,
 keeps only short snore clips and reports on them. **Read `docs/HANDOVER.md` first** (state,
-decisions, known issues, next task). Answer to the v1.9.1 review:
-`docs/REVIEW-RESPONSE.md`. General working rules: `docs/WORKING-RULES.md`.
+decisions, known issues, next task). Answers to the three reviews (v1.9.1,
+`a87c1f3`, `8e05d2b`): `docs/REVIEW-RESPONSE.md`. General working rules: `docs/WORKING-RULES.md`.
 
 ## Rules
 - Never commit to `main`. Branch from the latest `main`, open a pull request,
