@@ -55,6 +55,7 @@ function demoNight() {
         summary: shadowStats.summary(det.elapsed),
         levels: shadow.levels,
         snores: shadowStats.snores,
+        setAside: shadowStats.ignored.slice(0, 2),
       },
     },
   };
@@ -104,6 +105,28 @@ test('a finished night survives the round trip through the data file', () => {
   assert.equal(back.shadows.auto.sensitivity, 'auto');
   assert.equal(back.shadows.auto.snores.length, night.shadows.auto.snores.length);
   assert.equal(json.shadows.auto.minBreathRiseDb, 3);
+  assert.ok(
+    json.snores.every((x) => ['preRise25Db', 'preRise50Db', 'preRise100Db'].every((k) => typeof x[k] === 'number')),
+    'rise over the moment before',
+  );
+  assert.equal(json.shadows.auto.setAside.length, 2, 'sounds a background test set aside');
+  assert.deepEqual(Object.keys(json.shadows.auto.setAside[0]), [
+    'offsetSec',
+    'durationSec',
+    'reason',
+    'aboveRoomDb',
+    'bursts',
+    'breathRiseDb',
+    'lowRiseDb',
+    'onsetJumpDb',
+    'preRise25Db',
+    'preRise50Db',
+    'preRise100Db',
+  ]);
+  assert.ok(
+    back.snores.every((e) => typeof e.preRise100 === 'number'),
+    'read back',
+  );
   assert.equal(json.shadows.auto.maxOnsetJumpDb, null);
   assert.ok(json.shadows.auto.snores.every((x) => typeof x.onsetJumpDb === 'number'));
 });

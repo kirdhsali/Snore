@@ -483,6 +483,35 @@ test('sudden-start rule: bumps that pass every other rule are set aside, snores 
   assert.equal(events.filter((e) => e.isSnore).length, 16, 'the demo night keeps its 16 snores');
 });
 
+test('rise over the moment before: measured over 0.25, 0.5 and 1 s; a rule uses the chosen window', () => {
+  for (const sr of [48000, 16000]) {
+    const r = Synth.rng(2);
+    const sc = Synth.compose(sr, 45, [...Synth.snoreRun(5, 5, r), { type: 'swell', at: 30 }], 2);
+    const { events } = run(sc, {});
+    for (const e of events.filter((x) => x.start < 28)) {
+      for (const k of ['preRise25', 'preRise50', 'preRise100']) assert.ok(e[k] > 20, `${k} of a snore at ${sr} Hz: ${e[k]}`);
+      assert.ok(Math.abs(e.preRise100 - e.lowRise) < 3, 'in a still room the moment before is the room itself');
+    }
+    const swell = events.find((x) => x.start >= 28);
+    assert.ok(swell.preRise25 <= swell.preRise100 + 0.5, 'a slow swell rises less over the shortest window');
+  }
+  const det = new Core.SnoreDetector(16000);
+  det.process(Synth.compose(16000, 3, [], 1).samples);
+  assert.ok(det.lowHistCount > 0);
+  det.resumeAfterGap(2);
+  assert.equal(det.lowHistCount, 0, 'nothing before an interruption counts as the moment before');
+  const f = { duration: 1, lowRatio: 0.9, highRatio: 0.01, centroid: 150, peaks: 1, subBass: 0.2, breathRise: 20 };
+  const g = { ...f, preRise25: 3, preRise50: 5, preRise100: 9 };
+  assert.equal(Core.classify(g, { minPreRiseDb: 6, preRiseSec: 0.25 }).reason, 'no-pre-rise');
+  assert.equal(Core.classify(g, { minPreRiseDb: 6, preRiseSec: 1 }).isSnore, true);
+  assert.equal(Core.classify(g, {}).isSnore, true, 'off by default');
+  assert.equal(
+    Core.classify({ ...g, preRise100: null }, { minPreRiseDb: 6, preRiseSec: 1 }).isSnore,
+    true,
+    'not measured: no verdict from it',
+  );
+});
+
 test('the breath-noise rule in force: the options set it, else the sensitivity (Normal 6 dB)', () => {
   assert.equal(Core.breathRuleDb({}), 6, 'default sensitivity is Normal');
   assert.equal(Core.breathRuleDb({ sensitivity: 'normal' }), 6);

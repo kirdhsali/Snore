@@ -30,6 +30,15 @@
   // Auto test: night 5 counted quiet breathing over a room tone as snores; a snore raises
   // the 50-800 Hz band well above its room noise, breathing hardly does.
   const SNORE_BAND_RULE_DB = 8;
+  // ...and the rise over the moment before (1.20.0): at home (night 6) its extra snores were the
+  // room's own flicker, 2-3 dB above the quarter second before them; real snores 13-22 dB.
+  // Measured over 1 s (in simulation a shorter window caught the snore's own slow start); the
+  // data file keeps the rise over 0.25, 0.5 and 1 s to compare the lengths.
+  const PRE_RISE_RULE_DB = 6;
+  const PRE_RISE_SEC = 1;
+  // Background tests also hand over the sounds their own rules set aside (features only),
+  // so other limits and windows can be tried on a night afterwards.
+  const TEST_RULE_REASONS = new Set(['no-pre-rise', 'sudden']);
   // The auto test keeps clips of a random sample of the snores the counting detector did not
   // find, so they can be checked by ear (owner's decision after night 4).
   const TEST_CLIPS = 60;
@@ -323,7 +332,16 @@
         s.sample = { kept: [], seen: 0 };
         s.shadows = {
           knock: shadow({ sensitivity, maxOnsetJumpDb: KNOCK_RULE_DB }),
-          auto: shadow({ sensitivity: 'auto', minBreathRiseDb: BREATH_RULE_DB, minLowRiseDb: SNORE_BAND_RULE_DB }, true),
+          auto: shadow(
+            {
+              sensitivity: 'auto',
+              minBreathRiseDb: BREATH_RULE_DB,
+              minLowRiseDb: SNORE_BAND_RULE_DB,
+              minPreRiseDb: PRE_RISE_RULE_DB,
+              preRiseSec: PRE_RISE_SEC,
+            },
+            true,
+          ),
         };
         s.tap = await createTap(env, ctx, input, (samples) => {
           if (!live() || session !== s) return;
@@ -475,6 +493,7 @@
               summary: sh.stats.summary(s.elapsed),
               levels: sh.detector.levels,
               snores: sh.stats.snores,
+              setAside: sh.stats.ignored.filter((e) => TEST_RULE_REASONS.has(e.reason)),
             }),
           ]),
         ),

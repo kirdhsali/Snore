@@ -95,6 +95,9 @@
           breathRise: ev.breathRise,
           lowRise: ev.lowRise,
           onsetJump: ev.onsetJump,
+          preRise25: ev.preRise25,
+          preRise50: ev.preRise50,
+          preRise100: ev.preRise100,
         });
       }
     }

@@ -196,6 +196,29 @@ function stricterBreath(shadow, minDb, gaps = []) {
   return stats.confirmed.length;
 }
 
+/**
+ * A background test's confirmed snores with another limit or window for the rise over the
+ * moment before, from its stored snores and the sounds that rule set aside (from 1.20.0).
+ * Approximate like stricterBreath: rhythm rescues are not redone, choppy sounds do not count.
+ */
+function preRiseVariant(shadow, windowSec, minDb, gaps = []) {
+  const key = `preRise${Math.round(windowSec * 100)}Db`;
+  const stats = new SessionStats();
+  for (const g of gaps) stats.addGap(g.start, g.end);
+  const others = (shadow.setAside || []).filter((x) => x.reason === 'no-pre-rise' && !(x.bursts > DEFAULTS.maxPeaks));
+  for (const x of [...shadow.snores, ...others].sort((a, b) => a.offsetSec - b.offsetSec))
+    if (x[key] == null || x[key] >= minDb)
+      stats.add({
+        isSnore: true,
+        start: x.offsetSec,
+        end: x.offsetSec + x.durationSec,
+        duration: x.durationSec,
+        relDb: x.aboveRoomDb,
+        clip: null,
+      });
+  return stats.confirmed;
+}
+
 /** The recording's own detector against a candidate rule set that ran alongside it. */
 function compareShadow(r, shadow, name, hours, gaps = []) {
   const main = r.snores.filter((x) => x.confirmed);
@@ -204,7 +227,9 @@ function compareShadow(r, shadow, name, hours, gaps = []) {
   const both = main.filter((x) => near(x, auto)).length;
   const trig = shadow.levels.map((l) => l.triggerDb).sort((a, b) => a - b);
   const q = (p) => (trig.length ? trig[Math.floor(p * (trig.length - 1))].toFixed(1) : '-');
-  const label = `${name}: sensitivity ${shadow.sensitivity}${shadow.minBreathRiseDb != null ? `, breath-noise rule ${shadow.minBreathRiseDb} dB` : ''}${shadow.minLowRiseDb != null ? `, snore-band rule ${shadow.minLowRiseDb} dB` : ''}${shadow.maxOnsetJumpDb != null ? `, sudden-start rule ${shadow.maxOnsetJumpDb} dB` : ''}`;
+  const label = `${name}: sensitivity ${shadow.sensitivity}${shadow.minBreathRiseDb != null ? `, breath-noise rule ${shadow.minBreathRiseDb} dB` : ''}${shadow.minLowRiseDb != null ? `, snore-band rule ${shadow.minLowRiseDb} dB` : ''}${shadow.maxOnsetJumpDb != null ? `, sudden-start rule ${shadow.maxOnsetJumpDb} dB` : ''}${
+    shadow.minPreRiseDb != null ? `, ${shadow.minPreRiseDb} dB over the ${shadow.preRiseSec} s before` : ''
+  }`;
   console.log(`\n  background test ${label} vs ${r.sensitivity}:`);
   console.log(
     `    confirmed snores   ${r.sensitivity} ${main.length} (${(main.length / hours).toFixed(0)}/h)   ${name} ${auto.length} (${(auto.length / hours).toFixed(0)}/h)`,
@@ -234,6 +259,18 @@ function compareShadow(r, shadow, name, hours, gaps = []) {
         `    ${r.sensitivity}'s snores that start suddenly: ${sudden.slice(0, 20).map(where).join(', ')}${sudden.length > 20 ? `, … (${sudden.length} in all)` : ''}`,
       );
   }
+  if (shadow.minPreRiseDb != null && shadow.setAside) {
+    // Other lengths of "the moment before" and other limits, from the stored sounds.
+    console.log(`    rise over the moment before (confirmed, of them also ${r.sensitivity}'s), re-counted from the stored sounds:`);
+    console.log(`      ${'before'.padEnd(8)}${[4, 6, 8].map((db) => `>= ${db} dB`.padEnd(16)).join('')}`);
+    for (const sec of [0.25, 0.5, 1]) {
+      const cells = [4, 6, 8].map((db) => {
+        const c = preRiseVariant(shadow, sec, db, gaps);
+        return `${c.length} (${c.filter((x) => near({ offsetSec: x.start }, main)).length})`.padEnd(16);
+      });
+      console.log(`      ${`${sec} s`.padEnd(8)}${cells.join('')}`);
+    }
+  }
   const clips = shadow.snores.filter((x) => x.wavStartSec != null).length;
   if (clips) console.log(`    ${clips} of its snores that ${r.sensitivity} missed are in the test-clip WAV (wavStartSec)`);
 }
@@ -246,4 +283,4 @@ if (require.main === module) {
   }
   files.forEach(report);
 }
-module.exports = { eventsOf, reevaluate, stricterBreath };
+module.exports = { eventsOf, reevaluate, stricterBreath, preRiseVariant };

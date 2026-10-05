@@ -1,13 +1,13 @@
 # Snorewatch handover
 
-State at version **1.19.1**, prepared 2026-10-05. 1.12.0 was reviewed independently
+State at version **1.20.0**, prepared 2026-10-05. 1.12.0 was reviewed independently
 twice (v1.9.1 and `a87c1f3`); 1.12.1–1.12.4 fix the second review's C1, C2, C3 and C5.
 1.12.5–1.14.0 follow up the first real night recorded with 1.12.4 (night 4, §6a): data
 file and clips (1.12.5–1.12.6), the 6 dB breath test (1.13.0), auto sensitivity's release
 (1.13.1) and its test clips (1.14.0). 1.15.0 records the room noise; 1.16.0 follows up
 night 5 (§6b); 1.17.0 makes Normal count with the 6 dB breath rule (owner's decision);
 1.18.0 adds the knock background test; 1.19.0 shows the room noise in the report; 1.19.1
-follows up night 6 (§6c).
+follows up night 6 (§6c); 1.20.0 adds the rise over the moment before to the auto test.
 The tested revisions and all check results are in [`docs/VERIFICATION.md`](VERIFICATION.md);
 the finding-by-finding answers to both reviews are in [`docs/REVIEW-RESPONSE.md`](REVIEW-RESPONSE.md).
 Marks: **[verified]** checked against this repository or by running it;
@@ -140,6 +140,7 @@ expansion without behaviour change. Details per finding, with tests and results:
 | 1.18.0 | #44 | Knock background test `knock` (chosen sensitivity + sudden-start rule): new measure `onsetJump`, the largest rise over 20 ms at a sound's start, stored per sound (`onsetJumpDb`); option `maxOnsetJumpDb` rejects as 'sudden'; the test uses 20 dB. Night 5's 4 knocks 21–42 dB, real snores ≤ 23 dB (2 of night 4's 955 above 20). Synthetic `bump`. `eval:public` fades clips in and out over 0.1 s (they started mid-sound, which looked like a knock); with the rule ESC-50 night sounds 76 → 50 / 1000, snoring clips 29 → 28 (confirmed 13 → 11). Headline unchanged |
 | 1.19.0 | #45 | Room noise step 2 in the report: "Room noise" panel with the plain findings (`js/noise.js`, from 10 minutes) and a heatmap (`Share.noiseSvg`: octave bands × minutes, shaded 0–15 dB above each band's quiet level; background level line; snore ticks; drawn at the panel's width); the same section in the shared HTML report. The star-map image is unchanged |
 | 1.19.1 | #46 | Night 6 follow-up: ignored sounds keep `lowRise` and `onsetJump` in the data file (were `null` since 1.16.0/1.18.0); a mains hum is recognised although its readings scatter by a few Hz (night 6: 46–55 Hz around 50.0 was called "a motor or fan") |
+| 1.20.0 | #47 | Auto background test: a sound must rise 6 dB above the moment before it (median snore band over the 1 s before; night 6's false snores 2–3 dB, real snores 13–22 dB over 0.25 s). New per-sound `preRise25/50/100` (0.25 / 0.5 / 1 s), option `minPreRiseDb` + `preRiseSec`, reason `no-pre-rise`; background tests hand over what their own rules set aside (`setAside`); the evaluator re-counts the auto test for each window and 4 / 6 / 8 dB. Headline unchanged |
 
 ## 4. Architecture
 
@@ -339,7 +340,12 @@ Aggregate figures only; the files are not committed. Local time UTC+2 (Europe/Zu
   2.3 dB); stored `lowRise` of auto-only snores median 8.8 dB, just over its 8 dB rule,
   because the tracked snore-band noise sits at the troughs of the 50 Hz hum. Offline
   candidate: a rise of ≥ 6 dB over the 0.25 s before would drop 83 % of the test clips and
-  keep 94 % of the clear snores (83 % of all confirmed). **[recommendation]**, not built.
+  keep 94 % of the clear snores (83 % of all confirmed). **Built in 1.20.0** for the auto
+  test (owner: yes), over 1 s: in simulation 0.25 s caught the snores' own slow start (quiet
+  room with deep rumble, 210 snores: auto 175, with the rule over 0.25 / 0.5 / 1 s: 109 /
+  131 / 163). The owner asked to test other lengths: every sound keeps the rise over 0.25,
+  0.5 and 1 s and the auto test hands over what the rule set aside, so `npm run evaluate`
+  re-counts each night for every window and 4 / 6 / 8 dB.
 - **Room:** mains hum at 50 Hz all night (called "a motor or fan" until 1.19.1); a device
   switching on 6 times every 53 min for 22 min, 10 dB louder (night 4: every 52 min for
   21 min; probably the fridge). 160 of 223 snores fell in its on-periods, but 3 of the 6
@@ -395,6 +401,15 @@ when `CI tests` is green (Claude may merge its own PRs); bump `package.json` and
   still miss Normal's loud snores, night 4: 80 of 150?). Any further default change
   (planned v2.0: auto + breath rule) needs 2–3 such nights, `npm run eval:public` and the
   owner's approval.
+- **Auto test (1.20.0):** after the next nights, read the evaluator's table "rise over the
+  moment before" (0.25 / 0.5 / 1 s × 4 / 6 / 8 dB) and listen to the test clips: which
+  window and limit removes the room's flicker and keeps the snores? The owner also asked
+  whether the timing of auto's own adjustment matters (it measures quiet half-second
+  blocks over the last 180 s, every 30 s). Not testable offline (the data file holds no
+  continuous audio) and a simulated flickering room did not fool auto; each variant would
+  need its own background detector. Try it if the rule above does not fix auto.
+- **Late sounds of night 6 (06:39–06:44):** the owner was sent the clips to listen to;
+  depending on the answer, a rule against pure tones (no harmonics) may be worth testing.
 - **Knock test (1.18.0, background):** check in the next nights which snores the `knock`
   test drops (`npm run evaluate` lists its count; `onsetJumpDb` is stored per sound; listen
   to Normal's snores above 20 dB). Make it count only after real nights and the owner's

@@ -152,6 +152,13 @@ async function main() {
     assert.equal(report.shadows.auto.sensitivity, 'auto');
     assert.equal(report.shadows.auto.minBreathRiseDb, 3);
     assert.equal(report.shadows.auto.minLowRiseDb, 8, 'auto test: snore-band rule');
+    assert.equal(report.shadows.auto.minPreRiseDb, 6, 'auto test: rise over the moment before');
+    assert.equal(report.shadows.auto.preRiseSec, 1);
+    assert.ok(Array.isArray(report.shadows.auto.setAside));
+    assert.ok(
+      report.snores.every((x) => typeof x.preRise100Db === 'number'),
+      'rise over the moment before saved per snore',
+    );
     assert.ok(
       report.snores.every((x) => typeof x.lowRiseDb === 'number'),
       'snore-band rise saved per snore',

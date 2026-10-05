@@ -29,6 +29,11 @@
   const byStart = (a, b) => a.start - b.start;
 
   /** Sound features stored for every event, snore or not. */
+  /** The rise over the moment before a sound, for each window length: preRise25Db, preRise50Db, preRise100Db. */
+  function preRise(x) {
+    return { preRise25Db: round(x.preRise25, 1), preRise50Db: round(x.preRise50, 1), preRise100Db: round(x.preRise100, 1) };
+  }
+
   function features(x) {
     return {
       lowFrequencyShare: round(x.lowRatio, 3),
@@ -40,6 +45,7 @@
       breathRiseDb: round(x.breathRise, 1),
       lowRiseDb: round(x.lowRise, 1), // snore band 50-800 Hz above its room noise (from 1.16.0)
       onsetJumpDb: round(x.onsetJump, 1), // largest 20 ms rise at the start: knocks jump (from 1.18.0)
+      ...preRise(x), // snore band over the 0.25, 0.5 and 1 s before the sound (from 1.20.0)
     };
   }
 
@@ -132,6 +138,8 @@
             minBreathRiseDb: (sh.config || sh.options).minBreathRiseDb ?? null,
             minLowRiseDb: sh.options.minLowRiseDb ?? null,
             maxOnsetJumpDb: sh.options.maxOnsetJumpDb ?? null,
+            minPreRiseDb: sh.options.minPreRiseDb ?? null,
+            preRiseSec: sh.options.minPreRiseDb != null ? (sh.options.preRiseSec ?? 0.25) : null,
             summary: {
               snoreCount: sh.summary.snoreCount,
               possibleCount: sh.summary.possibleCount,
@@ -154,9 +162,23 @@
               breathRiseDb: round(x.breathRise, 1),
               lowRiseDb: round(x.lowRise, 1),
               onsetJumpDb: round(x.onsetJump, 1),
+              ...preRise(x),
               confirmed: !!x.confirmed,
               // In the test-clip WAV: the auto test's sample of snores the counting detector missed.
               wavStartSec: testWavStarts.has(x) ? round(testWavStarts.get(x), 2) : null,
+            })),
+            // Sounds only this test's own rules set aside (rise over the moment before, sudden start):
+            // with the snores above, enough to try other limits on the night afterwards.
+            setAside: (sh.setAside || []).map((x) => ({
+              offsetSec: round(x.start, 2),
+              durationSec: round(x.duration, 2),
+              reason: x.reason,
+              aboveRoomDb: round(x.relDb, 1),
+              bursts: x.peaks,
+              breathRiseDb: round(x.breathRise, 1),
+              lowRiseDb: round(x.lowRise, 1),
+              onsetJumpDb: round(x.onsetJump, 1),
+              ...preRise(x),
             })),
           },
         ]),
@@ -181,6 +203,9 @@
       breathRise: x.breathRiseDb ?? null,
       lowRise: x.lowRiseDb ?? null,
       onsetJump: x.onsetJumpDb ?? null,
+      preRise25: x.preRise25Db ?? null,
+      preRise50: x.preRise50Db ?? null,
+      preRise100: x.preRise100Db ?? null,
       isSnore,
       reason: isSnore ? null : x.reason,
       rhythm: !!x.rhythmRescued,
