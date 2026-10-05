@@ -36,9 +36,10 @@
   // data file keeps the rise over 0.25, 0.5 and 1 s to compare the lengths.
   const PRE_RISE_RULE_DB = 6;
   const PRE_RISE_SEC = 1;
-  // Background tests also hand over the sounds their own rules set aside (features only),
-  // so other limits and windows can be tried on a night afterwards.
-  const TEST_RULE_REASONS = new Set(['no-pre-rise', 'sudden']);
+  // Background tests also hand over the sounds their own rules set aside and their choppy
+  // sounds no snore rescued (features only), so other limits and windows can be tried on a
+  // night afterwards with the rhythm rescue redone (choppy ones since 1.22.1).
+  const SET_ASIDE_REASONS = new Set(['no-pre-rise', 'sudden', 'choppy']);
   // The auto test keeps clips of a random sample of the snores the counting detector did not
   // find, so they can be checked by ear (owner's decision after night 4).
   const TEST_CLIPS = 60;
@@ -505,7 +506,7 @@
               summary: sh.stats.summary(s.elapsed),
               levels: sh.detector.levels,
               snores: sh.stats.snores,
-              setAside: sh.stats.ignored.filter((e) => TEST_RULE_REASONS.has(e.reason)),
+              setAside: sh.stats.ignored.filter((e) => SET_ASIDE_REASONS.has(e.reason)),
             }),
           ]),
         ),

@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Core = require('../js/detector.js');
 const Synth = require('../js/synth.js');
-const { SCHEMA_VERSION, toReport, fromReport } = require('../js/report-format.js');
+const { SCHEMA_VERSION, toReport, fromReport, shadowEvents } = require('../js/report-format.js');
 const { eventsOf, reevaluate } = require('../scripts/evaluate.js');
 
 /** A finished demo night as the app holds it: main detector, one background test, one interruption. */
@@ -110,19 +110,38 @@ test('a finished night survives the round trip through the data file', () => {
     'rise over the moment before',
   );
   assert.equal(json.shadows.auto.setAside.length, 2, 'sounds a background test set aside');
-  assert.deepEqual(Object.keys(json.shadows.auto.setAside[0]), [
-    'offsetSec',
-    'durationSec',
-    'reason',
-    'aboveRoomDb',
+  // Every sound feature, as for the counting detector's sounds (1.22.1), so the test's rules can be re-run.
+  const featureKeys = [
+    'peakDbfs',
+    'lowFrequencyShare',
+    'highFrequencyShare',
+    'centroidHz',
     'bursts',
+    'subBassShare',
+    'loudFill',
     'breathRiseDb',
     'lowRiseDb',
     'onsetJumpDb',
     'preRise25Db',
     'preRise50Db',
     'preRise100Db',
+  ];
+  assert.deepEqual(Object.keys(json.shadows.auto.setAside[0]), ['offsetSec', 'durationSec', 'reason', 'aboveRoomDb', ...featureKeys]);
+  assert.deepEqual(Object.keys(json.shadows.auto.snores[0]), [
+    'offsetSec',
+    'durationSec',
+    'aboveRoomDb',
+    ...featureKeys,
+    'rhythmRescued',
+    'confirmed',
+    'wavStartSec',
   ]);
+  const shadowBack = shadowEvents(json.shadows.auto);
+  assert.equal(shadowBack.length, night.shadows.auto.snores.length + 2);
+  assert.ok(
+    shadowBack.every((e) => typeof e.lowRatio === 'number' && typeof e.fill === 'number'),
+    'read back with features',
+  );
   assert.ok(
     back.snores.every((e) => typeof e.preRise100 === 'number'),
     'read back',

@@ -5,6 +5,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const Synth = require('../js/synth.js');
 const { createRecorder } = require('../js/recorder.js');
+const { toReport } = require('../js/report-format.js');
+const { recount } = require('../scripts/evaluate.js');
 
 /** Minimal stand-ins for AudioContext, a microphone stream and the page. */
 function fakeBrowser({ denyMic = false } = {}) {
@@ -109,6 +111,15 @@ test('a night goes idle → requesting → recording → stopping → completed 
     preRiseSec: 1,
   });
   assert.ok(Array.isArray(night.shadows.auto.setAside), 'the sounds its own rules set aside are handed over');
+  for (const [name, sh] of Object.entries(night.shadows)) {
+    assert.ok(
+      sh.setAside.every((e) => ['no-pre-rise', 'sudden', 'choppy'].includes(e.reason)),
+      `${name}: set aside by its own rules, or choppy without a rescue`,
+    );
+  }
+  // From the data file, each background test's own rules give its own count back (1.22.1).
+  const file = JSON.parse(JSON.stringify(toReport(night)));
+  for (const [name, sh] of Object.entries(file.shadows)) assert.equal(recount(sh).length, night.shadows[name].summary.snoreCount, name);
   assert.deepEqual(night.noise.bandsHz, [31.5, 63, 125, 250, 500, 1000, 2000, 4000]); // 16 kHz: up to the 4 kHz octave
   assert.deepEqual(
     night.noise.minutes.map((m) => m.t),

@@ -215,8 +215,11 @@ Report, after Stop:
    gets `lowRiseDb` in the JSON. Their counts, margins and snore times go into the
    JSON under `shadows`, the report shows one line, and `npm run evaluate` compares
    them with the recorded result (and re-counts auto and high with stricter breath
-   rules from their stored sounds: 4.5 / 6 dB and 3 / 4.5 / 6 dB). Auto and high keep
-   audio for the test clips described above. The
+   rules from their stored sounds: 4.5 / 6 dB and 3 / 4.5 / 6 dB). Since 1.22.1 each
+   test stores every feature of its sounds and its choppy sounds no snore rescued, so
+   these re-counts run the same rules and rhythm rescue as live; for older files they
+   are marked approximate (a rattle could stay counted after the snore that rescued it
+   dropped out). Auto and high keep audio for the test clips described above. The
    breath-rule background tests of 1.13–1.16 (**breath**, 3 dB; **breath6**, 6 dB)
    ended when Normal took the rule over; `npm run evaluate` shows any night with
    and without the rule from the stored sounds.
