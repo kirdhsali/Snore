@@ -424,13 +424,34 @@ test('breath-noise rule: hum swells without breath noise stop counting, snores s
     const withRule = count({ minBreathRiseDb: 3 });
     assert.ok(withRule.noBreath >= 5, `rule rejects swells: ${withRule.noBreath}/6 at ${sr} Hz`);
     assert.equal(withRule.snores, 6, 'real snores keep counting');
-    // Normal sensitivity applies the 6 dB rule by itself (1.17.0); Low and High do not.
+    // Normal applies the 6 dB rule by itself (1.17.0), Low too (1.21.0); High does not.
     const normal = count({});
     assert.equal(normal.swellSnores, 0, `Normal counts no swell at ${sr} Hz`);
     assert.ok(normal.noBreath >= 5, `most for missing breath noise (${normal.noBreath}/6; the rest is rumble)`);
     assert.equal(normal.snores, 6, 'and keeps the snores');
-    assert.ok(count({ sensitivity: 'low' }).noBreath === 0, 'Low does not check breath noise');
+    assert.ok(count({ sensitivity: 'high' }).noBreath === 0, 'High does not check breath noise');
   }
+});
+
+test('Low applies the breath-noise rule too: hum swells between snore runs stop counting (1.21.0)', () => {
+  // As night 4 at Low: snores, then hum swells 4 s apart that confirm each other.
+  const r = Synth.rng(2);
+  const plan = [];
+  for (let t = 20; t < 140; t += 40) {
+    plan.push(...Synth.snoreRun(t, 4, r).map((p) => ({ ...p, amp: 0.02 * (0.5 + r()) })));
+    for (let k = 0; k < 4; k++) plan.push({ type: 'swell', at: t + 18 + k * 4 + r() });
+  }
+  const sc = Synth.compose(16000, 160, plan, 2, 0.002, 'still');
+  const swellsCounted = (options) => {
+    const st = new SessionStats();
+    const det = new SnoreDetector(16000, { keepClips: false, sensitivity: 'low', ...options, onEvent: (e) => st.add(e) });
+    det.process(sc.samples);
+    det.flush();
+    const swells = sc.truth.filter((t) => t.type === 'swell');
+    return st.confirmed.filter((e) => swells.some((t) => e.start < t.end && e.end > t.start)).length;
+  };
+  assert.ok(swellsCounted({ minBreathRiseDb: null }) >= 6, 'without the rule Low counts the swells');
+  assert.equal(swellsCounted({}), 0, 'Low with its rule counts none');
 });
 
 test('onset jump: a knock counts its full step wherever it starts; a swell rises slowly', () => {
@@ -515,7 +536,7 @@ test('rise over the moment before: measured over 0.25, 0.5 and 1 s; a rule uses 
 test('the breath-noise rule in force: the options set it, else the sensitivity (Normal 6 dB)', () => {
   assert.equal(Core.breathRuleDb({}), 6, 'default sensitivity is Normal');
   assert.equal(Core.breathRuleDb({ sensitivity: 'normal' }), 6);
-  assert.equal(Core.breathRuleDb({ sensitivity: 'low' }), null);
+  assert.equal(Core.breathRuleDb({ sensitivity: 'low' }), 6, 'Low too since 1.21.0');
   assert.equal(Core.breathRuleDb({ sensitivity: 'high' }), null);
   assert.equal(Core.breathRuleDb({ sensitivity: 'auto' }), null);
   assert.equal(Core.breathRuleDb({ sensitivity: 'normal', minBreathRiseDb: null }), null, 'null switches it off');

@@ -167,7 +167,7 @@ Report, after Stop:
    nothing above 1 kHz, centroid under 400 Hz, sustained rather than separate
    thuds) and a snore accepted on its own lies 2–12 s before or after it. It
    waits up to 12 s for that snore; rescued snores do not anchor further rescues.
-   **Breath noise (Normal, since 1.17.0):** a snore is air rushing through a
+   **Breath noise (Normal since 1.17.0, Low since 1.21.0):** a snore is air rushing through a
    narrowed throat, so the 150–1500 Hz band rises above the room noise. Every
    sound gets `breathRiseDb`; on Normal a snore needs at least 6 dB, so deep
    hums, rumble and machinery without breath noise are ignored as “no breath
@@ -175,8 +175,13 @@ Report, after Stop:
    swells of a room hum (3–6 dB of breath noise) confirmed each other as snores
    (961 confirmed without the rule, 661 with it: 214 of the 300 dropped after
    07:30, where the clips held no snore, while the clear snoring stretches kept
-   499 of 510); in night 5 it changed 76 to 73. Low and High do not check it (no
-   real nights with them yet).
+   499 of 510); in night 5 it changed 76 to 73; in night 6, its first night
+   counting, 290 to 223, setting aside quiet sounds of about 72 Hz. **Low** checks it
+   too since 1.21.0: it lost no snore in ESC-50 (30/40 either way) or in simulated
+   rooms except where hum swells sat between snores (64 → 56 of 140 found, but 127
+   false snores → 0). **High** does not check it: there it would also cost quiet
+   snores (ESC-50 snoring clips 29 → 27, confirmed 11 → 8; a simulated quiet snorer
+   49 → 43 of 210) while removing many false ones (night sounds 120 → 74 of 1000).
    **Automatic sensitivity (testing in the background):** every 30 s it measures
    how much quiet half-second stretches fluctuate above the room noise and sets
    its margins from that: 5 dB in a still room, up to 14 dB when restless (fan,
