@@ -87,8 +87,10 @@
   function coverage(d) {
     const gaps = d.gaps || [];
     const captured = d.captured == null ? d.elapsed : d.captured;
-    const span = gaps.length ? `${fmtSpan(captured)} of ${fmtSpan(d.elapsed)} recorded · interrupted ${gaps.length}×` : fmtSpan(d.elapsed);
-    return { gaps, captured, span };
+    const parts = gaps.length
+      ? [`${fmtSpan(captured)} of ${fmtSpan(d.elapsed)} recorded`, `interrupted ${gaps.length}×`]
+      : [fmtSpan(d.elapsed)];
+    return { gaps, captured, span: parts.join(' · '), parts };
   }
 
   /** The busiest half hour (or tenth of a short session): {start, end, count}. */
@@ -152,6 +154,17 @@
     ctx.restore();
   }
 
+  /** Joins `parts` with " · " into as few lines as fit in `maxWidth` (at the context's font). */
+  function wrapParts(ctx, parts, maxWidth) {
+    const lines = [];
+    for (const part of parts) {
+      const joined = lines.length ? `${lines[lines.length - 1]} · ${part}` : part;
+      if (lines.length && ctx.measureText(joined).width <= maxWidth) lines[lines.length - 1] = joined;
+      else lines.push(part);
+    }
+    return lines;
+  }
+
   /**
    * Paints the share image.
    * d: { startWall, elapsed, captured, gaps (see coverage), snores: [{start, duration, relDb, score}], summary,
@@ -176,7 +189,7 @@
     // Areas where decorative stars would sit on text or be mistaken for data: [x0, y0, x1, y1]
     const keepClear = [
       [plot.x - 110, plot.y - 30, plot.x + plot.w + 20, plot.y + plot.h + 100],
-      [pad - 10, 60, CARD_W - pad + 10, 180],
+      [pad - 10, 60, CARD_W - pad + 10, 215],
       [pad - 10, 200, 760, 470],
       [pad - 10, 1090, CARD_W - pad + 10, CARD_H - 20],
     ];
@@ -207,7 +220,9 @@
     ctx.fillText(fmtDate(d.startWall), CARD_W - pad, 94);
 
     ctx.textAlign = 'left';
-    ctx.fillText(`${fmtTime(d.startWall)} – ${fmtTime(d.startWall + d.elapsed * 1000)} · ${cov.span}`, pad, 160);
+    // Times and coverage; a long night with interruptions (AM/PM times) takes a second line.
+    const header = [`${fmtTime(d.startWall)} – ${fmtTime(d.startWall + d.elapsed * 1000)}`, ...cov.parts];
+    wrapParts(ctx, header, CARD_W - 2 * pad).forEach((text, i) => ctx.fillText(text, pad, 160 + i * 38, CARD_W - 2 * pad));
 
     // Hero number: the short-recording wording depends on the time actually recorded
     const shortSession = cov.captured < 600;
