@@ -1,0 +1,20 @@
+{
+  "2026-10-02_0134": {
+    "note": "night 4, home, 1.12.4 (Normal without the breath rule); owner listened: real snoring in two stretches, the many sounds after 07:30 were swells of a low hum",
+    "snoring": [["01:52", "02:17"], ["03:15", "03:56"]],
+    "not_snoring": [["07:30", "23:59"]]
+  },
+  "2026-10-04_0110": {
+    "note": "night 5, hotel, 1.15.0; the loudest counted sounds were 4 knocks; 59 of the 60 auto test clips were not snores (quiet breathing over a motor's tone)",
+    "snoring": [],
+    "not_snoring": [],
+    "loudest": 4,
+    "test_clips": "59 of 60 not snores by ear"
+  },
+  "2026-10-05_0133": {
+    "note": "night 6, home, 1.19.0 (Normal with the 6 dB rule); clear snoring 01:46-02:40; the tonal sounds 06:39-06:44 judged real; auto test clips matched the room's flicker",
+    "snoring": [["01:46", "02:40"], ["06:39", "06:45"]],
+    "not_snoring": [],
+    "test_clips": "room flicker by ear"
+  }
+}

@@ -57,6 +57,13 @@ Requirements:
 - Static site, plain HTML/CSS/JS, no build step, no runtime dependencies; GitHub Pages.
 
 Owner decisions (**[owner]**), most recent first:
+- **2026-10-05, after the dataset study** ([`research/RESULTS.md`](../research/RESULTS.md)):
+  **High counts with the 6 dB breath rule** (APSAA, PSG-Audio and night 4 agree; the cost, a
+  few of High's quiet snores, is small against the precision gained); the High background trial
+  ends with it. Record the study rerunnably in a new `research/` folder. YAMNet as a "second
+  opinion" in the app: wanted in principle; design and a dependency exception in a new session.
+  APSAA may be used under its non-commercial, no-redistribution terms. The owner allowed
+  `us.aws.cdn.hf.co` (Hugging Face's file host) in the cloud environment.
 - **2026-10-05, after the third review:** merge the 1.22.0 checkpoint docs (#51); fix the
   review's findings N1–N4 and write the review response **before** the public-dataset
   tests (the fixes are quick, the datasets slow). Dataset harnesses stay in a scratch
@@ -99,7 +106,8 @@ Claude's recommendations (**[recommendation]**, not decided):
   recovery of an unfinished night; fix C4 first (§7).
 - Before a native app, prototype locked-screen overnight recording on a real iPhone; the
   browser side of `js/recorder.js` is the part to replace.
-- High: 4.5 dB is the likely middle ground if the trial and the datasets support it.
+- (Superseded on 2026-10-05: "High: 4.5 dB as the middle ground". The datasets put High's
+  3–6 dB sounds at or below chance level for snoring, and the owner chose 6 dB.)
 
 ## 3. Detection rules in force (1.22.0)
 
@@ -212,6 +220,7 @@ js/app.js (page) ◄── onState / onFrame / onEvent / onWakeLock
 | `tests/*.test.js` | `node:test`: detector, share, serve, evaluate, report-format, recorder, night-store, noise |
 | `tests/e2e.js` | Playwright/Chromium at 390 × 844 with a fake microphone playing the synthetic night |
 | `tests/fixtures/` | Synthetic reports only |
+| `research/` | Dataset studies outside the app (APSAA, PSG-Audio, Khan, YAMNet, the owner's nights): rerunnable scripts, data under `~/.cache/snorewatch`, results in `research/RESULTS.md` |
 | `docs/review-probes/` | Adapted probes from the first review, the second review's controller/store probe, the full demo run (1.22.0) and the third review's N1/N2 probe |
 | `.github/workflows/` | `ci.yml` (`CI tests`: unit, lint, e2e), `pages.yml` (`Tests before deploy` → deploy, `main` only), `release.yml` (`Tests before release` → tag `vX.Y.Z`) |
 
@@ -272,9 +281,13 @@ js/app.js (page) ◄── onState / onFrame / onEvent / onWakeLock
 - **Untested on a device:** overnight run, real interruptions (call, Siri, lock), share sheet,
   clip playback. Automated browser tests are Chromium only; the ScriptProcessor fallback has
   only a fake-browser unit test; the e2e demo step uses a random seed.
+- **Pitch bias [verified, research/RESULTS.md §4]:** the 500 Hz centroid limit rejects most
+  higher-pitched snores (Khan: 183 of 186 missed snores are "too bright"; children's and women's
+  snoring and close recordings); open, owner's decision.
 - **Detection evidence is thin [assumption]:** 6 real nights of one person (home and a
-  hotel), synthetic rooms, ESC-50. Open: does the 1.20.0 auto rule fix auto at home
-  (untested on a real night)? Which pre-rise window is best? High: 3, 4.5 or 6 dB? The
+  hotel), synthetic rooms, ESC-50; since 2026-10-05 also the public datasets in
+  `research/RESULTS.md` (High's breath rule settled there: 6 dB). Open: does the 1.20.0 auto
+  rule fix auto at home (untested on a real night)? Which pre-rise window is best? The
   knock test has not yet met a real knock night after 1.18.0. Night 6's tonal late sounds.
 - **Room noise:** findings not very informative yet (owner); the shared report's heatmap
   is 720 units wide, so its labels are small on a phone; the e2e run is too short for a
@@ -327,6 +340,7 @@ npm run build                              # optional dist/ single-file builds
 npm start                                  # http://localhost:8080
 npm run eval:public                        # ESC-50 benchmark, before detection changes
 npm run evaluate -- <report>.json          # re-count a downloaded night
+research/setup.sh                          # research only: Python venv + YAMNet (see research/README.md)
 ```
 
 Configuration (environment variables, no secrets anywhere): `PORT=<port>`, `HOST=<address>`
@@ -334,8 +348,9 @@ for `npm start` (default 8080, 127.0.0.1); `CHROMIUM_PATH=<path>` for `npm run t
 `ESC50_DIR=<path to an ESC-50 checkout>` (default `~/.cache/snorewatch/esc-50`).
 External datasets live outside the repository (suggested `~/.cache/snorewatch/datasets/`)
 and are never committed. In Claude's cloud environment, GitHub clones work and the owner
-allowed `zenodo.org`, `huggingface.co` and `www.scidb.cn` (2026-10-05); each new container
-starts without the ESC-50 cache.
+allowed `zenodo.org`, `huggingface.co` (with its file host `us.aws.cdn.hf.co`) and
+`www.scidb.cn` (2026-10-05); each new container starts without the ESC-50 cache or the
+research data under `~/.cache/snorewatch`.
 
 Workflow: never commit to `main`; branch from the latest `main`, PR, merge when `CI tests`
 is green; bump `package.json` and `js/version.js` together (a test checks); `release.yml`
@@ -343,28 +358,27 @@ tags. Rules: `CLAUDE.md` (= `AGENTS.md`) and `docs/WORKING-RULES.md`.
 
 ## 10. Next task
 
-**Agreed next (owner):** public-dataset tests, prepared but not run (the third review's
-fixes came first, 1.22.1–1.22.3). Run every rule variant as its own full detector pass over
-the audio, as `scripts/eval-public.js` does, never as a re-count of stored sounds (third
-review N2). The fresh `npm run eval:public` baseline on 1.22.3 matches 1.22.0 (VERIFICATION,
-checkpoint 1.22.3; the reviewer had not run it). Keep the harness and all outputs outside the
-repository.
-1. **APSAA** (Zenodo DOI 10.5281/zenodo.14096541, CC BY 4.0; 32 whole nights, audio WAV
-   plus polygraph incl. a snore channel from the nasal cannula): count snores with High
-   without the rule and with 3 / 4.5 / 6 dB, and Normal, against the snore channel.
-2. **PSG-Audio** (Athens; CC BY 4.0; ambient microphone ~1 m above the bed; official
-   repository Science Data Bank 10.11922/sciencedb.00345, partial mirror on Hugging Face
-   `dust-systems/psg-audio`): the same on a handful of nights (disk is limited); the owner
-   would like to use it further ("maybe we can do other stuff with that").
-3. **Khan clips** (500 snoring + 500 other 1 s clips, children, women and men, from online
-   videos; GitHub mirror `adrianagaler/Snoring-Detection`, folders
-   `Snoring_Dataset_@16000/snoring` and `no_snoring`): High and Normal with 3 / 4.5 / 6 dB,
-   played at several levels like the quiet ESC-50 runs below.
-Then decide High's rule with the owner (3 dB if the 3–6 dB band is mostly snores, 6 dB if
-mostly hum, 4.5 dB if mixed). Evidence so far (scratch runs, not committed): ESC-50 at the
-benchmark level / 10 dB / 16 dB quieter, High without → 3 / 4.5 / 6 dB: snoring clips
-29 → 27/27/27, 29 → 29/29/28, 31 → 30/28/28; night sounds counted 120 → 94/84/74,
-117 → 91/82/72, 115 → 83/71/63; night 4's hum swells (Normal) 260 → 169/90/46.
+**Done (2026-10-05):** the public-dataset study (APSAA 32 nights, PSG-Audio 6 nights, Khan, ESC-50
+baseline, YAMNet, the owner's nights 4–6), rerunnable from [`research/`](../research/README.md);
+results and limits in [`research/RESULTS.md`](../research/RESULTS.md). In short: High → 6 dB
+(decided); Normal is precise where someone clearly snores; the 500 Hz pitch limit misses
+higher-pitched snorers; labels without listening work with a second sensor (throat mic / snore
+sensor; for the owner: two phones, near and far); YAMNet works best as a second opinion.
+
+**Agreed next (owner):**
+1. **High with the 6 dB breath rule** (1.23.0; ends the High background trial).
+2. **New session: YAMNet as a "second opinion" background test.** A design note first, for the
+   owner's approval: where it runs (judging the detector's candidates on full-rate audio, turned
+   up to -20 dBFS), which runtime (LiteRT/MediaPipe or ONNX Runtime Web, self-hosted), model file
+   (official Google release, Apache 2.0, licence text shipped), the exception to "no runtime
+   dependencies", phone load (CPU, battery, memory) and what goes into the data file. The score
+   is stored beside today's verdict; the headline count does not change.
+3. **When the owner has time:** a two-phone night (one phone near the head, one 2-3 m away, a
+   clap near the pillow at the start) for automatic "own sound or room" labels at home; the
+   listening sample (about 40 clips where YAMNet and the rules disagree).
+4. **Open, owner's decision:** the 500 Hz pitch (centroid) limit (Khan: 63 % of snores found
+   at 500 Hz, 76 % at 800 Hz; ESC-50 confirmed false alarms 1.4 % -> 2.5 %); a background test
+   first if wanted.
 
 **With each new real night** (owner sends JSON, snores WAV, test-clip WAV): run
 `npm run evaluate`; check the breath rule's set-aside sounds, the knock test, the auto table

@@ -302,6 +302,7 @@ type checker. Agent instructions: `CLAUDE.md` / `AGENTS.md`; general working rul
 | `docs/VERIFICATION.md` | verification commands, results and a manual smoke test |
 | `docs/REVIEW-RESPONSE.md` | answers to the reviews (v1.9.1, `a87c1f3`, `8e05d2b`), finding by finding; the reviews themselves are in `docs/reviews/` |
 | `docs/review-probes/` | scripts that re-run the reviews' checks and the full demo night (see `docs/VERIFICATION.md`) |
+| `research/` | dataset studies, automatic labels and YAMNet tests outside the app, rerunnable; results in `research/RESULTS.md` (data never committed) |
 
 ### How changes are made
 
