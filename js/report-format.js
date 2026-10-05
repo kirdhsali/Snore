@@ -15,6 +15,9 @@
  *      1.14.0 adds `wavStartSec` to background-test snores (the test-clip WAV).
  *      1.15.0 adds `noise`: the room noise per minute (levels only, no sound).
  *      1.16.0 adds `lowRiseDb` per sound and `minLowRiseDb` per background test.
+ *      1.22.1 gives background-test snores and set-aside sounds every sound feature
+ *      (as the counting detector's) and `rhythmRescued`; `setAside` also holds the
+ *      test's choppy sounds no snore rescued, so its rhythm rescue can be redone.
  */
 (function (root, factory) {
   const api = factory();
@@ -159,26 +162,23 @@
               offsetSec: round(x.start, 2),
               durationSec: round(x.duration, 2),
               aboveRoomDb: round(x.relDb, 1),
-              breathRiseDb: round(x.breathRise, 1),
-              lowRiseDb: round(x.lowRise, 1),
-              onsetJumpDb: round(x.onsetJump, 1),
-              ...preRise(x),
+              peakDbfs: round(x.peakDb, 1),
+              ...features(x),
+              rhythmRescued: !!x.rhythm,
               confirmed: !!x.confirmed,
               // In the test-clip WAV: the auto test's sample of snores the counting detector missed.
               wavStartSec: testWavStarts.has(x) ? round(testWavStarts.get(x), 2) : null,
             })),
-            // Sounds only this test's own rules set aside (rise over the moment before, sudden start):
-            // with the snores above, enough to try other limits on the night afterwards.
+            // Sounds this test's own rules set aside (rise over the moment before, sudden start)
+            // and its choppy sounds no snore rescued: with the snores above, enough to re-run
+            // its rules with other limits on the night afterwards, rhythm rescue included.
             setAside: (sh.setAside || []).map((x) => ({
               offsetSec: round(x.start, 2),
               durationSec: round(x.duration, 2),
               reason: x.reason,
               aboveRoomDb: round(x.relDb, 1),
-              bursts: x.peaks,
-              breathRiseDb: round(x.breathRise, 1),
-              lowRiseDb: round(x.lowRise, 1),
-              onsetJumpDb: round(x.onsetJump, 1),
-              ...preRise(x),
+              peakDbfs: round(x.peakDb, 1),
+              ...features(x),
             })),
           },
         ]),
@@ -258,5 +258,15 @@
     };
   }
 
-  return { SCHEMA_VERSION, toReport, fromReport };
+  /**
+   * A background test's stored sounds back as events in time order: its snores and the
+   * sounds it set aside. Only files from 1.22.1 on hold every feature of them (lowRatio etc.).
+   */
+  function shadowEvents(shadow) {
+    return [...(shadow.snores || []).map((x) => toEvent(x, true)), ...(shadow.setAside || []).map((x) => toEvent(x, false))]
+      .filter((e) => e.start != null)
+      .sort(byStart);
+  }
+
+  return { SCHEMA_VERSION, toReport, fromReport, shadowEvents };
 });
