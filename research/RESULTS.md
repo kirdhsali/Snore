@@ -201,12 +201,32 @@ Normal also counts 158/1960 (31) of all other sounds.
   there say nothing about the app. The app's saved clips are 8 kHz, keeping sound up to 4 kHz.
 - **The same in-room audio as the detector heard:**
 
-INROOM_TABLE
+  Each cell: snoring found / others counted (Khan: all 500 others; ESC-50: its 40 snoring clips
+  against 1,000 night sounds). "Detector" means at least one snore-like sound (Normal).
 
-  YAMNet judges absolute level. As heard, quiet clips look like silence and recognition
-  collapses below about −60 dBFS. Turned up to a fixed level first, it stays good at every level.
-  Its main confusion is breathing (ESC-50 "breathing" clips score as snoring most often), which
-  is also the hardest boundary for a snoring app.
+  | Clip peak | Set | Detector | YAMNet as heard ≥ 0.1 | Levelled ≥ 0.1 | Levelled ≥ 0.3 | Levelled ≥ 0.5 |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | −50 dBFS | Khan | 62.6 / 31.6 | 91.8 / 4.6 | 95.4 / 37.0 | 92.8 / 14.2 | 91.2 / 8.0 |
+  | −50 dBFS | ESC-50 | 72.5 / 7.7 | 92.5 / 9.6 | 100 / 16.9 | 100 / 5.6 | 100 / 2.6 |
+  | −60 dBFS | Khan | 62.4 / 31.0 | 61.6 / 3.0 | 93.8 / 12.0 | 89.8 / 3.8 | 85.6 / 1.8 |
+  | −60 dBFS | ESC-50 | 75.0 / 6.9 | 62.5 / 3.7 | 100 / 14.8 | 100 / 5.3 | 97.5 / 3.3 |
+  | −66 dBFS | Khan | 57.8 / 25.2 | 36.6 / 2.4 | 92.2 / 2.6 | 83.2 / 1.2 | 78.0 / 1.0 |
+  | −66 dBFS | ESC-50 | 70.0 / 6.4 | 22.5 / 1.7 | 92.5 / 10.4 | 87.5 / 4.3 | 82.5 / 2.4 |
+
+  ESC-50 night sounds YAMNet scores as snoring (as heard, ≥ 0.1, −50 dBFS): breathing 26 of
+  40, vacuum cleaner 18, engine 10, crickets 8, door creaks 7, drinking 6, others ≤ 5.
+
+  - YAMNet judges absolute level. As heard, quiet clips look like silence, and recognition
+    collapses below about −60 dBFS.
+  - Turned up to a fixed level first, it finds 78–100% of the snoring at every level. At ≥ 0.5 it
+    counts 1–8% of the others, against 6–32% for the detector.
+  - At a low threshold (≥ 0.1), levelling also raises false alarms: Khan others 37% at −50 dBFS.
+    A second opinion needs a threshold of about 0.5.
+  - Its main confusion is breathing, which is also the hardest boundary for a snoring app.
+  - **Re-run note:** the first, scratch run scored the audio as heard only, with a simpler
+    resampler, and read Khan's stereo clips from the left channel. Its figures as heard were
+    within a few points: Khan 91.8 / 62.2 / 39.4% found and ESC-50 92.5 / 57.5 / 22.5% at −50 /
+    −60 / −66 dBFS. The detector differed only on Khan (56.4% found at −50 dBFS, see §4).
 
 ## 7. The owner's nights 4–6 (private files, aggregate results)
 
