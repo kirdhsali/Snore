@@ -153,3 +153,83 @@ test('a loud stretch that is not a cycle says when quiet snores could be missed'
     /02:00–03:00: the room was 8 dB louder than at its quietest; quiet snores could be missed then\./,
   );
 });
+
+/** The same minutes with `gapMinutes` not recorded before minute `from` (an interruption). */
+function withGap(noise, from, gapMinutes) {
+  return { ...noise, minutes: noise.minutes.map((m, i) => (i >= from ? { ...m, offsetSec: m.offsetSec + gapMinutes * 60 } : m)) };
+}
+
+test('findings never join minutes across an hour that was not recorded (review N1)', () => {
+  // The review's case: 20 quiet minutes, 6 louder, an hour not recorded, 6 louder, 20 quiet.
+  const noise = withGap(
+    minutes(52, (i, m) => {
+      if (i >= 20 && i < 32) {
+        m.backgroundDbfs = -81;
+        m.p90Dbfs = -79;
+        m.bandsDbfs = m.bandsDbfs.map((v, k) => (BANDS[k] >= 500 ? -97 : v));
+      }
+    }),
+    26,
+    60,
+  );
+  const s = summarize(noise);
+  assert.equal(s.complete, false);
+  assert.deepEqual(s.stretches, [], 'two 6-minute stretches are each too short for a finding');
+  assert.deepEqual(s.masked, []);
+  assert.equal(s.cycles, null, 'a stretch cut by the gap has no known start or end');
+  assert.deepEqual(describe(s, at), ['The room stayed quiet and steady while it was recorded.']);
+  // Long enough on both sides: two findings, each ending or starting at the gap, none across it.
+  const longer = summarize(
+    withGap(
+      minutes(70, (i, m) => (m.backgroundDbfs = i >= 20 && i < 50 ? -81 : -89)),
+      35,
+      60,
+    ),
+  );
+  assert.deepEqual(
+    longer.masked.map((x) => [x.start / 60, x.end / 60]),
+    [
+      [20, 35],
+      [95, 110],
+    ],
+  );
+  assert.equal(longer.cycles, null);
+});
+
+test('minutes without a background measurement are not treated as neighbours of the minutes around them', () => {
+  // 30 louder minutes, 15 recorded minutes with no quiet moment (no background), 30 louder.
+  const noise = minutes(120, (i, m) => {
+    if (i >= 20 && i < 95) m.backgroundDbfs = i >= 50 && i < 65 ? null : -81;
+  });
+  const s = summarize(noise);
+  assert.equal(s.complete, true, 'those minutes were recorded');
+  assert.deepEqual(
+    s.masked.map((x) => [x.start / 60, x.end / 60]),
+    [
+      [20, 50],
+      [65, 95],
+    ],
+    'not one stretch from 20 to 95 min',
+  );
+  // A few such minutes inside a stretch do not split it (as a few quieter minutes do not).
+  const short = summarize(
+    minutes(120, (i, m) => {
+      if (i >= 20 && i < 95) m.backgroundDbfs = i >= 50 && i < 53 ? null : -81;
+    }),
+  );
+  assert.deepEqual(
+    short.masked.map((x) => [x.start / 60, x.end / 60]),
+    [[20, 95]],
+  );
+});
+
+test('a steady tone needs 7 of 10 clock minutes, not 10 minutes either side of a gap', () => {
+  const hum = (from, to) => (i, m) => (m.humHz = i >= from && i < to ? 50 : null);
+  assert.ok(summarize(minutes(50, hum(20, 30))).tone, '10 minutes of hum in a row');
+  assert.equal(summarize(withGap(minutes(50, hum(20, 30)), 25, 60)).tone, null, '5 minutes, an hour not recorded, 5 minutes');
+  // With a gap, the share is of the time recorded and says so.
+  const s = summarize(withGap(minutes(120, hum(0, 120)), 60, 30));
+  assert.ok(s.tone && s.tone.share > 0.9);
+  assert.match(describe(s, at)[0], /for 100% of the recorded time: typical of mains hum/);
+  assert.match(describe(summarize(minutes(120, hum(0, 120))), at)[0], /for 100% of the night:/);
+});

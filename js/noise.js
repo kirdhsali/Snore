@@ -133,19 +133,35 @@
     }));
   }
 
-  /** Runs of consecutive minutes where `test(i)` holds, allowing `gap` missing minutes inside a run. */
-  function runs(n, test, minLen, gap = 1) {
+  /**
+   * Runs of clock minutes where `test(i)` holds for minute M[i], allowing `gap` recorded
+   * minutes that fail it inside a run. `index` maps a clock minute (slot) to its i (minutes
+   * with a background); `seen` holds every slot the recording covered. A slot it did not
+   * cover (an interruption) ends a run: what happened then is unknown. Returns [a, b, cut]
+   * (indices into M; `cut`: the run borders such a gap or a minute without a background,
+   * so its true start or end is unknown).
+   */
+  function runs({ index, seen, first, last: end }, test, minLen, gap = 1) {
     const out = [];
     let start = -1;
     let last = -1;
-    for (let i = 0; i <= n; i++) {
-      if (i < n && test(i)) {
-        if (start < 0) start = i;
-        last = i;
-      } else if (start >= 0 && (i === n || i - last > gap)) {
-        if (last - start + 1 >= minLen) out.push([start, last]);
-        start = -1;
+    const close = () => {
+      if (start >= 0 && last - start + 1 >= minLen) {
+        const cut = (start > first && !index.has(start - 1)) || (last < end && !index.has(last + 1));
+        out.push([index.get(start), index.get(last), cut]);
       }
+      start = -1;
+    };
+    for (let k = first; k <= end + 1; k++) {
+      if (k <= end && !seen.has(k)) {
+        close();
+        continue;
+      }
+      const i = index.get(k);
+      if (k <= end && i != null && test(i)) {
+        if (start < 0) start = k;
+        last = k;
+      } else if (start >= 0 && (k > end || k - last > gap)) close();
     }
     return out;
   }
@@ -155,13 +171,28 @@
    * record or data file). `snoreTimes` (seconds, the night's clock): minutes with
    * snoring, and the minute either side, are left out of the mid/high-pitch
    * stretches, so the sleeper's own breathing is not blamed on the room. Times
-   * are seconds on the night's clock. Returns { background, tone, cycles,
-   * stretches, masked } (null or [] when not found).
+   * are seconds on the night's clock. Returns { minutes, complete, background,
+   * tone, cycles, stretches, masked } (null or [] when not found); `complete` is
+   * false when the recording missed whole minutes (interruptions).
    */
   function summarize(noise, snoreTimes = []) {
     const minuteSec = (noise && noise.minuteSec) || 60;
-    const M = normalise(noise || {}).filter((m) => m.bg != null);
+    const all = normalise(noise || {})
+      .filter((m) => m.t != null)
+      .sort((a, b) => a.t - b.t);
+    const M = all.filter((m) => m.bg != null);
     if (M.length < 10) return null;
+    // Clock minutes: neighbours in time, not in the list. Minutes the recording did not cover
+    // (interruptions) stay unknown: nothing is smoothed, windowed or joined across them.
+    const slot = (t) => Math.round(t / minuteSec);
+    const clock = {
+      index: new Map(M.map((m, i) => [slot(m.t), i])),
+      seen: new Set(all.map((m) => slot(m.t))),
+      first: slot(all[0].t),
+      last: slot(all[all.length - 1].t),
+    };
+    const complete = clock.seen.size === clock.last - clock.first + 1;
+    const near = (i, d) => clock.index.get(slot(M[i].t) + d);
     const snoring = new Set();
     for (const t of snoreTimes) for (const d of [-1, 0, 1]) snoring.add(Math.floor(t / minuteSec) + d);
     const ownSounds = (i) => snoring.has(Math.floor(M[i].t / minuteSec));
@@ -171,15 +202,15 @@
     // A steady tone: in a 10-minute window, 7 or more minutes within 6 Hz of the window's median pitch.
     const marked = new Array(M.length).fill(false);
     const pitches = [];
-    for (let i = 0; i + 10 <= M.length; i++) {
-      const hs = M.slice(i, i + 10)
-        .map((m) => m.hum)
-        .filter((h) => h != null);
+    for (let k = clock.first; k + 10 <= clock.last + 1; k++) {
+      const win = [];
+      for (let d = 0; d < 10; d++) if (clock.index.has(k + d)) win.push(clock.index.get(k + d));
+      const hs = win.map((i) => M[i].hum).filter((h) => h != null);
       if (hs.length < 7) continue;
       const mid = median(hs);
       if (hs.filter((h) => Math.abs(h - mid) <= 6).length < 7) continue;
       pitches.push(mid);
-      for (let k = i; k < i + 10; k++) if (M[k].hum != null && Math.abs(M[k].hum - mid) <= 6) marked[k] = true;
+      for (const i of win) if (M[i].hum != null && Math.abs(M[i].hum - mid) <= 6) marked[i] = true;
     }
     const toneMinutes = marked.filter(Boolean).length;
     let tone = null;
@@ -193,9 +224,11 @@
     }
 
     // A device switching on and off: the background steps up by 4 dB or more for 5+ minutes.
-    const smooth = M.map((_, i) => median(bgs.slice(Math.max(0, i - 1), i + 2)));
+    // A run cut by an interruption or a minute without a background has no known start or
+    // end, so it is not a switch-on.
+    const smooth = M.map((_, i) => median([near(i, -1), i, near(i, 1)].filter((j) => j != null).map((j) => bgs[j])));
     const base = percentile(smooth, 0.2);
-    const onRuns = runs(M.length, (i) => smooth[i] >= base + 4, 5, 1);
+    const onRuns = runs(clock, (i) => smooth[i] >= base + 4, 5, 1).filter(([, , cut]) => !cut);
     const minutesOf = ([a, b]) => (M[b].t - M[a].t) / minuteSec + 1;
     // The longest chain of 3+ switch-ons at a steady rhythm (gaps within 25% of their median).
     let chain = null;
@@ -239,7 +272,7 @@
     const stretches = [];
     if (hiBase != null) {
       const raised = (i) => hiDb[i] != null && hiDb[i] >= hiBase + 5 && !ownSounds(i);
-      for (const [a, b] of runs(M.length, raised, 10, 3)) {
+      for (const [a, b] of runs(clock, raised, 10, 3)) {
         const seg = M.slice(a, b + 1);
         const jumpy = median(seg.map((m) => (m.p90 != null ? m.p90 - m.bg : 0)));
         stretches.push({
@@ -253,13 +286,13 @@
 
     // Other stretches where the background stood 6 dB or more above the night's quiet level (a
     // cycling device is described above): quiet snores could be missed then. Close ones are merged.
-    const masked = runs(M.length, (i) => smooth[i] >= background.quietest + 6 && !inCycle(i), 10, 10).map(([a, b]) => ({
+    const masked = runs(clock, (i) => smooth[i] >= background.quietest + 6 && !inCycle(i), 10, 10).map(([a, b]) => ({
       start: M[a].t,
       end: M[b].t + minuteSec,
       riseDb: median(smooth.slice(a, b + 1)) - background.quietest,
     }));
 
-    return { minutes: M.length, background, tone, cycles, stretches, masked };
+    return { minutes: M.length, complete, background, tone, cycles, stretches, masked };
   }
 
   /** The findings as short sentences; `at(sec)` formats a time on the night's clock. */
@@ -276,7 +309,8 @@
       const what = tone.mains
         ? 'mains hum from an electrical device (a charger, fridge or lamp)'
         : 'a motor or fan (ventilation, a fridge, a pump)';
-      out.push(`A steady low tone at ${pitch} for ${Math.round(tone.share * 100)}% of the night: typical of ${what}.`);
+      const of = summary.complete === false ? 'the recorded time' : 'the night';
+      out.push(`A steady low tone at ${pitch} for ${Math.round(tone.share * 100)}% of ${of}: typical of ${what}.`);
     }
     if (cycles) {
       const often = cycles.regular ? ` between ${at(cycles.from)} and ${at(cycles.to)}, about every ${min(cycles.period)}` : '';
@@ -301,7 +335,7 @@
       out.push(
         `${at(m.start)}–${at(m.end)}: the room was ${Math.round(m.riseDb)} dB louder than at its quietest; quiet snores could be missed then.`,
       );
-    if (!out.length) out.push('The room stayed quiet and steady all night.');
+    if (!out.length) out.push(`The room stayed quiet and steady ${summary.complete === false ? 'while it was recorded' : 'all night'}.`);
     return out;
   }
 
