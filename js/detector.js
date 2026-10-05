@@ -25,9 +25,9 @@
  *   3b'. Breath noise: a snore is air rushing through a narrowed throat, so the
  *      150-1500 Hz band rises above the room noise. `breathRise` measures that
  *      rise; sounds without it (hum, rumble, a lift) are ignored as 'no-breath'.
- *      Normal and Low require 6 dB (Normal since 1.17.0 after background tests on
- *      real nights, Low since 1.21.0); High does not check it unless
- *      `minBreathRiseDb` is set (it would cost High's quiet snores, see the handover).
+ *      Every sensitivity requires 6 dB (Normal since 1.17.0 after background tests on
+ *      real nights, Low since 1.21.0, High since 1.23.0 after its background trial and the
+ *      public-dataset study, research/RESULTS.md); the auto background test sets its own.
  *   3b''. Snore band: a snore's flutter raises the 50-800 Hz band above that
  *      band's own room noise. `lowRise` measures it; with `minLowRiseDb` set,
  *      sounds that barely change it (quiet breathing over a room's hum) are
@@ -70,7 +70,7 @@
     low: { triggerDb: 12, releaseDb: 6, minAbsDb: -65, minBreathRiseDb: 6 },
     // minBreathRiseDb: the breath-noise rule of this sensitivity (see 3b' above), unless the options set one.
     normal: { triggerDb: 8, releaseDb: 4, minAbsDb: -75, minBreathRiseDb: 6 },
-    high: { triggerDb: 5, releaseDb: 3, minAbsDb: -85 },
+    high: { triggerDb: 5, releaseDb: 3, minAbsDb: -85, minBreathRiseDb: 6 },
     // Starts like normal, then sets the margins from how much the room noise
     // fluctuates (see _autoUpdate). The absolute gate only guards against silence.
     auto: { triggerDb: 8, releaseDb: 4, minAbsDb: -95 },

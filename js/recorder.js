@@ -43,12 +43,6 @@
   // The auto test keeps clips of a random sample of the snores the counting detector did not
   // find, so they can be checked by ear (owner's decision after night 4).
   const TEST_CLIPS = 60;
-  // High test (1.22.0): High without the breath-noise rule, to find out whether High could use a
-  // gentler rule (3-4.5 dB) than Normal's 6 dB without losing quiet snores. It keeps clips of a
-  // random sample of its snores the counting detector did not find whose breath noise lies in
-  // that open band, so they can be checked by ear (owner's decision after night 6).
-  const HIGH_TEST_CLIPS = 30;
-  const HIGH_CLIP_BREATH_DB = [3, 6];
 
   const TAP_CODE = `class Tap extends AudioWorkletProcessor {
     constructor() { super(); this.buf = new Float32Array(2048); this.n = 0; }
@@ -131,14 +125,12 @@
    *   onFrame(frame), onEvent(ev),   the main detector's frames and decided events (already counted)
    *   onWakeLock(state),             'on' | 'failed' | 'unsupported'
    *   testClips                      most clips the auto test keeps per night (default 60)
-   *   highTestClips                  most clips the High test keeps per night (default 30)
    *   env                            browser APIs (tests pass fakes)
    * }
    */
   function createRecorder(opts = {}) {
     const env = Object.assign(browserEnv(), opts.env);
     const maxTestClips = opts.testClips ?? TEST_CLIPS;
-    const maxHighClips = opts.highTestClips ?? HIGH_TEST_CLIPS;
     const notify = (fn, ...args) => fn && fn(...args);
     let state = 'idle';
     let session = null;
@@ -324,9 +316,10 @@
         });
         s.detector = det;
         // Background tests of candidate rules: extra detectors on the same audio.
-        // They change nothing on screen; their counts go into the data file. The auto and High
-        // tests keep audio: a sample of their snores the counting detector did not find
-        // (`sample`: the most clips to keep and which snores qualify).
+        // They change nothing on screen; their counts go into the data file. The auto test
+        // keeps audio: a sample of its snores the counting detector did not find
+        // (`sample`: the most clips to keep and which snores qualify). The High trial
+        // (1.22.0, High without the breath rule) ended in 1.23.0, when High took the 6 dB rule.
         const shadow = (options, sample) => {
           const stats = new SessionStats();
           const sh = { options, stats, detector: null, sample: sample && { ...sample, kept: [], seen: 0, stats } };
@@ -340,7 +333,6 @@
           });
           return sh;
         };
-        const inBreathBand = (e) => e.breathRise != null && e.breathRise >= HIGH_CLIP_BREATH_DB[0] && e.breathRise < HIGH_CLIP_BREATH_DB[1];
         s.shadows = {
           knock: shadow({ sensitivity, maxOnsetJumpDb: KNOCK_RULE_DB }),
           auto: shadow(
@@ -353,7 +345,6 @@
             },
             { max: maxTestClips, accept: () => true },
           ),
-          high: shadow({ sensitivity: 'high', minBreathRiseDb: null }, { max: maxHighClips, accept: inBreathBand }),
         };
         s.tap = await createTap(env, ctx, input, (samples) => {
           if (!live() || session !== s) return;
