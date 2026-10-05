@@ -243,7 +243,7 @@ with the 6 dB breath-noise rule):
 | --- | --- | --- |
 | snoring clips recognised | 29/40 (72.5 %) | 13/40 (32.5 %)* |
 | night sounds counted as snore (25 classes) | 76/1000 (7.6 %) | 13/1000 (1.3 %) |
-| … without the breath-noise rule (Normal before 1.17; Low, High) | 100/1000 (10.0 %) | 22/1000 (2.2 %); snoring 30/40, 14 confirmed |
+| … without the breath-noise rule (Normal before 1.17, Low before 1.21; High) | 100/1000 (10.0 %) | 22/1000 (2.2 %); snoring 30/40, 14 confirmed |
 | … with a 3 dB breath-noise rule | 87/1000 (8.7 %) | 18/1000 (1.8 %); snoring 29/40, 13 confirmed |
 | … with the sudden-start rule (knock background test) | 50/1000 (5.0 %) | 8/1000 (0.8 %); snoring 28/40, 11 confirmed |
 
@@ -298,6 +298,7 @@ type checker. Agent instructions: `CLAUDE.md` / `AGENTS.md`; general working rul
 | `docs/HANDOVER.md` | state of the project, decisions, known issues, next task |
 | `docs/VERIFICATION.md` | verification commands, results and a manual smoke test |
 | `docs/REVIEW-RESPONSE.md` | answer to the review of v1.9.1, finding by finding |
+| `docs/review-probes/` | scripts that re-run the review's checks and the full demo night (see `docs/VERIFICATION.md`) |
 
 ### How changes are made
 

@@ -3,37 +3,45 @@
 The independent review (2026-10-01) examined v1.9.1, commit
 `e4eea25e9844dbf393b942bdc6e6d29f54b178e6`, and reported findings R1–R9 plus advice on
 security, workflows and structure. This file records, per finding, what was done,
-where, how it was checked, and what remains. All results below were measured on
-the code of `main` at `827d6ca`. The review branch adds only documentation, the two
-adapted probe scripts and one lint-config line (`*.cjs` is linted too); application
-and test code are unchanged. Environment and full results:
-[`VERIFICATION.md`](VERIFICATION.md).
+where, how it was checked, and what remains.
 
-Evidence used: the review report and its evidence bundle (probe scripts
-`core-probes.cjs`, `server-probes.cjs`, `browser-probes.cjs`, `full-demo.cjs` and
-their outputs). The bundle is not in the repository. Two probes needed adapting to
-run against the current code; the adapted copies are in
-[`docs/review-probes/`](review-probes/) with the changes stated at their top.
+**Re-checked at 1.22.0** (`main` at `687b1f7`, 2026-10-05; review branch
+`claude/review-checkpoint-1.22`, documentation and one verification script only). The
+sections below first give the original fix (measured at 1.12.0, `827d6ca`), then a
+"**At 1.22.0**" line with the result now and any change since. Since 1.12.4 the app
+gained real-night follow-ups (1.12.5–1.22.0, see `HANDOVER.md` §4): two owner-approved
+counting changes (the breath rule on Normal and Low) and four background tests' worth of
+changes; none of them touched the code paths of R1, R2, R4, R7 or R8 except where noted.
+Environment and full results: [`VERIFICATION.md`](VERIFICATION.md), "Checkpoint 1.22.0".
+
+Evidence used: the review report and, at 1.12.0, its evidence bundle (probe scripts
+`core-probes.cjs`, `server-probes.cjs`, `browser-probes.cjs`, `full-demo.cjs` and their
+outputs). The bundle was never in the repository and is **not available** for the
+1.22.0 re-check: `core-probes.cjs` and `full-demo.cjs` could not be re-run; their checks
+are covered by the named unit tests below and by
+[`review-probes/full-demo-run.cjs`](review-probes/full-demo-run.cjs) (a replacement
+written at 1.22.0). The adapted server and browser probes and the second review's
+controller/store probe are in [`docs/review-probes/`](review-probes/) and were re-run.
 
 Status values: fixed · partly fixed · unresolved · deliberately deferred · disputed.
 
 ## Summary
 
-| ID | Topic | Status |
-| --- | --- | --- |
-| R1 | Interruptions, real-clock gaps, wake-lock failure | **Partly fixed** per the second review; its gaps C1–C3 are fixed since in 1.12.1–1.12.3 (simulated); untested on a physical iPhone |
-| R2 | Failed restart broke the previous night's exports | **Fixed** |
-| R3 | Rhythm rescue timing, too-close and earlier anchors, live/offline | **Fixed** (owner-approved counting change) |
-| R4 | Dev server traversal, hidden files, crash, all interfaces | **Fixed** (one cosmetic leftover) |
-| R5 | Raw audio after Stop; privacy wording | **Fixed** |
-| R6 | Dark-screen card backlog; long-night memory and export cost | **Partly fixed**: backlog fixed; byte budget and export memory not addressed |
-| R7 | Keyboard bypassed the sensitivity lock | **Fixed** |
-| R8 | Interval statistics, out-of-order events | **Fixed** |
-| R9 | Evaluator dropped breath rise | **Fixed** |
-| — | Architecture for expansion | **Partly done** (recorder, night record, report format, module split, storage interface); persistence deferred |
-| — | Saved-night recovery | **Deliberately deferred** to 2.x (owner); interface only |
-| — | Browser/device coverage | **Unresolved**: Chromium only; no physical iPhone run |
-| — | Workflow permissions, deploy/tag gating | **Fixed** |
+| ID | Topic | Status at 1.22.0 | Evidence at 1.22.0 |
+| --- | --- | --- | --- |
+| R1 | Interruptions, real-clock gaps, wake-lock failure | **Partly fixed**: fixed in simulation (incl. C1–C3); untested on a physical iPhone | 7 targeted tests, e2e, browser probe |
+| R2 | Failed restart broke the previous night's exports | **Fixed** | 1 test, e2e, browser probe |
+| R3 | Rhythm rescue timing, too-close and earlier anchors, live/offline | **Fixed** (owner-approved counting change) | 10 tests, boundary fixture 1 → 2; `core-probes.cjs` unavailable |
+| R4 | Dev server traversal, hidden files, crash, all interfaces | **Fixed** (cosmetic leftover: 403 body) | 1 test, server probe |
+| R5 | Raw audio after Stop; privacy wording | **Fixed**; kept audio widened by owner decision to test clips (≤ 60 auto, ≤ 30 high) | 6 tests, ring 51 600 → 0 |
+| R6 | Dark-screen card backlog; long-night memory and export cost | **Partly fixed**: backlog fixed; byte budget, metadata bounds and export memory not addressed (more detectors since) | 1 test, e2e, browser probe 6 cards / 48 ms |
+| R7 | Keyboard bypassed the sensitivity lock | **Fixed** (now four detectors) | e2e, browser probe |
+| R8 | Interval statistics, out-of-order events | **Fixed** | 1 test |
+| R9 | Evaluator dropped breath rise | **Fixed** (evaluator since extended) | 11 tests, demo JSON 16 → 16 |
+| — | Architecture for expansion | **Partly done** (recorder, night record, report format, module split, storage interface, `js/noise.js`); persistence deferred | — |
+| — | Saved-night recovery | **Deliberately deferred** to 2.x (owner); interface only | night-store tests |
+| — | Browser/device coverage | **Unresolved**: Chromium only; no physical iPhone run | — |
+| — | Workflow permissions, deploy/tag gating | **Fixed** (hardening items deferred) | workflows passed on `687b1f7` |
 
 ## Second review of a87c1f3
 
@@ -100,6 +108,15 @@ gaps: C1–C3 in [Second review](#second-review-of-a87c1f3).
   signals a phone call, Siri or a locked screen, and whether resume works there, is
   untested. Per-hour figures use analysed time (a deliberate reading of "per hour
   recorded").
+- **At 1.22.0:** targeted tests pass (`interruptions: suspended…`, `resume is tried…`,
+  `a screen lock that arrives after Stop…`, `an interruption: later events…`,
+  `re-evaluation respects interruptions…`, `an interrupted night says so…`, `no minutes are
+  made up during an interruption`: 7/7); browser probe: "Recording interrupted…", stop
+  within 1 ms, gap 2.4 s, wall 4 s = 1.7 s + gap; ended track shown; wake-lock refusal
+  shown. Since 1.12.4 the gap also clears the pre-rise history (1.20.0) and the room-noise
+  profile makes no minutes during a gap (1.15.0). Real-night data: night 6 ended with two
+  gaps at the stop (muted 23 s, stalled 6 s) that were recorded; no in-night interruption
+  has happened on the owner's iPhone yet.
 
 ### R2 — Failed restart · fixed
 
@@ -115,6 +132,8 @@ gaps: C1–C3 in [Second review](#second-review-of-a87c1f3).
 - **Original probe:** v1.9.1: `Cannot read properties of null (reading 'stats')`.
   Now: report visible, JSON has the previous `startedAt` and snores, same night id,
   no page errors.
+- **At 1.22.0:** `a failed start leaves the state and the last night as they were` passes;
+  e2e "Failed restart" passes; browser probe: same night id, no page errors.
 
 ### R3 — Rhythm rescue · fixed (owner-approved counting change)
 
@@ -143,6 +162,12 @@ gaps: C1–C3 in [Second review](#second-review-of-a87c1f3).
   corroborated the rule by other means); ESC-50 snoring clips 29/40 and 13/40 unchanged; night
   sounds confirmed 22 → 23 / 1000 (breath rule 18 → 19), the extra one a washing-
   machine clip confirmed by the two-way confirmation.
+- **At 1.22.0:** the rhythm rule is unchanged since 1.10.0; 10 targeted tests pass (the four
+  "rhythm rule: …" tests, "confirmation looks both ways…", rattles, knocks/speech in rhythm,
+  summary via rhythm); the review's boundary fixture still re-counts 1 → 2 snore-like
+  (0 → 2 confirmed). `core-probes.cjs` is not available any more. Later owner-approved
+  counting changes (the breath rule, 1.17.0 Normal and 1.21.0 Low) are checked before the
+  choppy test, so a choppy sound without breath noise is no longer a rhythm candidate.
 
 ### R4 — Development server · fixed (cosmetic leftover)
 
@@ -158,6 +183,9 @@ gaps: C1–C3 in [Second review](#second-review-of-a87c1f3).
   (v1.9.1: 200 with the outside file, `.git` served, crash with `URIError`).
 - **Remaining (cosmetic, found in this verification):** the 403 response body reads
   "Bad request" instead of "Forbidden". Not fixed in this documentation checkpoint.
+- **At 1.22.0:** `scripts/serve.js` unchanged since 1.9.4; `tests/serve.test.js` passes; the
+  adapted probe gives 403 / 404 / 400, still running, next request 200. The 403 body is
+  still "Bad request".
 
 ### R5 — Raw audio after Stop; privacy wording · fixed
 
@@ -177,6 +205,15 @@ gaps: C1–C3 in [Second review](#second-review-of-a87c1f3).
   `release()`** (command in `VERIFICATION.md`).
 - **Remaining:** a clip classified as a snore may still contain other sounds or be a
   misclassification; the wording now says so.
+- **At 1.22.0:** `release()` is called on all four detectors (main, knock, auto, high); the
+  ring check gives 51 600 → 0. **Owner-approved change of scope:** besides the counting
+  detector's snores, background tests now keep *test clips* so their snores can be checked
+  by ear: up to 60 of the auto test's snores the counting detector missed (1.14.0) and up
+  to 30 of the High test's with 3–6 dB of breath noise (1.22.0). They are snore-like clips
+  of the same kind, held in a reservoir (twice the cap) until Stop. Tests: `audio is kept
+  for snores only`, `no audio of other sounds remains once the recording ends`, `a
+  counting-only detector keeps no audio`, both test-clip sample tests, night store `only
+  accepted snores keep audio` (6/6). The README and HANDOVER state the test clips.
 
 ### R6 — Dark-screen backlog; long-night memory · partly fixed
 
@@ -190,6 +227,11 @@ gaps: C1–C3 in [Second review](#second-review-of-a87c1f3).
 - **Not addressed:** a byte budget for clips (still a 1500-clip count cap), bounded
   event metadata over very long nights, and peak memory of the WAV export. Phone
   memory and CPU over a full night are not measured.
+- **At 1.22.0:** browser probe: 4000 dark-screen snores → 6 queued, 6 cards, 48 ms; e2e
+  card-limit check passes; `clip budget drops the quietest clips first` passes. The load
+  has grown since: four detectors on the same audio (was three), two test-clip reservoirs
+  (up to 120 + 60 clips until Stop), a per-minute room-noise profile, and `setAside`
+  feature lists. Still **unmeasured on a phone**.
 
 ### R7 — Keyboard bypassed the sensitivity lock · fixed
 
@@ -200,6 +242,9 @@ gaps: C1–C3 in [Second review](#second-review-of-a87c1f3).
   detectors keep their settings; JSON records `normal` for main and breath).
 - **Original probe:** v1.9.1: main switched to `low`, breath stayed `normal`; now
   control disabled, all detectors unchanged.
+- **At 1.22.0:** the background tests are now `knock` (chosen sensitivity), `auto` and
+  `high` (fixed sensitivities); e2e and the browser probe confirm the control is disabled
+  and the detectors stay main normal, knock normal, auto auto, high high.
 
 ### R8 — Interval statistics · fixed
 
@@ -212,6 +257,8 @@ gaps: C1–C3 in [Second review](#second-review-of-a87c1f3).
   starts…".
 - **Original probe:** starts 2/6/10 → interval 4 s (was 4.5 s); delivery order
   2, 6, 3, 8 → median 2 s (was 4 s).
+- **At 1.22.0:** `js/stats.js` interval code unchanged; the test passes (the original probe
+  is not available).
 
 ### R9 — Evaluator dropped breath rise · fixed
 
@@ -225,6 +272,11 @@ gaps: C1–C3 in [Second review](#second-review-of-a87c1f3).
 - **Check:** `npm run evaluate` on a freshly exported demo night: 16/16 confirmed,
   same as recorded; on the review's boundary report: 1 → 2 snore-like sounds as the
   live detector now decides.
+- **At 1.22.0:** the evaluator also reads `lowRiseDb`, `onsetJumpDb`, `preRise*Db`, the
+  night's sensitivity and breath rule, background tests' `setAside`, and the room noise;
+  11 targeted tests pass; `npm run evaluate` on the demo JSON exported at this checkpoint:
+  16 → 16 confirmed, every background test 16. Ignored sounds keep `lowRise` and
+  `onsetJump` since 1.19.1 (they were `null` in files from 1.16.0–1.19.0).
 
 ## Other recommendations
 
@@ -232,28 +284,38 @@ gaps: C1–C3 in [Second review](#second-review-of-a87c1f3).
   states and injected browser APIs (`js/recorder.js`, #24); frozen night record
   (#23); one versioned data format (#22); `js/stats.js` / `js/wav.js` split (#25);
   storage interface with contract tests (`js/night-store.js`, #26); ESLint and
-  Prettier in CI (#21). Kept: plain UMD files rather than ES modules, to keep the
-  `file://` build and Node `require` working (**recommendation**, not an owner
-  decision). Not done: folder reorganisation, type checking.
+  Prettier in CI (#21); room noise in its own module `js/noise.js` (#40, #42). Kept: plain
+  UMD files rather than ES modules, to keep the `file://` build and Node `require` working
+  (**recommendation**, not an owner decision). Not done: folder reorganisation, type
+  checking. `js/detector.js` keeps growing with each measure (about 800 lines).
 - **Saved-night recovery · deliberately deferred.** The owner decided saving nights,
   history and accounts belong to version 2.x in a new session. Only the interface
   exists (not loaded by the page). A reload or crash still loses the night.
 - **Browser/device coverage · unresolved.** Automated tests run in Chromium only
-  (unit tests in Node). No physical iPhone was used in this session: no overnight
-  run, no real call/Siri/lock interruption, no share-sheet or playback check, no
-  battery/CPU or memory measurement. The e2e demo step still uses a random seed.
+  (unit tests in Node). Claude has not used a physical iPhone: no automated or
+  instrumented overnight run, no real call/Siri/lock interruption, no share-sheet or
+  playback check, no battery/CPU or memory measurement. The owner has recorded six real
+  nights on an iPhone (three with the current line of versions, 1.12.4–1.19.0) and sent the
+  files; those show the app recorded whole nights with the screen kept awake, but they are
+  not a controlled device test. The e2e demo step still uses a random seed.
 - **Workflow permissions and gating · fixed.** `ci.yml` has `permissions: contents:
   read` (#19); `pages.yml` and `release.yml` run unit tests and syntax checks before
   deploy and tag (#19); job names are distinct (`CI tests`, `Tests before deploy`,
   `Tests before release`, #27). The owner set a ruleset on `main`: PR required with
   0 approvals, required check `CI tests`, deletions and force pushes blocked, no
-  bypass; a merge attempt while `CI tests` was running was refused (#27).
+  bypass; a merge attempt while `CI tests` was running was refused (#27). Unchanged at
+  1.22.0. Deferred hardening (second review): job-scoped permissions, Pages trigger and
+  concurrency only on `main` (a PR-branch push can cancel a `main` deploy), the full suite
+  before publishing, action pinning.
 - **CSP and self-hosted fonts · not done.** Still no Content-Security-Policy; Google
   Fonts remains the only external request.
 
 ## Readiness for expansion (author's assessment, to be checked)
 
-Ready for: comparing real nights (evaluator, versioned data file), adding an
-on-device store behind `js/night-store.js`, and replacing the browser audio side of
-`js/recorder.js`. Not ready for unattended overnight use without persistence, and
-the iPhone-specific behaviour of interruptions and long nights is unverified.
+Ready for: comparing real nights (evaluator, versioned data file with rich per-sound
+features), trying candidate rules as background tests, adding an on-device store behind
+`js/night-store.js` (after C4), and replacing the browser audio side of `js/recorder.js`.
+Not ready for unattended overnight use without persistence; the iPhone-specific behaviour
+of interruptions, phone load with four detectors and long-night memory are unverified;
+the detection thresholds rest on six nights of one person plus synthetic and public
+sounds.
