@@ -217,3 +217,33 @@ test('the auto test can be re-counted with another window or limit for the rise 
   assert.equal(preRiseVariant(shadow, 1, 6, [{ start: 7, end: 9 }]).length, 4, 'pairs on each side of a gap still confirm');
   assert.equal(preRiseVariant(shadow, 1, 6, [{ start: 3, end: 5 }]).length, 3, '2 s loses its partner across the gap');
 });
+
+test('the High test is re-counted with 3, 4.5 and 6 dB breath-noise rules from its stored snores (1.22.0)', () => {
+  const report = {
+    app: 'Snorewatch',
+    startedAt: '2026-10-05T23:00:00.000Z',
+    timeZone: 'UTC',
+    sensitivity: 'normal',
+    summary: { elapsed: 3600 },
+    snores: [],
+    ignored: [],
+    shadows: {
+      high: {
+        sensitivity: 'high',
+        minBreathRiseDb: null,
+        summary: {},
+        levels: [],
+        snores: [2, 6, 10, 14].map((t, i) => ({
+          offsetSec: t,
+          durationSec: 1,
+          aboveRoomDb: 8,
+          breathRiseDb: [12, 5, 4, 3.5][i],
+          confirmed: true,
+        })),
+      },
+    },
+  };
+  const out = evaluateOutput(report, 'UTC');
+  assert.match(out, /background test high: sensitivity high vs normal/, out);
+  assert.match(out, /with a breath-noise rule of 3 dB: 4 \(4\/h\), 4\.5 dB: 2 \(2\/h\), 6 dB: 0 \(0\/h\) \(from its stored sounds\)/, out);
+});

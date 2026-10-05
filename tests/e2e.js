@@ -86,6 +86,7 @@ async function main() {
       main: 'normal',
       knock: 'normal',
       auto: 'auto',
+      high: 'high',
     });
 
     console.log('Night screen: darkens when left alone, a tap only wakes it…');
@@ -141,7 +142,10 @@ async function main() {
     assert.equal(report.sensitivity, 'normal');
     assert.equal(report.minBreathRiseDb, 6, 'Normal counts with the 6 dB breath-noise rule');
     assert.ok(await page.isEnabled('#sensitivity'), 'sensitivity can be changed again after Stop');
-    assert.deepEqual(Object.keys(report.shadows), ['knock', 'auto']);
+    assert.deepEqual(Object.keys(report.shadows), ['knock', 'auto', 'high']);
+    assert.equal(report.shadows.high.sensitivity, 'high');
+    assert.equal(report.shadows.high.minBreathRiseDb, null, 'the High test runs without the breath rule');
+    assert.match(await page.textContent('#shadow-note'), /on High without the breath-noise rule \d+/);
     assert.equal(report.shadows.knock.sensitivity, 'normal');
     assert.equal(report.shadows.knock.minBreathRiseDb, 6, 'the knock test counts like Normal otherwise');
     assert.equal(report.shadows.knock.maxOnsetJumpDb, 20);
@@ -184,7 +188,7 @@ async function main() {
     }
     console.log(`  test clips (auto snores Normal missed): ${testClipsInFile}`);
     console.log(
-      `  background tests: knock rule ${report.shadows.knock.summary.snoreCount}, auto + breath + snore band ${report.shadows.auto.summary.snoreCount} snores; no breath noise ${report.summary.ignoredByReason['no-breath'] || 0}`,
+      `  background tests: knock rule ${report.shadows.knock.summary.snoreCount}, auto ${report.shadows.auto.summary.snoreCount}, High without breath rule ${report.shadows.high.summary.snoreCount} snores; no breath noise ${report.summary.ignoredByReason['no-breath'] || 0}`,
     );
 
     console.log('Playback: tapping the loudest snore…');
