@@ -8,10 +8,21 @@
 // from older versions lack some features: without subBassShare the rumble
 // filter is skipped, without loudFill the knock check of the rhythm rule is.
 // Background tests are re-counted through the same rules and rhythm rescue from
-// files of 1.22.1 on; older files only allow an estimate, which says so.
+// files of 1.22.1 on; older files only allow an estimate, which says so. Tests whose
+// rules this version no longer has (the automatic-sensitivity test, removed in
+// 1.24.0) are shown with their recorded counts only.
 'use strict';
 const fs = require('fs');
-const { classify, isRhythmCandidate, RhythmGate, SessionStats, DEFAULTS, REASONS, breathRuleDb } = require('../js/detector.js');
+const {
+  classify,
+  isRhythmCandidate,
+  RhythmGate,
+  SessionStats,
+  DEFAULTS,
+  REASONS,
+  SENSITIVITY,
+  breathRuleDb,
+} = require('../js/detector.js');
 const { fromReport, shadowEvents } = require('../js/report-format.js');
 const Noise = require('../js/noise.js');
 
@@ -183,16 +194,21 @@ function shadowRules(shadow) {
   return {
     sensitivity: shadow.sensitivity,
     minBreathRiseDb: shadow.minBreathRiseDb ?? null,
-    minLowRiseDb: shadow.minLowRiseDb ?? null,
-    minPreRiseDb: shadow.minPreRiseDb ?? null,
-    preRiseSec: shadow.preRiseSec ?? DEFAULTS.preRiseSec,
     maxOnsetJumpDb: shadow.maxOnsetJumpDb ?? null,
   };
 }
 
-/** Whether the file holds every feature of the test's sounds (from 1.22.1), so `recount` can run. */
+/**
+ * Whether this version can still run the test's rules: not the automatic-sensitivity test with
+ * its snore-band and moment-before rules (files 1.8.0-1.23.0; removed in 1.24.0).
+ */
+function knownRules(shadow) {
+  return !!SENSITIVITY[shadow.sensitivity] && shadow.minLowRiseDb == null && shadow.minPreRiseDb == null;
+}
+
+/** Whether the file holds every feature of the test's sounds (from 1.22.1) and its rules still exist, so `recount` can run. */
 function canRecount(shadow) {
-  return [...(shadow.snores || []), ...(shadow.setAside || [])].every((x) => x.lowFrequencyShare != null);
+  return knownRules(shadow) && [...(shadow.snores || []), ...(shadow.setAside || [])].every((x) => x.lowFrequencyShare != null);
 }
 
 /**
@@ -232,49 +248,24 @@ function stricterBreath(shadow, minDb, gaps = []) {
   return stats.confirmed.length;
 }
 
-/**
- * Estimate for files from 1.20.0 to 1.22.0: a background test's confirmed snores with another
- * limit or window for the rise over the moment before, from its stored snores and the sounds
- * that rule set aside. Approximate like stricterBreath: rhythm rescues are not redone, choppy
- * sounds do not count.
- */
-function preRiseVariant(shadow, windowSec, minDb, gaps = []) {
-  const key = `preRise${Math.round(windowSec * 100)}Db`;
-  const stats = new SessionStats();
-  for (const g of gaps) stats.addGap(g.start, g.end);
-  const others = (shadow.setAside || []).filter((x) => x.reason === 'no-pre-rise' && !(x.bursts > DEFAULTS.maxPeaks));
-  for (const x of [...shadow.snores, ...others].sort((a, b) => a.offsetSec - b.offsetSec))
-    if (x[key] == null || x[key] >= minDb)
-      stats.add({
-        isSnore: true,
-        start: x.offsetSec,
-        end: x.offsetSec + x.durationSec,
-        duration: x.durationSec,
-        relDb: x.aboveRoomDb,
-        clip: null,
-      });
-  return stats.confirmed;
-}
-
 /** The recording's own detector against a candidate rule set that ran alongside it. */
 function compareShadow(r, shadow, name, hours, gaps = []) {
   const main = r.snores.filter((x) => x.confirmed);
-  const auto = shadow.snores.filter((x) => x.confirmed);
+  const theirs = shadow.snores.filter((x) => x.confirmed);
   const near = (a, list) => list.some((b) => Math.abs(a.offsetSec - b.offsetSec) < 0.6);
-  const both = main.filter((x) => near(x, auto)).length;
-  const trig = shadow.levels.map((l) => l.triggerDb).sort((a, b) => a - b);
-  const q = (p) => (trig.length ? trig[Math.floor(p * (trig.length - 1))].toFixed(1) : '-');
-  const label = `${name}: sensitivity ${shadow.sensitivity}${shadow.minBreathRiseDb != null ? `, breath-noise rule ${shadow.minBreathRiseDb} dB` : ''}${shadow.minLowRiseDb != null ? `, snore-band rule ${shadow.minLowRiseDb} dB` : ''}${shadow.maxOnsetJumpDb != null ? `, sudden-start rule ${shadow.maxOnsetJumpDb} dB` : ''}${
-    shadow.minPreRiseDb != null ? `, ${shadow.minPreRiseDb} dB over the ${shadow.preRiseSec} s before` : ''
-  }`;
+  const both = main.filter((x) => near(x, theirs)).length;
+  const label = `${name}: sensitivity ${shadow.sensitivity}${shadow.minBreathRiseDb != null ? `, breath-noise rule ${shadow.minBreathRiseDb} dB` : ''}${shadow.maxOnsetJumpDb != null ? `, sudden-start rule ${shadow.maxOnsetJumpDb} dB` : ''}`;
   console.log(`\n  background test ${label} vs ${r.sensitivity}:`);
   console.log(
-    `    confirmed snores   ${r.sensitivity} ${main.length} (${(main.length / hours).toFixed(0)}/h)   ${name} ${auto.length} (${(auto.length / hours).toFixed(0)}/h)`,
+    `    confirmed snores   ${r.sensitivity} ${main.length} (${(main.length / hours).toFixed(0)}/h)   ${name} ${theirs.length} (${(theirs.length / hours).toFixed(0)}/h)`,
   );
   console.log(
-    `    found by both ${both}, only ${r.sensitivity} ${main.length - both}, only ${name} ${auto.filter((x) => !near(x, main)).length}`,
+    `    found by both ${both}, only ${r.sensitivity} ${main.length - both}, only ${name} ${theirs.filter((x) => !near(x, main)).length}`,
   );
-  if (trig.length) console.log(`    trigger margin over the night: min ${q(0)}, median ${q(0.5)}, max ${q(1)} dB`);
+  if (!knownRules(shadow)) {
+    console.log('    recorded counts only: this version no longer has its rules (automatic sensitivity, removed in 1.24.0)');
+    return;
+  }
   const exact = canRecount(shadow);
   const estimate = 'approximate: this file is older than 1.22.1, so rhythm rescues are not redone';
   // Its own rules on the stored sounds should give its own count back (features are rounded in the file).
@@ -309,24 +300,6 @@ function compareShadow(r, shadow, name, hours, gaps = []) {
         `    ${r.sensitivity}'s snores that start suddenly: ${sudden.slice(0, 20).map(where).join(', ')}${sudden.length > 20 ? `, … (${sudden.length} in all)` : ''}`,
       );
   }
-  if (shadow.minPreRiseDb != null && shadow.setAside) {
-    // Other lengths of "the moment before" and other limits, from the stored sounds.
-    console.log(
-      `    rise over the moment before (confirmed, of them also ${r.sensitivity}'s), ${exact ? 're-counted from the stored sounds' : `${estimate}, choppy sounds left out`}:`,
-    );
-    console.log(`      ${'before'.padEnd(8)}${[4, 6, 8].map((db) => `>= ${db} dB`.padEnd(16)).join('')}`);
-    for (const sec of [0.25, 0.5, 1]) {
-      const cells = [4, 6, 8].map((db) => {
-        const c = exact
-          ? recount(shadow, { preRiseSec: sec, minPreRiseDb: db }, gaps).map((x) => ({ start: x.start }))
-          : preRiseVariant(shadow, sec, db, gaps);
-        return `${c.length} (${c.filter((x) => near({ offsetSec: x.start }, main)).length})`.padEnd(16);
-      });
-      console.log(`      ${`${sec} s`.padEnd(8)}${cells.join('')}`);
-    }
-  }
-  const clips = shadow.snores.filter((x) => x.wavStartSec != null).length;
-  if (clips) console.log(`    ${clips} of its snores that ${r.sensitivity} missed are in the test-clip WAV (wavStartSec)`);
 }
 
 if (require.main === module) {
@@ -337,4 +310,4 @@ if (require.main === module) {
   }
   files.forEach(report);
 }
-module.exports = { eventsOf, reevaluate, recount, canRecount, stricterBreath, preRiseVariant };
+module.exports = { eventsOf, reevaluate, recount, canRecount, stricterBreath };

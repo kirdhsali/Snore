@@ -38,6 +38,12 @@ console.log(
   JSON.stringify(N.describe(s, (sec) => `${Math.floor(sec / 3600)}:${String(Math.floor((sec % 3600) / 60)).padStart(2, '0')}`)),
 );
 
+// N2 used the automatic-sensitivity test's rules, removed in 1.24.0: it runs against checkouts up to 1.23.0.
+if (!get('js/detector.js').SENSITIVITY.auto) {
+  console.log('N2: not applicable from 1.24.0 (the automatic-sensitivity test and its rules were removed)');
+  process.exit(0);
+}
+
 // N2: two rattles at 2 and 6 s that only a smooth snore at 10 s rescues.
 const make = (start, peaks, breathRise, preRise100) => ({
   start,

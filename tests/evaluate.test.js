@@ -2,7 +2,7 @@
 // scripts/evaluate.js re-runs a downloaded night's stored features through the rules.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { eventsOf, reevaluate, recount, canRecount, stricterBreath, preRiseVariant } = require('../scripts/evaluate.js');
+const { eventsOf, reevaluate, recount, canRecount, stricterBreath } = require('../scripts/evaluate.js');
 const { toReport } = require('../js/report-format.js');
 
 const feature = (offsetSec, breathRiseDb, extra = {}) => ({
@@ -202,23 +202,6 @@ test('evaluator lists the counted snores the knock test drops, with their place 
   assert.match(out, /normal's snores that start suddenly: 01:11:03 \(WAV 0 s\) \+36\.7 dB\n/, out);
 });
 
-test('the auto test can be re-counted with another window or limit for the rise over the moment before (1.20.0)', () => {
-  const rise = (r25, r100) => ({ preRise25Db: r25, preRise50Db: (r25 + r100) / 2, preRise100Db: r100 });
-  const shadow = {
-    snores: [2, 6].map((t) => ({ offsetSec: t, durationSec: 1, aboveRoomDb: 12, ...rise(9, 9) })),
-    setAside: [
-      { offsetSec: 10, durationSec: 1, aboveRoomDb: 9, reason: 'no-pre-rise', bursts: 1, ...rise(4, 7) },
-      { offsetSec: 14, durationSec: 1, aboveRoomDb: 9, reason: 'no-pre-rise', bursts: 1, ...rise(4, 7) },
-      { offsetSec: 18, durationSec: 1, aboveRoomDb: 9, reason: 'no-pre-rise', bursts: 4, ...rise(4, 7) },
-    ],
-  };
-  assert.equal(preRiseVariant(shadow, 1, 6).length, 4, 'over 1 s the two set-aside sounds pass; the choppy one does not count');
-  assert.equal(preRiseVariant(shadow, 0.25, 6).length, 2);
-  assert.equal(preRiseVariant(shadow, 1, 8).length, 2);
-  assert.equal(preRiseVariant(shadow, 1, 6, [{ start: 7, end: 9 }]).length, 4, 'pairs on each side of a gap still confirm');
-  assert.equal(preRiseVariant(shadow, 1, 6, [{ start: 3, end: 5 }]).length, 3, '2 s loses its partner across the gap');
-});
-
 test('the High test is re-counted with 3, 4.5 and 6 dB breath-noise rules from its stored snores (1.22.0)', () => {
   const report = {
     app: 'Snorewatch',
@@ -253,9 +236,13 @@ test('the High test is re-counted with 3, 4.5 and 6 dB breath-noise rules from i
   );
 });
 
-/** The review's case (2026-10-05, N2): two rattles at 2 and 6 s that only a smooth snore at 10 s rescues. */
+/**
+ * The review's case (2026-10-05, N2): two rattles at 2 and 6 s that only a smooth snore at 10 s
+ * rescues, in a background test with a gentler breath-noise rule (3 dB, as the breath and High
+ * trials ran). The automatic-sensitivity test the review used was removed in 1.24.0.
+ */
 function rescuedRattlesShadow() {
-  const sound = (start, peaks, breathRise, preRise100) => ({
+  const sound = (start, peaks, breathRise) => ({
     start,
     end: start + 1,
     duration: 1,
@@ -268,14 +255,12 @@ function rescuedRattlesShadow() {
     fill: 0.85,
     peaks,
     breathRise,
-    lowRise: 15,
-    preRise100,
     onsetJump: 10,
     wasSnore: true,
     wasReason: null,
   });
-  const options = { sensitivity: 'auto', minBreathRiseDb: 3, minLowRiseDb: 8, minPreRiseDb: 6, preRiseSec: 1 };
-  const events = [sound(2, 4, 8, 10), sound(6, 4, 8, 10), sound(10, 1, 4, 7)];
+  const options = { sensitivity: 'normal', minBreathRiseDb: 3 };
+  const events = [sound(2, 4, 8), sound(6, 4, 8), sound(10, 1, 4)];
   const stats = new (require('../js/stats.js').SessionStats)();
   for (const e of reevaluate(events, options)) stats.add({ ...e, clip: null });
   const summary = { ...stats.summary(60), episodes: [] };
@@ -292,16 +277,16 @@ function rescuedRattlesShadow() {
     summary: { ...summary, elapsed: 60 },
     snores: [],
     ignored: [],
-    shadows: { auto: { options, summary, levels: [], snores: stats.snores, setAside: stats.ignored } },
+    shadows: { gentle: { options, summary, snores: stats.snores, setAside: stats.ignored } },
   });
   return JSON.parse(JSON.stringify(report));
 }
 
 test('a background test re-counted with a stricter rule loses the rattles its dropped snore rescued (review N2)', () => {
   const report = rescuedRattlesShadow();
-  const auto = report.shadows.auto;
+  const sh = report.shadows.gentle;
   assert.deepEqual(
-    auto.snores.map((x) => [x.offsetSec, x.rhythmRescued, x.bursts]),
+    sh.snores.map((x) => [x.offsetSec, x.rhythmRescued, x.bursts]),
     [
       [2, true, 4],
       [6, true, 4],
@@ -309,45 +294,51 @@ test('a background test re-counted with a stricter rule loses the rattles its dr
     ],
     'the file keeps each sound and whether a snore rescued it',
   );
-  assert.ok(canRecount(auto));
-  assert.equal(recount(auto).length, 3, 'its own rules give its own count back');
-  // The smooth snore has 4 dB of breath noise and 7 dB of rise over the second before.
-  assert.equal(recount(auto, { minBreathRiseDb: 6 }).length, 0, 'no snore of its own is left to rescue the rattles');
-  assert.equal(recount(auto, { minPreRiseDb: 8 }).length, 0);
+  assert.ok(canRecount(sh));
+  assert.equal(recount(sh).length, 3, 'its own rules give its own count back');
+  // The smooth snore has 4 dB of breath noise.
+  assert.equal(recount(sh, { minBreathRiseDb: 6 }).length, 0, 'no snore of its own is left to rescue the rattles');
   // The estimate for older files keeps them: why it is labelled approximate.
-  assert.equal(stricterBreath(auto, 6), 2);
-  assert.equal(preRiseVariant(auto, 1, 8).length, 2);
+  assert.equal(stricterBreath(sh, 6), 2);
   const out = evaluateOutput(report, 'UTC');
   assert.match(out, /re-counted from its stored sounds with its own rules: 3 confirmed/, out);
   assert.match(out, /with a breath-noise rule of 4\.5 dB: 0 \(0\/h\), 6 dB: 0 \(0\/h\) \(re-counted from its stored sounds\)/, out);
-  assert.match(out, /rise over the moment before \(confirmed, of them also normal's\), re-counted from the stored sounds:/, out);
-  assert.match(out, /\n\s+1 s\s+3 \(0\)\s+3 \(0\)\s+0 \(0\)\s*\n/, out);
+});
+
+test('the automatic-sensitivity test of older files shows its recorded counts only (removed in 1.24.0)', () => {
+  const report = rescuedRattlesShadow();
+  // As 1.20.0-1.23.0 wrote it: its own sensitivity and two rules this version no longer has.
+  report.shadows = { auto: { ...report.shadows.gentle, sensitivity: 'auto', minLowRiseDb: 8, minPreRiseDb: 6, preRiseSec: 1, levels: [] } };
+  assert.equal(canRecount(report.shadows.auto), false);
+  assert.equal(recount(report.shadows.auto), null);
+  const out = evaluateOutput(report, 'UTC');
+  assert.match(out, /background test auto: sensitivity auto, breath-noise rule 3 dB vs normal:/, out);
+  assert.match(out, /confirmed snores\s+normal 0 \(0\/h\)\s+auto 3 /, out);
+  assert.match(out, /recorded counts only: this version no longer has its rules \(automatic sensitivity, removed in 1\.24\.0\)/, out);
+  assert.doesNotMatch(out, /re-counted/, out);
 });
 
 test('a looser limit lets a set-aside sound in and redoes the rescue it makes possible (1.22.1)', () => {
-  const sound = (offsetSec, reason, bursts, preRise100Db) => ({
-    ...feature(offsetSec, 9, { bursts, lowRiseDb: 15, preRise100Db }),
+  const sound = (offsetSec, reason, bursts, onsetJumpDb) => ({
+    ...feature(offsetSec, 9, { bursts, onsetJumpDb }),
     ...(reason ? { reason } : { rhythmRescued: false, confirmed: false }),
   });
-  const auto = {
-    sensitivity: 'auto',
-    minBreathRiseDb: 3,
-    minLowRiseDb: 8,
-    minPreRiseDb: 6,
-    preRiseSec: 1,
-    snores: [sound(2, null, 1, 9)],
-    // 20 s rose too little over the second before; the rattle at 24 s then had no snore to rescue it.
-    setAside: [sound(20, 'no-pre-rise', 1, 5), sound(24, 'choppy', 4, 9)],
+  const knock = {
+    sensitivity: 'normal',
+    minBreathRiseDb: 6,
+    maxOnsetJumpDb: 20,
+    snores: [sound(2, null, 1, 8)],
+    // 20 s started too suddenly; the rattle at 24 s then had no snore to rescue it.
+    setAside: [sound(20, 'sudden', 1, 25), sound(24, 'choppy', 4, 8)],
   };
-  assert.equal(recount(auto).length, 0);
+  assert.equal(recount(knock).length, 0);
   assert.deepEqual(
-    recount(auto, { minPreRiseDb: 4 }).map((x) => [x.start, !!x.rhythm]),
+    recount(knock, { maxOnsetJumpDb: 30 }).map((x) => [x.start, !!x.rhythm]),
     [
       [20, false],
       [24, true],
     ],
   );
-  assert.equal(preRiseVariant(auto, 1, 4).length, 0, 'the estimate leaves choppy sounds out');
 });
 
 test("old files without breath measurements say a background test's breath re-count cannot be made (review N3)", () => {
@@ -355,6 +346,27 @@ test("old files without breath measurements say a background test's breath re-co
   const path = require('path');
   const out = evaluateOutput(JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'v1.8-report.json'), 'utf8')), 'UTC');
   assert.match(out, /missing: breathRiseDb/, out);
-  assert.match(out, /with a stricter breath-noise rule: not evaluable \(this file has no breath-noise measurements for it\)/, out);
+  // v1.8's one background test was automatic sensitivity: recorded counts only since 1.24.0.
+  assert.match(out, /recorded counts only: this version no longer has its rules/, out);
   assert.doesNotMatch(out, /3 dB: 0/, out);
+  const noBreath = {
+    app: 'Snorewatch',
+    startedAt: '2026-10-05T23:00:00.000Z',
+    timeZone: 'UTC',
+    sensitivity: 'normal',
+    summary: { elapsed: 3600 },
+    snores: [],
+    ignored: [],
+    shadows: {
+      old: {
+        sensitivity: 'normal',
+        minBreathRiseDb: null,
+        summary: {},
+        snores: [2, 6].map((t) => ({ offsetSec: t, durationSec: 1, aboveRoomDb: 8, confirmed: true })),
+      },
+    },
+  };
+  const out2 = evaluateOutput(noBreath, 'UTC');
+  assert.match(out2, /with a stricter breath-noise rule: not evaluable \(this file has no breath-noise measurements for it\)/, out2);
+  assert.doesNotMatch(out2, /3 dB: 0/, out2);
 });

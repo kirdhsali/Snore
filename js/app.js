@@ -52,7 +52,6 @@
     reportClips: $('report-clips'),
     dlWav: $('dl-wav'),
     dlJson: $('dl-json'),
-    dlTestWav: $('dl-test-wav'),
     copy: $('copy-summary'),
     sharePreview: $('share-preview'),
     shareImage: $('share-image'),
@@ -570,11 +569,9 @@
     el.shadowNote.hidden = false;
     const noBreath = sum.ignoredByReason['no-breath'] || 0;
     el.shadowNote.textContent =
-      `Background tests, not counted yet: without sounds that start suddenly (knocks) ${fmtNum(
+      `Background test, not counted yet: without sounds that start suddenly (knocks) ${fmtNum(
         n.shadows.knock.summary.snoreCount,
-      )} snores; with automatic sensitivity (breath-noise, snore-band and moment-before rules) ${fmtNum(
-        n.shadows.auto.summary.snoreCount,
-      )} (this recording, ${n.sensitivity}: ${fmtNum(sum.snoreCount)}). ` +
+      )} snores (this recording, ${n.sensitivity}: ${fmtNum(sum.snoreCount)}). ` +
       (n.config && n.config.minBreathRiseDb != null
         ? `The breath-noise rule set aside ${fmtNum(noBreath)} ${noBreath === 1 ? 'sound' : 'sounds'} without the rush of air of a snore (hum, rumble). `
         : '') +
@@ -647,7 +644,6 @@
     else el.reportClips.innerHTML = '<p class="empty">No snores were recorded.</p>';
 
     el.dlWav.disabled = !n.snores.some((x) => x.clip);
-    el.dlTestWav.hidden = EMBED || !testClips(n).length;
     prepareShare(n);
     el.report.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
   }
@@ -859,27 +855,11 @@
     download(`snores_${stamp()}.wav`, new Blob([wav], { type: 'audio/wav' }));
   });
 
-  /** The auto test's sample of snores the counting detector did not find, in time order. */
-  const testClips = (n) => inTimeOrder(Object.values(n.shadows).flatMap((sh) => sh.snores.filter((x) => x.clip)));
-
-  el.dlTestWav.addEventListener('click', () => {
-    if (!finished()) return;
-    const clips = testClips(night);
-    if (!clips.length) return;
-    const wav = encodeWav(
-      clips.map((x) => x.clip),
-      clips[0].clipRate,
-      WAV_GAP_SEC,
-    );
-    download(`test-clips_${stamp()}.wav`, new Blob([wav], { type: 'audio/wav' }));
-  });
-
   el.dlJson.addEventListener('click', () => {
     if (!finished()) return;
     const data = Report.toReport({
       ...night,
       wavStarts: wavPositions(inTimeOrder(night.snores)),
-      testWavStarts: wavPositions(testClips(night)),
     });
     download(`snore-report_${stamp()}.json`, new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
   });

@@ -93,20 +93,9 @@
           subBass: ev.subBass,
           fill: ev.fill,
           breathRise: ev.breathRise,
-          lowRise: ev.lowRise,
           onsetJump: ev.onsetJump,
-          preRise25: ev.preRise25,
-          preRise50: ev.preRise50,
-          preRise100: ev.preRise100,
         });
       }
-    }
-
-    /** Lets go of one snore's audio, e.g. a background test's clip that is not part of the sample. */
-    dropClip(ev) {
-      if (!ev.clip) return;
-      ev.clip = null;
-      this.clipCount--;
     }
 
     _dropQuietestClip() {

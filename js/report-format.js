@@ -18,6 +18,10 @@
  *      1.22.1 gives background-test snores and set-aside sounds every sound feature
  *      (as the counting detector's) and `rhythmRescued`; `setAside` also holds the
  *      test's choppy sounds no snore rescued, so its rhythm rescue can be redone.
+ *      1.24.0 removes the automatic-sensitivity test (`shadows.auto`), with it the
+ *      per-test `levels`, `minLowRiseDb`, `minPreRiseDb`, `preRiseSec` and the snores'
+ *      `wavStartSec` (the test-clip WAV), and the per-sound `lowRiseDb` and
+ *      `preRise25Db`/`preRise50Db`/`preRise100Db`. Older files keep them; readers ignore them.
  */
 (function (root, factory) {
   const api = factory();
@@ -32,11 +36,6 @@
   const byStart = (a, b) => a.start - b.start;
 
   /** Sound features stored for every event, snore or not. */
-  /** The rise over the moment before a sound, for each window length: preRise25Db, preRise50Db, preRise100Db. */
-  function preRise(x) {
-    return { preRise25Db: round(x.preRise25, 1), preRise50Db: round(x.preRise50, 1), preRise100Db: round(x.preRise100, 1) };
-  }
-
   function features(x) {
     return {
       lowFrequencyShare: round(x.lowRatio, 3),
@@ -46,9 +45,7 @@
       subBassShare: round(x.subBass, 3),
       loudFill: round(x.fill, 2),
       breathRiseDb: round(x.breathRise, 1),
-      lowRiseDb: round(x.lowRise, 1), // snore band 50-800 Hz above its room noise (from 1.16.0)
       onsetJumpDb: round(x.onsetJump, 1), // largest 20 ms rise at the start: knocks jump (from 1.18.0)
-      ...preRise(x), // snore band over the 0.25, 0.5 and 1 s before the sound (from 1.20.0)
     };
   }
 
@@ -59,9 +56,8 @@
    *   screenWakeLock, sensitivity, summary,
    *   snores: [events], ignored: [ignored-sound records],
    *   wavStarts: Map(event -> seconds in the WAV download) (optional),
-   *   testWavStarts: Map(background-test event -> seconds in the test-clip WAV) (optional),
    *   noise: {minuteSec, bandsHz, minutes: [{t, quietSec, backgroundDb, p10Db, p90Db, bandsDb, humHz, humDb}]} (optional),
-   *   shadows: {name: {options, summary, levels, snores}}
+   *   shadows: {name: {options, config, summary, snores, setAside}}
    * }
    * Event times (`start`) are seconds on the night's clock: analysed audio
    * plus interruptions, so startWall + start is the moment it happened.
@@ -69,7 +65,6 @@
   function toReport(night) {
     const time = (sec) => new Date(night.startWall + sec * 1000).toISOString();
     const wavStarts = night.wavStarts || new Map();
-    const testWavStarts = night.testWavStarts || new Map();
     return {
       app: 'Snorewatch',
       schemaVersion: SCHEMA_VERSION,
@@ -139,10 +134,7 @@
             sensitivity: sh.options.sensitivity,
             // The rules in force (the detector's configuration: Normal's breath rule is the sensitivity's).
             minBreathRiseDb: (sh.config || sh.options).minBreathRiseDb ?? null,
-            minLowRiseDb: sh.options.minLowRiseDb ?? null,
             maxOnsetJumpDb: sh.options.maxOnsetJumpDb ?? null,
-            minPreRiseDb: sh.options.minPreRiseDb ?? null,
-            preRiseSec: sh.options.minPreRiseDb != null ? (sh.options.preRiseSec ?? 0.25) : null,
             summary: {
               snoreCount: sh.summary.snoreCount,
               possibleCount: sh.summary.possibleCount,
@@ -151,13 +143,6 @@
               ignoredByReason: sh.summary.ignoredByReason,
               episodes: sh.summary.episodes.length,
             },
-            levels: sh.levels.map((l) => ({
-              offsetSec: Math.round(l.t),
-              triggerDb: round(l.triggerDb, 1),
-              releaseDb: round(l.releaseDb, 1),
-              spreadDb: round(l.spreadDb, 2),
-              floorDbfs: round(l.floorDb, 1),
-            })),
             snores: [...sh.snores].sort(byStart).map((x) => ({
               offsetSec: round(x.start, 2),
               durationSec: round(x.duration, 2),
@@ -166,12 +151,10 @@
               ...features(x),
               rhythmRescued: !!x.rhythm,
               confirmed: !!x.confirmed,
-              // In the test-clip WAV: the auto test's sample of snores the counting detector missed.
-              wavStartSec: testWavStarts.has(x) ? round(testWavStarts.get(x), 2) : null,
             })),
-            // Sounds this test's own rules set aside (rise over the moment before, sudden start)
-            // and its choppy sounds no snore rescued: with the snores above, enough to re-run
-            // its rules with other limits on the night afterwards, rhythm rescue included.
+            // Sounds this test's own rules set aside (sudden start) and its choppy sounds no snore
+            // rescued: with the snores above, enough to re-run its rules with other limits on the
+            // night afterwards, rhythm rescue included.
             setAside: (sh.setAside || []).map((x) => ({
               offsetSec: round(x.start, 2),
               durationSec: round(x.duration, 2),
@@ -201,11 +184,7 @@
       subBass: x.subBassShare ?? null,
       fill: x.loudFill ?? null,
       breathRise: x.breathRiseDb ?? null,
-      lowRise: x.lowRiseDb ?? null,
       onsetJump: x.onsetJumpDb ?? null,
-      preRise25: x.preRise25Db ?? null,
-      preRise50: x.preRise50Db ?? null,
-      preRise100: x.preRise100Db ?? null,
       isSnore,
       reason: isSnore ? null : x.reason,
       rhythm: !!x.rhythmRescued,
