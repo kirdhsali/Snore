@@ -33,13 +33,13 @@ host), `registry.npmjs.org` and `pypi.org`.
 | `node research/khan/evaluate.js` | Khan's 1 s clips (snoring from children, women and men, plus 10 other sound categories) in a quiet room at 3 levels. Shows why snores are missed and what a higher pitch limit would trade, also on ESC-50. | about 5 min |
 | `$SNOREWATCH_DATA/venv/bin/python research/yamnet/clips.py` | YAMNet on the labelled clips as recorded: AUC, thresholds, a sanity check, and band-limiting to 4 and 2 kHz | about 3 min |
 | `research/yamnet/inroom.sh` | YAMNet and the detector on exactly the same in-room audio, as heard and turned up to a fixed level | 5 GB temporary, about 15 min |
-| `$SNOREWATCH_DATA/venv/bin/python research/own-nights/clips.py [folder]` | YAMNet on every clip of your downloaded nights: the snores WAV and the test-clip WAV, matched to the data file | seconds |
+| `$SNOREWATCH_DATA/venv/bin/python research/own-nights/clips.py [folder]` | YAMNet on every clip of your downloaded nights: the snores WAV and, for nights up to 1.23.0, the test-clip WAV, matched to the data file | seconds |
 | `$SNOREWATCH_DATA/venv/bin/python research/own-nights/compare.py [folder]` | YAMNet compared with your listening judgements (`judgements.json` in the folder; see `own-nights/judgements.example.json`) and with the breath rule | seconds |
 | `$SNOREWATCH_DATA/venv/bin/python research/own-nights/groups.py <stamp> [k] [folder]` | Sorts all sounds of a night into groups and describes each group without labels | seconds |
 | `node research/two-phone/compare.js <near.json> <far.json> [labels.json]` | A night recorded with two phones, one near the head and one 2-3 m away: labels every sound of the near phone "own" (at least 6 dB louder there, after a gain correction from the room's background) or "room", per verdict, breath noise, background test and hour | seconds |
 
 For your own nights, put the app's downloads into the folder: `snore-report_<stamp>.json`,
-`snores_<stamp>.wav` and `test-clips_<stamp>.wav`. For a two-phone night, record on both phones at once,
+`snores_<stamp>.wav` and, for nights up to 1.23.0, `test-clips_<stamp>.wav`. For a two-phone night, record on both phones at once,
 the far one on High so that it hears quiet sounds too. Clap once in the middle of the room at the
 start (it lines the phones up), and keep each phone's downloads in its own subfolder.
 

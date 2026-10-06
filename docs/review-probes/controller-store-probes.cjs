@@ -94,13 +94,17 @@ const fake = box.module.exports;
   const again = await store.load(id);
   console.log('C4', again.events[0].isSnore, again.clips.size, again.record.summary.snoreCount);
 
-  const d = new Core.SnoreDetector(16000, { sensitivity: 'auto' });
-  const quiet = Synth.compose(16000, 30, [], 4).samples;
-  d.process(quiet);
-  const before = d.levels.length;
-  d.resumeAfterGap(3600);
-  d.process(quiet);
-  console.log('C6', d.clock, d.levels[before].t);
+  // C6 concerned the automatic-sensitivity test's margin history, removed in 1.24.0.
+  if (!Core.SENSITIVITY.auto) console.log('C6: not applicable from 1.24.0 (automatic sensitivity removed)');
+  else {
+    const d = new Core.SnoreDetector(16000, { sensitivity: 'auto' });
+    const quiet = Synth.compose(16000, 30, [], 4).samples;
+    d.process(quiet);
+    const before = d.levels.length;
+    d.resumeAfterGap(3600);
+    d.process(quiet);
+    console.log('C6', d.clock, d.levels[before].t);
+  }
 })().catch((e) => {
   console.error(e);
   process.exitCode = 1;

@@ -131,11 +131,8 @@ Report, after Stop:
   The JSON also holds the **room noise per minute** under `noise` (since 1.15.0): the
   usual background level, the quietest and loudest moments, octave bands from 31.5 Hz
   and the strongest low tone (a mains hum or a fan), all as levels, never as sound.
-  When the background tests heard snores the counting detector did not, a random sample
-  can be downloaded as **test clips** (`.wav`) to check by ear: up to 60 from the
-  automatic-sensitivity test. The JSON gives their place as `wavStartSec` under
-  `shadows.auto.snores` (1.22.x files also hold up to 30 from the High test, under
-  `shadows.high.snores`)
+  (Up to 1.23.0 a **test clips** download held a sample of snores a background test heard
+  and the counting detector did not; it went with the automatic-sensitivity test in 1.24.0.)
 
 ## How detection works
 
@@ -187,23 +184,6 @@ Report, after Stop:
    the sleeper's own sound (92 % of those with 6 dB or more). The rule costs a few quiet
    snores (ESC-50 snoring clips 29 → 27, confirmed 11 → 8; APSAA snoring episodes
    found 81.9 % → 77.5 %) and removes many false ones (night sounds 120 → 74 of 1000).
-   **Automatic sensitivity (testing in the background):** every 30 s it measures
-   how much quiet half-second stretches fluctuate above the room noise and sets
-   its margins from that: 5 dB in a still room, up to 14 dB when restless (fan,
-   wind, rain), at most 2 dB change per step, capped at 9 dB in a very quiet
-   room (floor below −78 dBFS) where flicker is not restlessness. A sound ends
-   only once the level is back within the room's usual quiet range (since 1.13.1:
-   a wavering hum keeps that range a few dB above the quietest moments). Its
-   absolute gate only guards against silence (−95 dBFS). Because its margins are
-   small, a sound must also raise the snore band (50–800 Hz) at least 8 dB above
-   that band's own room noise (since 1.16.0): in a quiet room with a motor's low
-   tone, quiet breathing otherwise passed as snoring. Since 1.20.0 a sound must also
-   rise 6 dB above **the moment before it** (the median of the snore band over the
-   second before the sound): at home (night 6) auto still counted the room's own
-   flicker, about 2–3 dB above the moment before, while real snores rose 13–22 dB.
-   Every sound gets this rise over 0.25, 0.5 and 1 s (`preRise25Db`, `preRise50Db`,
-   `preRise100Db`); the auto test also hands over the sounds this rule set aside, so
-   `npm run evaluate` can re-count the night with each window and with 4, 6 or 8 dB.
    **Sudden start (testing in the background, since 1.18.0):** a knock or a bump
    reaches its full level at once and dies away; a snore swells with the breath.
    Every sound gets `onsetJumpDb`, the largest rise over 20 ms at its start (from
@@ -211,28 +191,29 @@ Report, after Stop:
    above 20 dB as “sudden start”. In night 5 four knocks passed every rule and
    confirmed each other (21–42 dB); real snores of nights 4 and 5 rose at most
    23 dB (99 % under 17); the rule would have dropped 2 of night 4's 955.
-   The app runs two extra detectors on the same audio: **knock** (chosen
-   sensitivity + sudden-start rule 20 dB) and **auto** (automatic sensitivity +
-   3 dB breath rule + 8 dB snore-band rule + 6 dB over the second before). Every
-   sound also gets `lowRiseDb` in the JSON. Their counts, margins and snore times go
-   into the JSON under `shadows`, the report shows one line, and `npm run evaluate`
-   compares them with the recorded result (and re-counts auto with stricter breath
-   rules from its stored sounds: 4.5 / 6 dB; for 1.22.x files also the **high** test,
+   The app runs one extra detector on the same audio, keeping no audio: **knock**
+   (chosen sensitivity + sudden-start rule 20 dB). Its counts and snore times go into
+   the JSON under `shadows`, the report shows one line, and `npm run evaluate`
+   compares it with the recorded result (and re-counts background tests with stricter
+   breath rules from their stored sounds; for 1.22.x files also the **high** test,
    High without the breath rule, with 3 / 4.5 / 6 dB; it ended in 1.23.0). Since 1.22.1 each
    test stores every feature of its sounds and its choppy sounds no snore rescued, so
    these re-counts run the same rules and rhythm rescue as live; for older files they
    are marked approximate (a rattle could stay counted after the snore that rescued it
-   dropped out). Auto keeps audio for the test clips described above. The
-   breath-rule background tests of 1.13–1.16 (**breath**, 3 dB; **breath6**, 6 dB)
-   ended when Normal took the rule over; `npm run evaluate` shows any night with
-   and without the rule from the stored sounds.
+   dropped out). The breath-rule background tests of 1.13–1.16 (**breath**, 3 dB;
+   **breath6**, 6 dB) ended when Normal took the rule over; `npm run evaluate` shows any
+   night with and without the rule from the stored sounds. The **automatic-sensitivity**
+   test (1.8.0–1.23.0: margins set from the room's restlessness, plus its own snore-band
+   and moment-before rules and test clips) never beat Normal and was removed in 1.24.0;
+   what it did, what it showed and how to restart it are in
+   [`docs/archive/auto-sensitivity.md`](docs/archive/auto-sensitivity.md). Older data files
+   keep its section; `npm run evaluate` shows its recorded counts.
    **Confirmed snores:** snores come in runs with the breathing. The figures,
    charts and share outputs count a snore only when another snore lies 2–12 s
    before or after it. Isolated snore-like sounds (a footstep, a door, a single
    cough) are listed as “possible” and not counted.
 4. Only sounds classified as snores keep their audio (downsampled to 8 kHz, 16-bit): the
-   counting detector's snores, plus at most 60 test clips of snores only the automatic-
-   sensitivity background test heard. A rolling buffer
+   counting detector's snores. A rolling buffer
    of a few seconds exists only to capture the start of a snore; it is
    continuously overwritten and wiped when the recording stops.
 
@@ -304,6 +285,7 @@ type checker. Agent instructions: `CLAUDE.md` / `AGENTS.md`; general working rul
 | `docs/VERIFICATION.md` | verification commands, results and a manual smoke test |
 | `docs/REVIEW-RESPONSE.md` | answers to the reviews (v1.9.1, `a87c1f3`, `8e05d2b`), finding by finding; the reviews themselves are in `docs/reviews/` |
 | `docs/review-probes/` | scripts that re-run the reviews' checks and the full demo night (see `docs/VERIFICATION.md`) |
+| `docs/archive/` | logs of removed features, enough to restart them (automatic sensitivity, removed in 1.24.0) |
 | `research/` | dataset studies, automatic labels and YAMNet tests outside the app, rerunnable; results in `research/RESULTS.md` (data never committed) |
 
 ### How changes are made

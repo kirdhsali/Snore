@@ -15,8 +15,8 @@ function demoNight() {
   const shadowStats = new Core.SessionStats();
   const det = new Core.SnoreDetector(sr, { noiseProfile: true, onEvent: (e) => stats.add(e) });
   const shadow = new Core.SnoreDetector(sr, {
-    sensitivity: 'auto',
-    minBreathRiseDb: 3,
+    sensitivity: 'normal',
+    maxOnsetJumpDb: 20,
     keepClips: false,
     onEvent: (e) => shadowStats.add(e),
   });
@@ -50,10 +50,10 @@ function demoNight() {
     snores: stats.snores,
     ignored: stats.ignored,
     shadows: {
-      auto: {
-        options: { sensitivity: 'auto', minBreathRiseDb: 3 },
+      knock: {
+        options: { sensitivity: 'normal', maxOnsetJumpDb: 20 },
+        config: { ...shadow.opts },
         summary: shadowStats.summary(det.elapsed),
-        levels: shadow.levels,
         snores: shadowStats.snores,
         setAside: shadowStats.ignored.slice(0, 2),
       },
@@ -79,10 +79,6 @@ test('a finished night survives the round trip through the data file', () => {
   assert.equal(back.ignored.length, night.ignored.length);
   // Ignored sounds keep the newer measures too (they were left out before 1.19.1).
   assert.ok(
-    back.ignored.every((e) => typeof e.lowRise === 'number'),
-    'snore-band rise of ignored sounds',
-  );
-  assert.ok(
     back.ignored.filter((e) => e.reason !== 'too-long').every((e) => typeof e.onsetJump === 'number'),
     'onset jump of ignored sounds (too-long ones have no audio to measure)',
   );
@@ -94,7 +90,6 @@ test('a finished night survives the round trip through the data file', () => {
     assert.equal(e.rhythm, !!x.rhythm);
     assert.equal(e.peaks, x.peaks);
     assert.ok(Math.abs(e.breathRise - x.breathRise) < 0.06);
-    assert.ok(Math.abs(e.lowRise - x.lowRise) < 0.06, 'snore-band rise kept');
     assert.ok(Math.abs(e.onsetJump - x.onsetJump) < 0.06, 'onset jump kept (1.18.0)');
   });
   assert.deepEqual(
@@ -102,14 +97,15 @@ test('a finished night survives the round trip through the data file', () => {
     ['suspended'],
   );
   assert.ok(Math.abs(back.interruptions[0].end - back.interruptions[0].start - 5) < 0.06);
-  assert.equal(back.shadows.auto.sensitivity, 'auto');
-  assert.equal(back.shadows.auto.snores.length, night.shadows.auto.snores.length);
-  assert.equal(json.shadows.auto.minBreathRiseDb, 3);
-  assert.ok(
-    json.snores.every((x) => ['preRise25Db', 'preRise50Db', 'preRise100Db'].every((k) => typeof x[k] === 'number')),
-    'rise over the moment before',
-  );
-  assert.equal(json.shadows.auto.setAside.length, 2, 'sounds a background test set aside');
+  assert.equal(back.shadows.knock.sensitivity, 'normal');
+  assert.equal(back.shadows.knock.snores.length, night.shadows.knock.snores.length);
+  assert.equal(json.shadows.knock.minBreathRiseDb, 6, 'the rule in force (the configuration), not only the options');
+  assert.equal(json.shadows.knock.maxOnsetJumpDb, 20);
+  assert.deepEqual(Object.keys(json.shadows.knock), ['sensitivity', 'minBreathRiseDb', 'maxOnsetJumpDb', 'summary', 'snores', 'setAside']);
+  // The automatic-sensitivity test's measurements were removed in 1.24.0.
+  for (const key of ['lowRiseDb', 'preRise25Db', 'preRise50Db', 'preRise100Db'])
+    assert.ok(!(key in json.snores[0]) && !(key in json.ignored[0]) && !(key in json.shadows.knock.snores[0]), key);
+  assert.equal(json.shadows.knock.setAside.length, 2, 'sounds a background test set aside');
   // Every sound feature, as for the counting detector's sounds (1.22.1), so the test's rules can be re-run.
   const featureKeys = [
     'peakDbfs',
@@ -120,47 +116,24 @@ test('a finished night survives the round trip through the data file', () => {
     'subBassShare',
     'loudFill',
     'breathRiseDb',
-    'lowRiseDb',
     'onsetJumpDb',
-    'preRise25Db',
-    'preRise50Db',
-    'preRise100Db',
   ];
-  assert.deepEqual(Object.keys(json.shadows.auto.setAside[0]), ['offsetSec', 'durationSec', 'reason', 'aboveRoomDb', ...featureKeys]);
-  assert.deepEqual(Object.keys(json.shadows.auto.snores[0]), [
+  assert.deepEqual(Object.keys(json.shadows.knock.setAside[0]), ['offsetSec', 'durationSec', 'reason', 'aboveRoomDb', ...featureKeys]);
+  assert.deepEqual(Object.keys(json.shadows.knock.snores[0]), [
     'offsetSec',
     'durationSec',
     'aboveRoomDb',
     ...featureKeys,
     'rhythmRescued',
     'confirmed',
-    'wavStartSec',
   ]);
-  const shadowBack = shadowEvents(json.shadows.auto);
-  assert.equal(shadowBack.length, night.shadows.auto.snores.length + 2);
+  const shadowBack = shadowEvents(json.shadows.knock);
+  assert.equal(shadowBack.length, night.shadows.knock.snores.length + 2);
   assert.ok(
     shadowBack.every((e) => typeof e.lowRatio === 'number' && typeof e.fill === 'number'),
     'read back with features',
   );
-  assert.ok(
-    back.snores.every((e) => typeof e.preRise100 === 'number'),
-    'read back',
-  );
-  assert.equal(json.shadows.auto.maxOnsetJumpDb, null);
-  assert.ok(json.shadows.auto.snores.every((x) => typeof x.onsetJumpDb === 'number'));
-});
-
-test('background-test clips are placed in the test-clip WAV', () => {
-  const night = demoNight();
-  const sampled = [...night.shadows.auto.snores].sort((a, b) => a.start - b.start).slice(0, 2);
-  const json = toReport({ ...night, testWavStarts: new Map(sampled.map((x, i) => [x, i * 1.5])) });
-  const positions = json.shadows.auto.snores.map((x) => x.wavStartSec);
-  assert.deepEqual(positions.slice(0, 2), [0, 1.5]);
-  assert.ok(positions.slice(2).every((p) => p === null));
-  assert.ok(
-    toReport(night).shadows.auto.snores.every((x) => x.wavStartSec === null),
-    'none without a sample',
-  );
+  assert.ok(json.shadows.knock.snores.every((x) => typeof x.onsetJumpDb === 'number'));
 });
 
 test('the data file keeps every field earlier versions wrote', () => {
@@ -169,7 +142,8 @@ test('the data file keeps every field earlier versions wrote', () => {
   for (const key of Object.keys(old)) assert.ok(key in now, `top-level ${key}`);
   for (const key of Object.keys(old.snores[0])) assert.ok(key in now.snores[0], `snore ${key}`);
   for (const key of Object.keys(old.ignored[0])) assert.ok(key in now.ignored[0], `ignored ${key}`);
-  for (const key of Object.keys(old.shadows.auto)) assert.ok(key in now.shadows.auto, `shadow ${key}`);
+  // Background tests keep their fields, except the automatic-sensitivity test's margins (removed in 1.24.0).
+  for (const key of Object.keys(old.shadows.auto)) if (key !== 'levels') assert.ok(key in now.shadows.knock, `shadow ${key}`);
 });
 
 test('reports written by 1.8 and 1.9 still read', () => {

@@ -1,5 +1,34 @@
 # Verification record
 
+## Checkpoint 1.24.0 (automatic sensitivity removed, 2026-10-06)
+
+**Tested code revision:** the PR branch of 1.24.0 on top of `main` (`2421fd5`). **No counting
+change.** Owner's decision (preparing the move to an iPhone app):
+- Removed: the automatic-sensitivity background test, with its snore-band and moment-before
+  rules; the per-sound measurements `lowRiseDb` and `preRise25/50/100Db`; the test-clip
+  download.
+- Kept: the room-noise check and the knock test.
+- Restart log: [`archive/auto-sensitivity.md`](archive/auto-sensitivity.md).
+
+**Environment:** as for 1.23.0 (Node v22.22.0, npm 10.9.4; Chromium 141.0.7390.37 via
+`CHROMIUM_PATH=/opt/pw-browsers/chromium-1194/chrome-linux/chrome`). ESC-50 checkout
+`33c8ce9eb2cf0b1c2f8bcf322eb349b6be34dbb6` outside the repository.
+
+| Command | Result |
+| --- | --- |
+| `npm test` | **passed**, 89/89 (98 at 1.23.0: 9 tests of the removed features gone; the review N2 and 1.22.1 re-count tests now use a 3 dB breath test and the knock test; new: older files' auto section shows its recorded counts only) |
+| `npm run lint` | **passed** |
+| `node --check` over `js/ scripts/ tests/ docs/review-probes/ research/` (`*.js`, `*.cjs`) | **passed**, 41 files |
+| `CHROMIUM_PATH=… npm run test:e2e` | **passed**: one background test (knock), no test-clip button, no `lowRiseDb`/`preRise*Db` in the data file, room-noise panel as before |
+| `CHROMIUM_PATH=… node docs/review-probes/full-demo-run.cjs "$PWD" <out>` | **passed**: "1.24.0 (dev)", 16 confirmed, 0 possible, 5 ignored (too bright 3, choppy 1, too long 1); background test knock 16; JSON 20,118 bytes (36,001 at 1.23.0); no page errors |
+| Counting detector of v1.23.0 against this checkout (scratch script): 2 demo nights (48 and 16 kHz) and 8 synthetic rooms (hum, deep rumble, gusts, plain; breaths and knocks) × Low / Normal / High | **identical**: 998 sounds, every feature, verdict, confirmation and room-noise minute |
+| `npm run evaluate` on the owner's nights 4–7 and the far phone of night 7, old against new evaluator | **identical** except each file's auto section, which now reads "recorded counts only" |
+| `node docs/review-probes/controller-store-probes.cjs` / `noise-evaluator-probes.cjs` | C1, C3, C4, C5 and N1 as before; C6 and N2 print "not applicable from 1.24.0" (they used the automatic-sensitivity test; run them against a checkout up to 1.23.0) |
+| `node research/khan/evaluate.js` | KHAN_RESULT |
+| `npm run eval:public` | EVAL_PUBLIC_RESULT |
+
+**Not run / not available:** physical iPhone, Safari/WebKit, Firefox; a real night on 1.24.0.
+
 ## Checkpoint 1.23.0 (High counts with the breath-noise rule, 2026-10-05)
 
 **Tested code revision:** the PR branch of 1.23.0 on top of `main` with the public-dataset study

@@ -342,55 +342,6 @@ test('summary counts snores found through the rhythm', () => {
   assert.equal(stats.summary(60).rhythmCount, 1);
 });
 
-function snoreNight(background, noiseLevel, amp, seed) {
-  const r = Synth.rng(seed);
-  const plan = [];
-  for (let t = 60; t < 280; t += 70) plan.push(...Synth.snoreRun(t, 8, r).map((p) => ({ ...p, amp: amp * (0.5 + r()) })));
-  return Synth.compose(16000, 300, plan, seed, noiseLevel, background);
-}
-
-function confirmedSnores(scenario, options) {
-  const det = new SnoreDetector(scenario.sampleRate, options);
-  const stats = new SessionStats();
-  [...det.process(scenario.samples), ...det.flush()].forEach((e) => stats.add(e));
-  const truth = scenario.truth.filter((t) => t.type === 'snore');
-  const hits = stats.confirmed.filter((e) => truth.some((t) => overlaps(e, t))).length;
-  return { hits, falseAlarms: stats.confirmed.length - hits, det };
-}
-
-test('auto sensitivity: small margins in a still room, larger in a restless one', () => {
-  const still = confirmedSnores(snoreNight('still', 0.002, 0.035, 1), { sensitivity: 'auto' }).det;
-  const gusty = confirmedSnores(snoreNight('gusty', 0.004, 0.25, 1), { sensitivity: 'auto' }).det;
-  assert.ok(still.levels.length >= 8, 'margins are re-measured every 30 s');
-  const last = (d) => d.levels[d.levels.length - 1];
-  assert.ok(last(still).triggerDb <= 6, `still room trigger ${last(still).triggerDb}`);
-  assert.ok(last(gusty).triggerDb >= 8, `restless room trigger ${last(gusty).triggerDb}`);
-  for (const d of [still, gusty]) {
-    assert.ok(d.levels.every((l) => l.triggerDb >= 5 && l.triggerDb <= 14 && l.releaseDb >= 3 && l.releaseDb < l.triggerDb));
-  }
-});
-
-test('auto sensitivity finds soft snores in a very quiet bedroom that normal misses', () => {
-  let normal = 0;
-  let auto = 0;
-  for (let seed = 1; seed <= 3; seed++) {
-    const night = snoreNight('still', 0.00006, 0.0004, seed); // room about -86 dBFS, snores about -77 to -73 dBFS
-    normal += confirmedSnores(night, { sensitivity: 'normal' }).hits;
-    const a = confirmedSnores(night, { sensitivity: 'auto' });
-    auto += a.hits;
-    assert.equal(a.falseAlarms, 0);
-  }
-  assert.ok(auto >= 2 * normal, `auto ${auto} vs normal ${normal}`);
-});
-
-test('auto sensitivity keeps up in a restless room', () => {
-  const night = snoreNight('gusty', 0.004, 0.25, 2);
-  const auto = confirmedSnores(night, { sensitivity: 'auto' });
-  const normal = confirmedSnores(night, { sensitivity: 'normal' });
-  assert.ok(auto.hits >= normal.hits - 1, `auto ${auto.hits} vs normal ${normal.hits}`);
-  assert.equal(auto.falseAlarms, 0);
-});
-
 test('a counting-only detector keeps no audio', () => {
   const { events } = run(Synth.demoScenario(16000), { keepClips: false });
   assert.ok(events.some((e) => e.isSnore));
@@ -509,41 +460,13 @@ test('sudden-start rule: bumps that pass every other rule are set aside, snores 
   assert.equal(events.filter((e) => e.isSnore).length, 16, 'the demo night keeps its 16 snores');
 });
 
-test('rise over the moment before: measured over 0.25, 0.5 and 1 s; a rule uses the chosen window', () => {
-  for (const sr of [48000, 16000]) {
-    const r = Synth.rng(2);
-    const sc = Synth.compose(sr, 45, [...Synth.snoreRun(5, 5, r), { type: 'swell', at: 30 }], 2);
-    const { events } = run(sc, {});
-    for (const e of events.filter((x) => x.start < 28)) {
-      for (const k of ['preRise25', 'preRise50', 'preRise100']) assert.ok(e[k] > 20, `${k} of a snore at ${sr} Hz: ${e[k]}`);
-      assert.ok(Math.abs(e.preRise100 - e.lowRise) < 3, 'in a still room the moment before is the room itself');
-    }
-    const swell = events.find((x) => x.start >= 28);
-    assert.ok(swell.preRise25 <= swell.preRise100 + 0.5, 'a slow swell rises less over the shortest window');
-  }
-  const det = new Core.SnoreDetector(16000);
-  det.process(Synth.compose(16000, 3, [], 1).samples);
-  assert.ok(det.lowHistCount > 0);
-  det.resumeAfterGap(2);
-  assert.equal(det.lowHistCount, 0, 'nothing before an interruption counts as the moment before');
-  const f = { duration: 1, lowRatio: 0.9, highRatio: 0.01, centroid: 150, peaks: 1, subBass: 0.2, breathRise: 20 };
-  const g = { ...f, preRise25: 3, preRise50: 5, preRise100: 9 };
-  assert.equal(Core.classify(g, { minPreRiseDb: 6, preRiseSec: 0.25 }).reason, 'no-pre-rise');
-  assert.equal(Core.classify(g, { minPreRiseDb: 6, preRiseSec: 1 }).isSnore, true);
-  assert.equal(Core.classify(g, {}).isSnore, true, 'off by default');
-  assert.equal(
-    Core.classify({ ...g, preRise100: null }, { minPreRiseDb: 6, preRiseSec: 1 }).isSnore,
-    true,
-    'not measured: no verdict from it',
-  );
-});
-
 test('the breath-noise rule in force: the options set it, else the sensitivity (Normal 6 dB)', () => {
   assert.equal(Core.breathRuleDb({}), 6, 'default sensitivity is Normal');
   assert.equal(Core.breathRuleDb({ sensitivity: 'normal' }), 6);
   assert.equal(Core.breathRuleDb({ sensitivity: 'low' }), 6, 'Low too since 1.21.0');
   assert.equal(Core.breathRuleDb({ sensitivity: 'high' }), 6, 'High too since 1.23.0');
-  assert.equal(Core.breathRuleDb({ sensitivity: 'auto' }), null);
+  assert.equal(Core.SENSITIVITY.auto, undefined, 'automatic sensitivity was removed in 1.24.0');
+  assert.equal(new Core.SnoreDetector(48000, { sensitivity: 'auto' }).sensitivity, 'normal', 'an unknown sensitivity counts as Normal');
   assert.equal(Core.breathRuleDb({ sensitivity: 'normal', minBreathRiseDb: null }), null, 'null switches it off');
   assert.equal(Core.breathRuleDb({ sensitivity: 'high', minBreathRiseDb: 3 }), 3);
   assert.equal(new Core.SnoreDetector(48000).opts.minBreathRiseDb, 6, 'the detector records the rule it uses');
@@ -560,98 +483,6 @@ test('breath-noise rule keeps every snore of the demo night', () => {
   const { events } = run(Synth.demoScenario(48000), { minBreathRiseDb: 3 });
   assert.equal(events.filter((e) => e.isSnore).length, 16);
   assert.ok(events.filter((e) => e.isSnore).every((e) => e.breathRise > 10));
-});
-
-test('auto sensitivity in a very quiet room full of deep rumble stays sensitive', () => {
-  let normal = 0;
-  let auto = 0;
-  for (let seed = 1; seed <= 3; seed++) {
-    const r = Synth.rng(seed);
-    const plan = [];
-    for (let t = 60; t < 280; t += 70) plan.push(...Synth.snoreRun(t, 8, r).map((p) => ({ ...p, amp: 0.0004 * (0.5 + r()) })));
-    const night = Synth.compose(16000, 300, plan, seed, 0.00006, 'deep'); // about -82 dBFS, mostly below 60 Hz
-    normal += confirmedSnores(night, { sensitivity: 'normal' }).hits;
-    // The smaller margin lets rumble flicker through; the breath-noise rule removes it.
-    const a = confirmedSnores(night, { sensitivity: 'auto', minBreathRiseDb: 3 });
-    auto += a.hits;
-    assert.equal(a.falseAlarms, 0);
-    assert.ok(
-      a.det.levels.every((l) => l.triggerDb <= 9),
-      'trigger capped in a very quiet room',
-    );
-  }
-  assert.ok(auto >= 2 * normal, `auto ${auto} vs normal ${normal}`);
-});
-
-test('auto sensitivity over a wavering hum ends sounds in time and does not count breathing (night 4)', () => {
-  // Night 4: a mains hum kept the usual quiet level 3-5 dB above the floor. With its
-  // release inside that range, auto kept sounds open into the hum and the breathing
-  // around them: loud two-burst snores came out choppy or too long, breaths as snores.
-  const counts = { normal: 0, auto: 0, snores: 0, falseAlarms: 0 };
-  for (let seed = 1; seed <= 3; seed++) {
-    const r = Synth.rng(seed);
-    const plan = [];
-    for (let t = 40; t < 290; t += 9 + r() * 3) {
-      plan.push({ type: r() < 0.5 ? 'snore' : 'rattle', at: t, amp: 0.004 * (0.6 + r()), bursts: 2, duration: 0.8 + r() * 0.5 });
-      for (let b = t + 2.6; b < t + 8.5; b += 3.8 + r() * 0.8) plan.push({ type: 'breath', at: b, amp: 0.00004 * (0.7 + 0.6 * r()) });
-    }
-    const night = Synth.compose(16000, 300, plan, seed, 0.00005, 'hum'); // floor about -90 dBFS
-    const snores = night.truth.filter((t) => t.type !== 'breath');
-    const confirmed = (options) => {
-      const stats = new SessionStats();
-      const det = new SnoreDetector(16000, { ...options, onEvent: (e) => stats.add(e) });
-      det.process(night.samples);
-      det.flush();
-      return { list: stats.confirmed, det };
-    };
-    const hits = (list) => snores.filter((t) => list.some((e) => overlaps(e, t))).length;
-    const auto = confirmed({ sensitivity: 'auto', minBreathRiseDb: 3 });
-    counts.normal += hits(confirmed({ sensitivity: 'normal' }).list);
-    counts.auto += hits(auto.list);
-    counts.snores += snores.length;
-    counts.falseAlarms += auto.list.filter((e) => !snores.some((t) => overlaps(e, t))).length;
-    const last = auto.det.levels[auto.det.levels.length - 1];
-    assert.ok(last.releaseDb >= 4.5, `release above the hum's usual level: ${last.releaseDb.toFixed(1)} dB`);
-  }
-  assert.equal(counts.auto, counts.snores, `auto found ${counts.auto}/${counts.snores} (normal ${counts.normal})`);
-  assert.equal(counts.falseAlarms, 0, 'no breath counted as a snore');
-});
-
-test('snore-band rule: quiet breathing over a room tone is not a snore, snores are (night 5)', () => {
-  // Night 5 (hotel): auto counted 581 snores, Normal 76; its sampled extra snores were the
-  // sleeper's quiet breathing over a motor's low tone. The tone makes any quiet sound look
-  // low and snore-like, but breathing barely raises the 50-800 Hz band above its room noise.
-  const auto = { sensitivity: 'auto', minBreathRiseDb: 3 };
-  const counts = { plain: 0, rule: 0, snores: 0, hits: 0 };
-  for (let seed = 1; seed <= 3; seed++) {
-    const r = Synth.rng(seed);
-    const plan = [];
-    for (let t = 3; t < 590; t += 3.6 + r())
-      if (t < 200 || t > 250) plan.push({ type: 'breath', at: t, dull: true, amp: 0.00005 * (0.7 + 0.6 * r()) });
-    for (let k = 0; k < 10; k++) plan.push({ type: 'snore', at: 202 + k * 4.3, amp: 0.0025 * (0.6 + r()) });
-    const night = Synth.compose(16000, 600, plan, seed, 0.00005, 'hum');
-    const snores = night.truth.filter((t) => t.type === 'snore');
-    const confirmed = (options) => {
-      const stats = new SessionStats();
-      const det = new SnoreDetector(16000, { ...options, keepClips: false, onEvent: (e) => stats.add(e) });
-      det.process(night.samples);
-      det.flush();
-      return stats.confirmed;
-    };
-    const falseOnes = (list) => list.filter((e) => !snores.some((t) => overlaps(e, t))).length;
-    counts.plain += falseOnes(confirmed(auto));
-    const withRule = confirmed({ ...auto, minLowRiseDb: 8 });
-    counts.rule += falseOnes(withRule);
-    counts.snores += snores.length;
-    counts.hits += snores.filter((t) => withRule.some((e) => overlaps(e, t))).length;
-    assert.ok(
-      withRule.every((e) => e.lowRise >= 8),
-      'what counts rises in the snore band',
-    );
-  }
-  assert.ok(counts.plain >= 20, `without the rule auto counts breaths: ${counts.plain}`);
-  assert.equal(counts.rule, 0, 'with the rule no breath counts');
-  assert.equal(counts.hits, counts.snores, `snores still count: ${counts.hits}/${counts.snores}`);
 });
 
 // Rhythm rule as documented: a choppy, snore-like sound counts when a snore that

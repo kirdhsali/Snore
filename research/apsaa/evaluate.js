@@ -18,7 +18,8 @@ const VARIANTS = {
   high_4_5: { sensitivity: 'high', minBreathRiseDb: 4.5 },
   high_6: { sensitivity: 'high', minBreathRiseDb: 6 },
   knock: { sensitivity: 'normal', maxOnsetJumpDb: 20 },
-  auto: { sensitivity: 'auto', minBreathRiseDb: 3, minLowRiseDb: 8, minPreRiseDb: 6, preRiseSec: 1 },
+  // The automatic-sensitivity test ("auto" in research/RESULTS.md) was removed from the app in
+  // 1.24.0; to re-run it, check out v1.23.0 (docs/archive/auto-sensitivity.md).
 };
 const TOL = 1; // s around an annotated episode
 

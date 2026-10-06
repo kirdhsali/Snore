@@ -21,28 +21,14 @@
 
   const { SnoreDetector, SessionStats } = Core;
   const STALL_MS = 2000; // no audio for this long while recording counts as an interruption
-  // Breath-noise rule of the auto test. Normal counts with 6 dB since 1.17.0 (js/detector.js):
-  // night 4 counted hum swells with 3-6 dB of breath noise as snores.
-  const BREATH_RULE_DB = 3;
   // Knock test: night 5's report counted knocks as snores. A knock reaches its full level at
   // once (night 5: 21-42 dB within 20 ms), a snore swells (nights 4 and 5: 99 % under 17 dB).
   const KNOCK_RULE_DB = 20;
-  // Auto test: night 5 counted quiet breathing over a room tone as snores; a snore raises
-  // the 50-800 Hz band well above its room noise, breathing hardly does.
-  const SNORE_BAND_RULE_DB = 8;
-  // ...and the rise over the moment before (1.20.0): at home (night 6) its extra snores were the
-  // room's own flicker, 2-3 dB above the quarter second before them; real snores 13-22 dB.
-  // Measured over 1 s (in simulation a shorter window caught the snore's own slow start); the
-  // data file keeps the rise over 0.25, 0.5 and 1 s to compare the lengths.
-  const PRE_RISE_RULE_DB = 6;
-  const PRE_RISE_SEC = 1;
   // Background tests also hand over the sounds their own rules set aside and their choppy
-  // sounds no snore rescued (features only), so other limits and windows can be tried on a
-  // night afterwards with the rhythm rescue redone (choppy ones since 1.22.1).
-  const SET_ASIDE_REASONS = new Set(['no-pre-rise', 'sudden', 'choppy']);
-  // The auto test keeps clips of a random sample of the snores the counting detector did not
-  // find, so they can be checked by ear (owner's decision after night 4).
-  const TEST_CLIPS = 60;
+  // sounds no snore rescued (features only), so other limits can be tried on a night
+  // afterwards with the rhythm rescue redone (choppy ones since 1.22.1). The automatic-
+  // sensitivity test and its test clips were removed in 1.24.0 (docs/archive/auto-sensitivity.md).
+  const SET_ASIDE_REASONS = new Set(['sudden', 'choppy']);
 
   const TAP_CODE = `class Tap extends AudioWorkletProcessor {
     constructor() { super(); this.buf = new Float32Array(2048); this.n = 0; }
@@ -124,13 +110,11 @@
    *   onState(state, recorder),      every state change
    *   onFrame(frame), onEvent(ev),   the main detector's frames and decided events (already counted)
    *   onWakeLock(state),             'on' | 'failed' | 'unsupported'
-   *   testClips                      most clips the auto test keeps per night (default 60)
    *   env                            browser APIs (tests pass fakes)
    * }
    */
   function createRecorder(opts = {}) {
     const env = Object.assign(browserEnv(), opts.env);
-    const maxTestClips = opts.testClips ?? TEST_CLIPS;
     const notify = (fn, ...args) => fn && fn(...args);
     let state = 'idle';
     let session = null;
@@ -315,36 +299,17 @@
           },
         });
         s.detector = det;
-        // Background tests of candidate rules: extra detectors on the same audio.
-        // They change nothing on screen; their counts go into the data file. The auto test
-        // keeps audio: a sample of its snores the counting detector did not find
-        // (`sample`: the most clips to keep and which snores qualify). The High trial
-        // (1.22.0, High without the breath rule) ended in 1.23.0, when High took the 6 dB rule.
-        const shadow = (options, sample) => {
+        // Background tests of candidate rules: extra detectors on the same audio that keep no
+        // audio. They change nothing on screen; their counts go into the data file. The High
+        // trial (1.22.0) ended in 1.23.0, when High took the 6 dB rule; the automatic-sensitivity
+        // test (1.8.0-1.23.0) was removed in 1.24.0.
+        const shadow = (options) => {
           const stats = new SessionStats();
-          const sh = { options, stats, detector: null, sample: sample && { ...sample, kept: [], seen: 0, stats } };
-          sh.detector = new SnoreDetector(ctx.sampleRate, {
-            ...options,
-            keepClips: !!sample,
-            onEvent: (e) => {
-              stats.add(e);
-              if (e.clip && !sampleClip(s, sh, e)) stats.dropClip(e);
-            },
-          });
-          return sh;
+          const detector = new SnoreDetector(ctx.sampleRate, { ...options, keepClips: false, onEvent: (e) => stats.add(e) });
+          return { options, stats, detector };
         };
         s.shadows = {
           knock: shadow({ sensitivity, maxOnsetJumpDb: KNOCK_RULE_DB }),
-          auto: shadow(
-            {
-              sensitivity: 'auto',
-              minBreathRiseDb: BREATH_RULE_DB,
-              minLowRiseDb: SNORE_BAND_RULE_DB,
-              minPreRiseDb: PRE_RISE_RULE_DB,
-              preRiseSec: PRE_RISE_SEC,
-            },
-            { max: maxTestClips, accept: () => true },
-          ),
         };
         s.tap = await createTap(env, ctx, input, (samples) => {
           if (!live() || session !== s) return;
@@ -378,7 +343,6 @@
       setState('stopping');
       s.detector.flush(); // decides open sounds; they arrive through onEvent
       for (const sh of Object.values(s.shadows)) sh.detector.flush();
-      settleSample(s);
       // No audio other than the kept snore clips may remain once the night is over.
       s.detector.release();
       for (const sh of Object.values(s.shadows)) sh.detector.release();
@@ -411,50 +375,6 @@
 
     function gapSeconds(s) {
       return s.gaps.reduce((sum, g) => sum + (g.end - g.start) / 1000, 0);
-    }
-
-    // ----- background-test clip samples -----
-    /** True when the counting detector found a snore-like sound overlapping `e`. */
-    function countedByMain(s, e, recentOnly = true) {
-      const list = s.stats.snores;
-      // Both detectors hear the same audio, so a match is among the latest sounds (in decision order).
-      const from = recentOnly ? Math.max(0, list.length - 60) : 0;
-      for (let i = list.length - 1; i >= from; i--) if (list[i].start < e.end + 0.2 && list[i].end > e.start - 0.2) return true;
-      return false;
-    }
-
-    /**
-     * Whether a background test keeps this clip: a qualifying snore the counting detector did
-     * not find, held in a random sample (reservoir) of twice the final size until Stop.
-     */
-    function sampleClip(s, sh, e) {
-      const r = sh.sample;
-      if (!r || !e.isSnore || !r.max || !r.accept(e) || countedByMain(s, e)) return false;
-      r.seen++;
-      if (r.kept.length < 2 * r.max) {
-        r.kept.push(e);
-        return true;
-      }
-      const j = Math.floor(env.random() * r.seen);
-      if (j >= r.kept.length) return false;
-      r.stats.dropClip(r.kept[j]);
-      r.kept[j] = e;
-      return true;
-    }
-
-    /** At Stop: drops clips the counting detector matched late, then keeps a random `max` per test. */
-    function settleSample(s) {
-      for (const sh of Object.values(s.shadows || {})) {
-        const r = sh.sample;
-        if (!r) continue;
-        const kept = [];
-        for (const e of r.kept) {
-          if (e.clip && !countedByMain(s, e, false)) kept.push(e);
-          else r.stats.dropClip(e);
-        }
-        while (kept.length > r.max) r.stats.dropClip(kept.splice(Math.floor(env.random() * kept.length), 1)[0]);
-        r.kept = kept;
-      }
     }
 
     /**
@@ -495,7 +415,6 @@
               options: { ...sh.options },
               config: config(sh.detector),
               summary: sh.stats.summary(s.elapsed),
-              levels: sh.detector.levels,
               snores: sh.stats.snores,
               setAside: sh.stats.ignored.filter((e) => SET_ASIDE_REASONS.has(e.reason)),
             }),
@@ -534,5 +453,5 @@
     return api;
   }
 
-  return { createRecorder, STALL_MS, BREATH_RULE_DB };
+  return { createRecorder, STALL_MS };
 });

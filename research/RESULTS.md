@@ -4,7 +4,9 @@ Study of 2026-10-05, on Snorewatch 1.22.3 (`main` at `89f0e2e`), detection rules
 `docs/HANDOVER.md` §3. All figures are aggregates. No audio, recording, per-sound result or
 dataset file is in the repository. Every table can be re-run with the scripts named under it
 (see [`README.md`](README.md)). Where the scripted re-run differed from the first run, both are
-given and the reason is stated.
+given and the reason is stated. The "auto test" rows describe the automatic-sensitivity
+background test, removed from the app in 1.24.0; the scripts no longer run it (check out
+`v1.23.0` to re-run those rows; see [`docs/archive/auto-sensitivity.md`](../docs/archive/auto-sensitivity.md)).
 
 **Short version**
 - **High should count with the 6 dB breath rule.** Three independent sources agree: APSAA

@@ -97,21 +97,19 @@ test('a night goes idle → requesting → recording → stopping → completed 
   assert.equal(night.config.minBreathRiseDb, 6, 'Normal counts with the 6 dB breath-noise rule (1.17.0)');
   assert.ok(night.summary.snoreCount === 16 && !night.summary.ignoredByReason['no-breath'], 'the demo snores have clear breath noise');
   // The breath-noise background tests ended when Normal took the rule over; the data file holds what they showed.
-  assert.deepEqual(Object.keys(night.shadows), ['knock', 'auto'], 'the High trial ended when High took the breath rule (1.23.0)');
+  // The High trial ended in 1.23.0 (High took the breath rule); automatic sensitivity was removed in 1.24.0.
+  assert.deepEqual(Object.keys(night.shadows), ['knock'], 'one background test is left');
   assert.deepEqual(night.shadows.knock.options, { sensitivity: 'normal', maxOnsetJumpDb: 20 });
   assert.equal(night.shadows.knock.config.minBreathRiseDb, 6, 'the knock test counts like Normal otherwise');
   assert.equal(night.shadows.knock.summary.snoreCount, 16, 'the demo snores swell; none starts suddenly');
-  assert.deepEqual(night.shadows.auto.options, {
-    sensitivity: 'auto',
-    minBreathRiseDb: 3,
-    minLowRiseDb: 8,
-    minPreRiseDb: 6,
-    preRiseSec: 1,
-  });
-  assert.ok(Array.isArray(night.shadows.auto.setAside), 'the sounds its own rules set aside are handed over');
+  assert.ok(
+    night.shadows.knock.snores.every((x) => !x.clip),
+    'the knock test keeps no audio',
+  );
+  assert.ok(Array.isArray(night.shadows.knock.setAside), 'the sounds its own rules set aside are handed over');
   for (const [name, sh] of Object.entries(night.shadows)) {
     assert.ok(
-      sh.setAside.every((e) => ['no-pre-rise', 'sudden', 'choppy'].includes(e.reason)),
+      sh.setAside.every((e) => ['sudden', 'choppy'].includes(e.reason)),
       `${name}: set aside by its own rules, or choppy without a rescue`,
     );
   }
@@ -271,37 +269,4 @@ test('a screen lock that arrives after Stop, or for an earlier night, is release
   assert.equal(rec.wakeLockState, 'on');
   rec.stop();
   assert.deepEqual(released, ['late', 'old night', 'this night']);
-});
-
-test('the auto test keeps a random sample of clips of snores the counting detector missed', async () => {
-  // A very quiet bedroom: automatic sensitivity finds soft snores that Normal misses.
-  const r = Synth.rng(1);
-  const plan = [];
-  for (let t = 30; t < 280; t += 40) plan.push(...Synth.snoreRun(t, 6, r).map((p) => ({ ...p, amp: 0.0004 * (0.5 + r()) })));
-  const samples = Synth.compose(16000, 300, plan, 1, 0.00006).samples;
-  const overlapsMain = (night, x) => night.snores.some((m) => m.start < x.end + 0.2 && m.end > x.start - 0.2);
-  const record = async (testClips) => {
-    const b = fakeBrowser();
-    const rand = Synth.rng(9);
-    const rec = createRecorder({ version: 'test', env: { ...b.env, random: rand }, testClips });
-    await rec.start({ source: 'mic', sensitivity: 'normal' });
-    b.feed(samples);
-    return rec.stop();
-  };
-  const all = await record(1000);
-  const missed = all.shadows.auto.snores.filter((x) => x.isSnore && !overlapsMain(all, x));
-  assert.ok(missed.length >= 8, `auto found ${missed.length} snores Normal missed`);
-  assert.deepEqual(
-    all.shadows.auto.snores.filter((x) => x.clip),
-    missed,
-    'without a cap: a clip for each of them and nothing else',
-  );
-  const night = await record(5);
-  const kept = night.shadows.auto.snores.filter((x) => x.clip);
-  assert.equal(kept.length, 5, 'capped');
-  assert.ok(kept.every((x) => !overlapsMain(night, x) && x.clip instanceof Int16Array && x.clip.length > 0));
-  assert.ok(
-    night.shadows.knock.snores.every((x) => !x.clip),
-    'the knock test keeps no audio',
-  );
 });
