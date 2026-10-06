@@ -24,7 +24,7 @@ change.** Owner's decision (preparing the move to an iPhone app):
 | Counting detector of v1.23.0 against this checkout (scratch script): 2 demo nights (48 and 16 kHz) and 8 synthetic rooms (hum, deep rumble, gusts, plain; breaths and knocks) × Low / Normal / High | **identical**: 998 sounds, every feature, verdict, confirmation and room-noise minute |
 | `npm run evaluate` on the owner's nights 4–7 and the far phone of night 7, old against new evaluator | **identical** except each file's auto section, which now reads "recorded counts only" |
 | `node docs/review-probes/controller-store-probes.cjs` / `noise-evaluator-probes.cjs` | C1, C3, C4, C5 and N1 as before; C6 and N2 print "not applicable from 1.24.0" (they used the automatic-sensitivity test; run them against a checkout up to 1.23.0) |
-| `node research/khan/evaluate.js` | KHAN_RESULT |
+| `node research/khan/evaluate.js` | **identical** to its rerun on 1.23.0 apart from the three removed "auto" rows (Normal 62.8 % snoring found, 31.6 % others at −50 dBFS) |
 | `npm run eval:public` | EVAL_PUBLIC_RESULT |
 
 **Not run / not available:** physical iPhone, Safari/WebKit, Firefox; a real night on 1.24.0.
