@@ -25,7 +25,7 @@ change.** Owner's decision (preparing the move to an iPhone app):
 | `npm run evaluate` on the owner's nights 4–7 and the far phone of night 7, old against new evaluator | **identical** except each file's auto section, which now reads "recorded counts only" |
 | `node docs/review-probes/controller-store-probes.cjs` / `noise-evaluator-probes.cjs` | C1, C3, C4, C5 and N1 as before; C6 and N2 print "not applicable from 1.24.0" (they used the automatic-sensitivity test; run them against a checkout up to 1.23.0) |
 | `node research/khan/evaluate.js` | **identical** to its rerun on 1.23.0 apart from the three removed "auto" rows (Normal 62.8 % snoring found, 31.6 % others at −50 dBFS) |
-| `npm run eval:public` | EVAL_PUBLIC_RESULT |
+| `npm run eval:public` | **identical to 1.23.0**: Normal snoring 29/40 (13 confirmed), night sounds 76/1000 (13), other 158/1960 (31); without the breath rule 30/40 (14), 100/1000 (22); 3 dB 29/40 (13), 87/1000 (18) |
 
 **Not run / not available:** physical iPhone, Safari/WebKit, Firefox; a real night on 1.24.0.
 
