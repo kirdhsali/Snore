@@ -278,7 +278,8 @@ Naming a group still needs a rule, YAMNet, or a few clips listened to per group.
    It needs a model of about 4 MB and a WebAssembly runtime, which is an exception to "no runtime
    dependencies". It is a separate piece of work for a new session.
 5. **Labels without listening:** a two-phone night (one phone near the head, one 2–3 m away)
-   would give the owner's bedroom the "own sound or room" label automatically.
+   would give the owner's bedroom the "own sound or room" label automatically. The first such
+   night followed on 2026-10-05/06 (§10).
 
 ## 9. Limits
 
@@ -292,3 +293,77 @@ Naming a group still needs a rule, YAMNet, or a few clips listened to per group.
   levelling target and threshold, the values were picked after seeing the clip results, so those
   figures are slightly optimistic.
 - The owner's nights are one person; the judgements are time windows, not per-clip labels.
+
+## 10. A two-phone night at home (2026-10-05/06, private files, aggregate results)
+
+`node research/two-phone/compare.js <near.json> <far.json> [labels.json]`, then
+`research/own-nights/clips.py` on the near phone's folder for YAMNet. Recorded with 1.23.0, both
+phones on Normal, 23:53–06:45 (6.9 h). One phone lay near the owner's head; the other at the foot
+end of the bed, "listening to the room".
+
+**How the two phones were matched:**
+- **Clock:** the phones' clocks agreed within 0.03 s. Sounds both heard at the start line up
+  within 25 ms (23:53:01, 23:53:28, 23:53:38–40). The intended clap at 23:53:19 was handling
+  noise at the near phone (−16 dBFS there, −72 dBFS at the far phone).
+- **Gain:** in the octave bands 500–4000 Hz, the two backgrounds differ by −0.8 dB (p10/p90 −2.2 /
+  3.3), so the microphones are about equally sensitive. The whole background differs by 4.7 dB,
+  because the near phone hears a 50 Hz hum all night (63 Hz band +7 dB) and the far phone a
+  40–48 Hz motor. The labels use −0.8 dB. The raw differences below do not depend on it.
+- **Coverage:** the near phone counted 101 confirmed snores (15/h), the far phone 6 (1/h). The far
+  phone heard 230 of the near phone's 881 sounds. On Normal its −75 dBFS gate hides most quiet
+  sounds, so "unclear" below mostly means "not heard by the far phone".
+
+**Labels:** a sound is "own" if it is ≥ 6 dB louder at the near phone, or if the far phone would
+have heard it as a room sound and did not. It is "room" if it is less than 3 dB louder.
+
+| Near phone's verdict | Sounds | Own | Room | Unclear | Median near − far (raw) |
+| --- | --- | --- | --- | --- | --- |
+| Confirmed snore | 101 | 50% | 6% | 45% | +7.3 dB |
+| Possible snore (not confirmed) | 65 | 55% | 3% | 42% | +11.5 dB |
+| Set aside: no breath noise | 102 | 9% | 16% | 75% | −0.1 dB |
+| Ignored: rumble | 305 | 18% | 8% | 74% | +3.3 dB |
+| Ignored: too long | 105 | 50% | 3% | 47% | +8.8 dB |
+| Ignored: too short | 125 | 23% | 5% | 72% | +4.7 dB |
+| Ignored: too bright | 25 | 52% | 4% | 44% | +7.6 dB |
+| Ignored: choppy | 53 | 28% | 6% | 66% | +10.7 dB |
+
+| Snore-like sounds by breath noise | Sounds | Own | Room | Median near − far (raw) |
+| --- | --- | --- | --- | --- |
+| < 3 dB | 61 | 11% | 10% | +1.8 dB |
+| 3–4.5 dB | 23 | 9% | 22% | +0.4 dB |
+| 4.5–6 dB | 18 | 0% | 28% | −0.8 dB |
+| ≥ 6 dB | 166 | 52% | 5% | +10.9 dB |
+
+- **The 6 dB breath rule matches the physical label at home.** Sounds with ≥ 6 dB of breath noise
+  are about 11 dB louder at the head. Those with 3–6 dB are, in the median, equally loud at both
+  phones, as a room sound would be; few are clearly the owner's (0–9%). This is the third
+  independent confirmation, after APSAA and PSG-Audio.
+- **Normal's count is mostly the owner's own sound, where it can be checked.** Of the confirmed
+  snores the two phones could decide, 50 are own and 6 room (89% own).
+- **The 6 room-labelled confirmed snores:** one at 04:25 and five between 06:12 and 06:30. They are
+  quiet (−68 to −75 dBFS at the near phone, 9–17 dB above the room) and low (centroid 74–139 Hz),
+  passed the breath rule, and were equally loud at both phones. Only listening can say whether they
+  are a room sound or another sleeper.
+- **The auto test's extra snores** (43, not counted by Normal): 23% own, 0% room. 88% were not
+  heard by the far phone, so most stay unclear.
+- **"Own" is not "snore".** The owner's own sounds also include breathing, movement and speech
+  (too long 50% own, too bright 52%). The label says where a sound came from; the detector says
+  what it sounds like.
+
+**YAMNet on the near phone's saved clips** (8 kHz, the sound plus 0.4 s), against these labels:
+
+| Label | Clips | YAMNet snoring ≥ 0.5 | Median score | Top classes |
+| --- | --- | --- | --- | --- |
+| Own | 86 | 28% | 0.02 | "Roaring cats" 24, "Breathing" 21, "Speech" 9, "Snoring" 7 |
+| Room | 8 | 75% | 0.94 | "Snoring" 3, "Breathing" 3 |
+
+Separation of own from room (AUC): YAMNet 0.21, breath noise 0.96 (8 room clips only). As on
+nights 4–6, YAMNet does not recognise the owner's snoring in the saved clips. Here it even scores the
+few room sounds higher. A second opinion in the app would have to judge the full-rate audio, and
+this night cannot test that.
+
+**For the next two-phone night:**
+- Set the far phone to High (−85 dBFS gate, 5 dB trigger), so that it hears the quiet sounds and
+  fewer stay unclear.
+- Clap once in the middle of the room, not at the pillow.
+- Keep both phones uncovered at about the same height.
