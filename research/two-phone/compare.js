@@ -2,14 +2,17 @@
 // Two phones, one night: one near the sleeper's head, one 2-3 m away. A sound the sleeper makes is
 // much louder at the near phone; a room sound is about as loud at both. That labels every sound
 // the near phone heard as "own" or "room" without listening.
-//   node research/two-phone/compare.js <near snore-report.json> <far snore-report.json> [out.json]
-// Both files from the app (any version with peakDbfs, 1.11+). The optional output keeps the label
-// of every sound; it holds no audio but belongs in the private folder, never in the repository.
+//   node research/two-phone/compare.js <near snore-report.json> <far snore-report.json> [out.json] [--gain=<dB>]
+// Both files from the app (any version with peakDbfs, 1.11+; room-noise bands from 1.15). The
+// optional output keeps the label of every sound; it holds no audio but belongs in the private
+// folder, never in the repository. --gain sets the microphones' difference instead of measuring it.
 const fs = require('fs');
 
-const [nearFile, farFile, outFile] = process.argv.slice(2);
+const args = process.argv.slice(2);
+const [nearFile, farFile, outFile] = args.filter((a) => !a.startsWith('--'));
+const gainArg = args.find((a) => a.startsWith('--gain='));
 if (!nearFile || !farFile) {
-  console.error('usage: node research/two-phone/compare.js <near.json> <far.json> [out.json]');
+  console.error('usage: node research/two-phone/compare.js <near.json> <far.json> [out.json] [--gain=<dB>]');
   process.exit(1);
 }
 const OWN_DB = 6; // at least this much louder at the near phone (after the gain correction): own sound
@@ -43,10 +46,22 @@ const far = load(farFile);
 const clock = (t) => new Date(t * 1000).toLocaleTimeString('de-CH', { timeZone: near.r.timeZone || 'UTC', hourCycle: 'h23' });
 
 // Gain: the room's quiet background is about equally loud at both places, so the median difference
-// of the per-minute background levels is the difference between the two microphones.
+// of the per-minute levels is the difference between the two microphones. Only the octave bands
+// 500-4000 Hz count: a hum or a motor next to one phone raises its low bands (the whole background
+// level is shown for comparison).
 const diffs = [];
-for (const [m, x] of near.minutes) if (far.minutes.has(m)) diffs.push(x.backgroundDbfs - far.minutes.get(m).backgroundDbfs);
-const gain = median(diffs);
+const bandDiffs = [];
+const bands = (near.r.noise && near.r.noise.bandsHz) || [];
+for (const [m, x] of near.minutes) {
+  const y = far.minutes.get(m);
+  if (!y) continue;
+  diffs.push(x.backgroundDbfs - y.backgroundDbfs);
+  bands.forEach((hz, i) => {
+    if (hz >= 500 && hz <= 4000 && x.bandsDbfs && y.bandsDbfs && x.bandsDbfs[i] != null && y.bandsDbfs[i] != null)
+      bandDiffs.push(x.bandsDbfs[i] - y.bandsDbfs[i]);
+  });
+}
+const gain = gainArg ? Number(gainArg.slice(7)) : (median(bandDiffs) ?? median(diffs));
 
 // Clock: phone clocks and audio clocks differ by up to seconds over a night. Loud, sudden sounds
 // (the clap at the start, knocks, doors) reach both phones at once; find the lag that lines most
@@ -122,10 +137,13 @@ for (const xs of Object.values(near.shadows)) xs.forEach(judge);
 
 console.log(`near: ${nearFile}\n  ${near.r.version}, ${near.r.sensitivity}, ${clock(near.t0)}, ${near.sounds.length} sounds`);
 console.log(`far:  ${farFile}\n  ${far.r.version}, ${far.r.sensitivity}, ${clock(far.t0)}, ${far.sounds.length} sounds`);
+const spread = (xs) =>
+  xs.length ? [0.1, 0.5, 0.9].map((q) => [...xs].sort((a, b) => a - b)[Math.floor(q * (xs.length - 1))].toFixed(1)).join(' / ') : '–';
 console.log(
-  `\ngain: near minus far background ${gain == null ? 'unknown' : gain.toFixed(1) + ' dB'} (median of ${diffs.length} minutes; p10/p90 ${
-    diffs.length ? [0.1, 0.9].map((q) => diffs.sort((a, b) => a - b)[Math.floor(q * (diffs.length - 1))].toFixed(1)).join(' / ') : '–'
-  })`,
+  `\ngain used: ${gain.toFixed(1)} dB (${gainArg ? 'set by --gain' : bandDiffs.length ? 'measured in the bands 500-4000 Hz' : 'measured on the whole background'})`,
+);
+console.log(
+  `  near minus far, p10 / median / p90 over ${diffs.length} minutes: bands 500-4000 Hz ${spread(bandDiffs)}; whole background ${spread(diffs)}`,
 );
 console.log(`clock: far + ${night.lag.toFixed(2)} s lines up ${night.n} of ${loudNear.length} loud sudden near sounds`);
 console.log(
@@ -157,13 +175,14 @@ console.log(`  labels: own >= ${OWN_DB} dB (or not heard far although it would h
 
 function table(title, groups) {
   console.log(`\n${title}`);
-  console.log('  group                                   sounds   own    room   unclear  only near  median delta');
+  console.log('  group                                   sounds   own    room   unclear  only near  median delta  (raw)');
   for (const [name, xs] of groups) {
     if (!xs.length) continue;
     const c = (l) => xs.filter((x) => x.label === l).length;
     const d = median(xs.map((x) => x.deltaDb));
+    const raw = d == null ? '' : `  (${(median(xs.map((x) => x.deltaDb)) + gain).toFixed(1)})`;
     console.log(
-      `  ${name.padEnd(38)} ${String(xs.length).padStart(6)}  ${pct(c('own'), xs.length).padStart(4)}  ${pct(c('room'), xs.length).padStart(5)}  ${pct(c('unclear'), xs.length).padStart(7)}  ${pct(xs.filter((x) => !x.far).length, xs.length).padStart(9)}  ${d == null ? '–' : d.toFixed(1).padStart(8)}`,
+      `  ${name.padEnd(38)} ${String(xs.length).padStart(6)}  ${pct(c('own'), xs.length).padStart(4)}  ${pct(c('room'), xs.length).padStart(5)}  ${pct(c('unclear'), xs.length).padStart(7)}  ${pct(xs.filter((x) => !x.far).length, xs.length).padStart(9)}  ${d == null ? '–' : d.toFixed(1).padStart(8)}${raw}`,
     );
   }
 }

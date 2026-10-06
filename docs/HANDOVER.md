@@ -39,8 +39,8 @@ What it does now **[verified by unit and browser tests]**:
 
 Limits: the page must stay open with the screen on (iOS stops web microphones when the
 screen locks); nothing is saved (a reload or crash loses the night); not tested on a
-physical iPhone overnight; thresholds rest on 6 real nights of one person plus synthetic
-and public sounds (§7).
+physical iPhone overnight; thresholds rest on 7 real nights of one person (one with two
+phones) plus synthetic and public sounds (§7).
 
 ## 2. Requirements and decisions
 
@@ -292,7 +292,7 @@ js/app.js (page) ◄── onState / onFrame / onEvent / onWakeLock
 - **Pitch bias [verified, research/RESULTS.md §4]:** the 500 Hz centroid limit rejects most
   higher-pitched snores (Khan: 183 of 186 missed snores are "too bright"; children's and women's
   snoring and close recordings); open, owner's decision.
-- **Detection evidence is thin [assumption]:** 6 real nights of one person (home and a
+- **Detection evidence is thin [assumption]:** 7 real nights of one person (home and a
   hotel), synthetic rooms, ESC-50; since 2026-10-05 also the public datasets in
   `research/RESULTS.md` (High's breath rule settled there: 6 dB). Open: does the 1.20.0 auto
   rule fix auto at home (untested on a real night)? Which pre-rise window is best? The
@@ -331,6 +331,14 @@ js/app.js (page) ◄── onState / onFrame / onEvent / onWakeLock
   06:39–06:44 tonal sounds, judged real by the owner; knock test identical; auto 757 with
   test clips that match the moment before them (room flicker), hence 1.20.0; room: mains
   hum, the fridge 6× every 53 min for 22 min, +10 dB.
+- **Night 7, two phones** (home, 2026-10-05/06, 1.23.0, both Normal, 6 h 52 min; details in
+  `research/RESULTS.md` §10): near the head 101 confirmed (15/h), at the foot end 6. Automatic
+  labels (near − far level): of the confirmed snores the phones could decide, 89% are the owner's
+  own sound. Snore-like sounds with ≥ 6 dB of breath noise are ~11 dB louder at the head; those with
+  3–6 dB are equally loud at both phones (room), confirming the 6 dB rule at home. Six confirmed
+  snores (04:25, 06:12–06:30) look like a room sound. YAMNet on the saved clips scores the owner's
+  own sounds low (28% ≥ 0.5) and the room ones high. Room: 50 Hz hum near the head, a 40–48 Hz
+  motor at the foot end, the fridge cycle (~57 min).
 
 ## 9. Setup, development and testing
 
@@ -380,10 +388,13 @@ Then **High with the 6 dB breath rule** (1.23.0), which ended the High backgroun
    up to -20 dBFS), which runtime (LiteRT/MediaPipe or ONNX Runtime Web, self-hosted), model file
    (official Google release, Apache 2.0, licence text shipped), the exception to "no runtime
    dependencies", phone load (CPU, battery, memory) and what goes into the data file. The score
-   is stored beside today's verdict; the headline count does not change.
-2. **When the owner has time:** a two-phone night (one phone near the head, one 2-3 m away, a
-   clap near the pillow at the start) for automatic "own sound or room" labels at home; the
-   listening sample (about 40 clips where YAMNet and the rules disagree).
+   is stored beside today's verdict; the headline count does not change. Caution from night 7:
+   on the owner's saved 8 kHz clips YAMNet did not recognise the owner's snoring, so the test must
+   show on real nights that full-rate judging works before YAMNet gets any counting role.
+2. **When the owner has time:** listen to the six room-labelled snores of night 7 (room sound or
+   another sleeper?); a second two-phone night with the far phone on **High** (on Normal it heard
+   only a quarter of the near phone's sounds, so many labels stayed unclear) and a clap in the
+   middle of the room; the listening sample (about 40 clips where YAMNet and the rules disagree).
 3. **Open, owner's decision:** the 500 Hz pitch (centroid) limit (Khan: 63 % of snores found
    at 500 Hz, 76 % at 800 Hz; ESC-50 confirmed false alarms 1.4 % -> 2.5 %); a background test
    first if wanted.

@@ -40,8 +40,8 @@ host), `registry.npmjs.org` and `pypi.org`.
 
 For your own nights, put the app's downloads into the folder: `snore-report_<stamp>.json`,
 `snores_<stamp>.wav` and `test-clips_<stamp>.wav`. For a two-phone night, record on both phones at once,
-clap once near the pillow at the start (it lines the phones up), and keep each phone's downloads in
-its own subfolder.
+the far one on High so that it hears quiet sounds too. Clap once in the middle of the room at the
+start (it lines the phones up), and keep each phone's downloads in its own subfolder.
 
 ## How the measurements work
 
