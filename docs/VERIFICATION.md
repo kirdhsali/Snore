@@ -28,7 +28,7 @@ change.** After a code review for the port to a native iPhone app (owner, 2026-1
 | Counting detector of v1.24.0 against this checkout (scratch script): 2 demo nights (48 and 16 kHz) and 8 synthetic rooms × Low / Normal / High, and × the knock rule, the breath rule off, 3 dB and High's own | **identical**: 998 and 1,590 sounds, every feature, verdict, confirmation and room-noise minute |
 | `npm run evaluate` on the owner's nights 4–7, the far phone of night 7 and the v1.8 and v1.9 fixtures, old against new evaluator | **identical** (0 differing lines) |
 | Review probes | C1, C3, C5 and N1 as before; C4 now prints "not applicable from 1.24.1" (night store removed), C6 and N2 as at 1.24.0 |
-| `npm run eval:public` | EVAL_PUBLIC_RESULT |
+| `npm run eval:public` | **identical to 1.24.0**: Normal snoring 29/40 (13 confirmed), night sounds 76/1000 (13), other 158/1960 (31); without the breath rule 30/40 (14), 100/1000 (22); 3 dB 29/40 (13), 87/1000 (18) |
 
 **Not run / not available:** physical iPhone, Safari/WebKit, Firefox; a real night on 1.24.1.
 
