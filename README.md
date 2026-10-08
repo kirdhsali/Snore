@@ -285,10 +285,10 @@ type checker. Agent instructions: `CLAUDE.md` / `AGENTS.md`; general working rul
 | `tests/` | unit tests (`node --test`) and the browser test; `tests/fixtures/reference/` holds the reference outputs |
 | `docs/HANDOVER.md` | state of the project, decisions, known issues, next task |
 | `docs/DETECTOR.md` | the detector's specification for a port (iPhone app) and how to check one against the reference outputs |
-| `docs/VERIFICATION.md` | verification commands, results and a manual smoke test |
-| `docs/REVIEW-RESPONSE.md` | answers to the reviews (v1.9.1, `a87c1f3`, `8e05d2b`), finding by finding; the reviews themselves are in `docs/reviews/` |
+| `docs/VERIFICATION.md` | the latest verification checkpoints and a manual smoke test |
+| `docs/REVIEW-RESPONSE.md` | the status of every finding of the three reviews (v1.9.1, `a87c1f3`, `8e05d2b`); the reviews themselves are in `docs/reviews/` |
 | `docs/review-probes/` | scripts that re-run the reviews' checks and the full demo night (see `docs/VERIFICATION.md`) |
-| `docs/archive/` | logs of removed features, enough to restart them (automatic sensitivity, removed in 1.24.0) |
+| `docs/archive/` | logs of removed features, enough to restart them (automatic sensitivity, removed in 1.24.0), and the older history of the handover, verification record and review response |
 | `research/` | dataset studies, automatic labels and YAMNet tests outside the app, rerunnable; results in `research/RESULTS.md` (data never committed) |
 
 ### How changes are made
