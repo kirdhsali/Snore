@@ -13,6 +13,9 @@ decisions, known issues, next task). Answers to the three reviews (v1.9.1,
 - Ask the owner before changing counting rules, thresholds or defaults, deleting
   data, or changing repository settings. New detection rules run as background
   tests (shadow detectors) before they change the headline numbers.
+- A change to what the detector computes also updates `docs/DETECTOR.md` and the
+  reference outputs (`npm run reference -- --update`) in the same PR: the iPhone
+  app ports the detector from them.
 - Keep the privacy promise: only short snore clips keep audio; nothing is uploaded.
 - Never commit recordings, report JSON/WAV from real nights, personal data,
   secrets or the ESC-50 dataset (CC BY-NC).
@@ -29,6 +32,7 @@ npm run test:e2e                           # CHROMIUM_PATH=... to use an existin
 for f in js/*.js scripts/*.js tests/*.js; do node --check "$f"; done
 npm run eval:public                        # before detection changes (ESC-50, ~600 MB once)
 npm run evaluate -- report.json            # compare a downloaded night with the current rules
+npm run analyze -- night.wav               # run the analysis on a WAV file (data file + snores WAV)
 ```
 ESLint (correctness rules) and Prettier (JavaScript only; CSS and HTML keep their
 compact hand layout) run in CI; there is no type checker. Where `docs/WORKING-RULES.md`

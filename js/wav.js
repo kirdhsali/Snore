@@ -24,8 +24,11 @@
     return Int16Array.from(audio, (x) => Math.max(-32768, Math.min(32767, Math.round(x * gain * 32767))));
   }
 
+  // Silence between the clips of a downloaded snores WAV (s).
+  const CLIP_GAP_SEC = 0.4;
+
   /** 16-bit mono WAV from Int16 chunks, with `gapSec` of silence between them. */
-  function encodeWav(chunks, sampleRate, gapSec = 0.4) {
+  function encodeWav(chunks, sampleRate, gapSec = CLIP_GAP_SEC) {
     const rate = Math.round(sampleRate);
     const gap = Math.round(gapSec * rate);
     let samples = 0;
@@ -56,5 +59,20 @@
     return buf;
   }
 
-  return { encodeWav, clipFromAudio };
+  /**
+   * Where each event's clip starts in the snores WAV made from `events` in this order (those
+   * with a clip): Map(event -> seconds), for the data file's `wavStartSec`.
+   */
+  function wavPositions(events, gapSec = CLIP_GAP_SEC) {
+    const pos = new Map();
+    let t = 0;
+    for (const x of events) {
+      if (!x.clip) continue;
+      pos.set(x, t);
+      t += x.clip.length / x.clipRate + gapSec;
+    }
+    return pos;
+  }
+
+  return { encodeWav, clipFromAudio, wavPositions, CLIP_GAP_SEC };
 });

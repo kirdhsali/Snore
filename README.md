@@ -136,7 +136,8 @@ Report, after Stop:
 
 ## How detection works
 
-`js/detector.js` (pure JS, also runs in Node):
+`js/detector.js` (pure JS, also runs in Node). The exact specification, for porting it, is
+[`docs/DETECTOR.md`](docs/DETECTOR.md).
 
 1. Audio is cut into ~40 ms frames. For each frame: loudness (dBFS) and, via
    FFT, the share of energy below 800 Hz, the share between 1 and 4 kHz, the
@@ -254,6 +255,8 @@ npx playwright install chromium
 npm run test:e2e    # real page in Chromium with a fake microphone playing the demo night
 npm run sample      # write samples/snore-demo.wav (the demo night, not committed)
 npm run evaluate -- snore-report.json   # re-evaluate a downloaded night with the current rules
+npm run analyze -- recording.wav        # run the app's analysis on a WAV file: data file + snores WAV
+npm run reference   # check the reference outputs (docs/DETECTOR.md §12); -- --update after a detection change
 npm run eval:public # check against ESC-50, a public set of 2,000 labelled sounds (downloads ~600 MB once)
 npm start           # local server on http://localhost:8080 (PORT to change)
 for f in js/*.js scripts/*.js tests/*.js; do node --check "$f"; done   # syntax check
@@ -274,12 +277,14 @@ type checker. Agent instructions: `CLAUDE.md` / `AGENTS.md`; general working rul
 | `js/charts.js` | canvas drawing for the live strip, timeline and waveforms |
 | `js/share.js` | share image (star map), the self-contained report file and the room-noise heatmap (SVG) |
 | `js/version.js` | version shown in the footer |
-| `js/recorder.js` | recording: microphone or `#demo`, detectors and background tests, interruptions, wake lock, the finished night |
+| `js/analysis.js` | one night's analysis: the counting detector with the room noise, the background test and their statistics (used by the recorder and `npm run analyze`) |
+| `js/recorder.js` | recording: microphone or `#demo`, interruptions, wake lock, the finished night |
 | `js/report-format.js` | the downloaded data file (JSON), writing and reading every version |
 | `js/app.js` | the page: live view, night screen, report, sharing, downloads |
-| `scripts/` | dev server, evaluation scripts, sample generator |
-| `tests/` | unit tests (`node --test`) and the browser test |
+| `scripts/` | dev server, evaluation scripts, `analyze` (a WAV file through the app's analysis), `reference` (reference outputs), sample generator |
+| `tests/` | unit tests (`node --test`) and the browser test; `tests/fixtures/reference/` holds the reference outputs |
 | `docs/HANDOVER.md` | state of the project, decisions, known issues, next task |
+| `docs/DETECTOR.md` | the detector's specification for a port (iPhone app) and how to check one against the reference outputs |
 | `docs/VERIFICATION.md` | verification commands, results and a manual smoke test |
 | `docs/REVIEW-RESPONSE.md` | answers to the reviews (v1.9.1, `a87c1f3`, `8e05d2b`), finding by finding; the reviews themselves are in `docs/reviews/` |
 | `docs/review-probes/` | scripts that re-run the reviews' checks and the full demo night (see `docs/VERIFICATION.md`) |
