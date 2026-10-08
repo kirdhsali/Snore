@@ -1,18 +1,19 @@
 # Snorewatch handover
 
-State at version **1.25.0** (2026-10-08, deployed to GitHub Pages from `main`).
-1.22.0 was prepared for an independent review and a fresh session; that third review
-(of `8e05d2b`, N1–N4) was answered with 1.22.1–1.22.3. The public-dataset study followed
-([`research/RESULTS.md`](../research/RESULTS.md)); on its evidence High counts with the
-breath rule since 1.23.0. 1.24.0 removed the automatic-sensitivity test to slim the app before
-the move to a native iPhone app ([`docs/archive/auto-sensitivity.md`](archive/auto-sensitivity.md);
-§10); 1.24.1 tidied leftovers of earlier detours after a code review for the Swift port; 1.25.0
-adds the detector's specification for the port, [`docs/DETECTOR.md`](DETECTOR.md), with reference
-outputs and `npm run analyze`. The
-checks are recorded in [`docs/VERIFICATION.md`](VERIFICATION.md) ("Checkpoint 1.25.0", "1.24.1",
-"1.24.0", "1.23.0", "1.22.3" and "1.22.0");
-the answers to all three reviews (v1.9.1, `a87c1f3`, `8e05d2b`) are in
-[`docs/REVIEW-RESPONSE.md`](REVIEW-RESPONSE.md). Version history with reasons: §4.
+State at version **1.25.0** (2026-10-08, deployed to GitHub Pages from `main`). The owner is
+porting the app to a native iPhone app; the web app stays the test bed for making the detector
+more reliable. The detector is specified in [`docs/DETECTOR.md`](DETECTOR.md), with reference
+outputs a port must reproduce.
+
+Where to find what:
+- **Detection rules:** §3; every formula and constant in [`DETECTOR.md`](DETECTOR.md).
+- **Checks:** [`VERIFICATION.md`](VERIFICATION.md) (the latest checkpoints).
+- **The three reviews** (v1.9.1, `a87c1f3`, `8e05d2b`): the status of every finding in
+  [`REVIEW-RESPONSE.md`](REVIEW-RESPONSE.md).
+- **Dataset evidence:** [`research/RESULTS.md`](../research/RESULTS.md).
+- **Older history:** [`archive/`](archive/): the decisions and versions before the dataset
+  study (`history.md`), older checkpoints (`verification-history.md`), the full review record
+  (`review-response.md`) and how to restart automatic sensitivity (`auto-sensitivity.md`).
 Marks: **[verified]** checked against this repository or by running it;
 **[assumption]** believed, not proven; **[suspected]** probable problem;
 **[owner]** decided by the owner; **[recommendation]** Claude's advice, not decided.
@@ -54,16 +55,26 @@ Requirements:
 - One-button UI, live view, report on Stop.
 - **Privacy:** everything runs on the device; no backend, uploads or accounts. Only short
   snore clips keep audio: the counting detector's snores (0.25 s before to 0.15 s after,
-  8 kHz from a 48 kHz or 16 kHz microphone, 7,350 Hz from 44.1 kHz; 16-bit). Up to 1.23.0
-  the automatic-sensitivity test also kept up to 60 test clips (1.22.x: and the High test up
-  to 30); no background test keeps audio since 1.24.0. Non-snore audio exists only in a
+  8 kHz from a 48 kHz or 16 kHz microphone, 7,350 Hz from 44.1 kHz; 16-bit); no background
+  test keeps audio (since 1.24.0). Non-snore audio exists only in a
   ~6.5 s rolling buffer and as a rhythm candidate (≤ 12 s); ignored sounds keep features
   only; all buffers are wiped on Stop. Clips can hold nearby sounds or be mistakes, so the
   UI promises "only short snore clips", not "only snores". Google Fonts is the only network
   request **[verified by grep: no fetch/XHR/storage in `js/`]**.
 - Static site, plain HTML/CSS/JS, no build step, no runtime dependencies; GitHub Pages.
 
-Owner decisions (**[owner]**), most recent first:
+Owner decisions (**[owner]**) still in force, most recent first (older ones:
+[`archive/history.md`](archive/history.md)):
+- **2026-10-08, after the code review's questions:**
+  - The **knock test stays a background test**: no counting change for now; decide after more
+    real nights. On ESC-50 it cut night sounds counted as snores from 7.6 % to 5.0 %, but
+    confirmed snoring clips fell from 13 to 11 of 40. On nights 6 and 7 it matched Normal or
+    dropped 2 sounds.
+  - `npm run evaluate` **keeps reading old data files** (schema 1, and labelled estimates for
+    files before 1.22.1), so nights 1–6 can be re-checked.
+  - **Older history moves to `docs/archive/`**, so the current documents are quick to read.
+  - The saved-nights interface `js/night-store.js` was already removed with the 1.24.1
+    cleanup (Claude's suggestion); it can be restored from 1.24.0 if wanted.
 - **2026-10-08, porting to a Swift iPhone app:** the owner is setting up the native app; the web
   app stays the place to make the detector more reliable and test its core. After a code
   review: first a cleanup PR (leftovers of detours, the live-pill bug, the breath rule as one
@@ -80,30 +91,9 @@ Owner decisions (**[owner]**), most recent first:
   few of High's quiet snores, is small against the precision gained); the High background trial
   ends with it. Record the study rerunnably in a new `research/` folder. YAMNet as a "second
   opinion" in the app: wanted in principle; design and a dependency exception in a new session.
-  APSAA may be used under its non-commercial, no-redistribution terms. The owner allowed
-  `us.aws.cdn.hf.co` (Hugging Face's file host) in the cloud environment.
-- **2026-10-05, after the third review:** merge the 1.22.0 checkpoint docs (#51); fix the
-  review's findings N1–N4 and write the review response **before** the public-dataset
-  tests (the fixes are quick, the datasets slow). Dataset harnesses stay in a scratch
-  directory at first; a data-free script may be proposed later.
-- **2026-10-05, review preparation:** a background trial for High (1.22.0, keep its test
-  clips). Public datasets for later tests: **APSAA** (Zenodo), **PSG-Audio** (Hugging Face /
-  Science Data Bank) and the **Khan** clips (GitHub mirror, no clear licence) may be used
-  locally, never committed; the owner added `zenodo.org`, `huggingface.co` and
-  `www.scidb.cn` to the cloud environment's allowed domains. These dataset tests are **not
-  run yet**; they are for a new session (§10). Tests with other people's nights are on hold.
-- **2026-10-05, after night 6:** the late "tonal" sounds (06:39–06:44) are real snores for
-  now (owner listened: snoring in the background, sometimes moaning). The breath rule for
-  Low and High "if it made Normal better and makes sense, else explain": applied to
-  **Low** (1.21.0); **High left without it** (it costs High's quiet snores; owner sees
-  3–4.5 dB as a possible middle ground → background trial). The auto test gets the rise
-  over the moment before (1.20.0); compare window lengths.
-- **2026-10-04, after nights 4 and 5:** the 6 dB breath rule counts for **Normal**
-  (1.17.0). A knock (sudden-start) rule as a background test first (1.18.0). Room-noise
-  findings and heatmap go into the report as they are (1.19.0); the owner finds them not
-  very informative yet, to be revisited.
-- **2026-10-03, night 4:** time zone in the data file, clips at full 16-bit detail, the
-  6 dB breath rule as a background test only (then).
+- **Public datasets:** APSAA, PSG-Audio and the Khan clips are used locally only, never
+  committed (APSAA: non-commercial, no redistribution; Khan: no licence, local testing only);
+  ESC-50 is never committed (CC BY-NC). Allowed hosts in the cloud environment: §9.
 - **Saving nights, history, accounts:** in the native iPhone app (the web app's unused
   storage interface `js/night-store.js` was removed in 1.24.1).
 - **Repository:** public; ruleset on `main` (PR required, 0 approvals, required check
@@ -115,16 +105,13 @@ Owner decisions (**[owner]**), most recent first:
   restructuring without behaviour change; "Darken screen" stays under Stop.
 - **Before that:** default sensitivity Normal, not remembered across reloads; new detection
   rules run as background tests before they change headline numbers; centroid limit
-  500 Hz; rumble filter 0.85; ESC-50 never committed; WAV export not split. (A planned switch
-  of the default to "auto + breath rule" for v2.0 lapsed when automatic sensitivity was
-  removed in 1.24.0.)
+  500 Hz; rumble filter 0.85; ESC-50 never committed; WAV export not split.
 
 Claude's recommendations (**[recommendation]**, not decided):
 - Keep plain UMD files rather than ES modules (Node `require` for tests and scripts).
-- Before a native app, prototype locked-screen overnight recording on a real iPhone; the
-  browser side of `js/recorder.js` is the part to replace.
-- (Superseded on 2026-10-05: "High: 4.5 dB as the middle ground". The datasets put High's
-  3–6 dB sounds at or below chance level for snoring, and the owner chose 6 dB.)
+- In the native app, prove locked-screen overnight recording on a real iPhone first; the
+  browser side of `js/recorder.js` is the part to replace (`js/analysis.js` and below are
+  specified in `DETECTOR.md`).
 
 ## 3. Detection rules in force (1.25.0)
 
@@ -144,8 +131,8 @@ ends when the level stays within `release` dB for 0.2 s. The floor follows the q
 `classify` checks in this order (first failing rule names the reason): too long (> 4 s),
 too short (< 0.25 s), rumble (20–60 Hz share > 0.85), too bright (1–4 kHz share > 0.2 or
 centroid > 500 Hz), not low (50–800 Hz share < 0.55), **no breath** (150–1500 Hz rise
-above its room noise < the sensitivity's rule), [test option only: sudden], choppy (> 2 bursts → rhythm candidate: counts when a snore accepted on its
-own starts 2–12 s before or after it). A snore is **confirmed** (counted in the figures)
+above its room noise < 6 dB), [background test only: sudden], choppy (> 2 bursts → rhythm
+candidate: counts when a snore accepted on its own starts 2–12 s before or after it). A snore is **confirmed** (counted in the figures)
 when another snore lies 2–12 s away, never across an interruption.
 
 Background tests (extra detectors on the same audio that keep no audio; counts go into the
@@ -158,56 +145,25 @@ included:
 | --- | --- | --- |
 | `knock` (1.18.0) | chosen sensitivity + sudden start: reject a rise > 20 dB within 20 ms (`onsetJump`) | no |
 
-The `high` test (1.22.0–1.22.3: High without the breath rule, up to 30 clips of its snores
-with 3–6 dB of breath noise) ended when High took the rule in 1.23.0; `npm run evaluate`
-still re-counts it from 1.22.x files. The `auto` test (automatic sensitivity, 1.8.0–1.23.0,
-with its snore-band and moment-before rules and test clips) was removed in 1.24.0; its
-algorithm, parameters, results and how to restart it are in
-[`docs/archive/auto-sensitivity.md`](archive/auto-sensitivity.md). `npm run evaluate` shows
-its recorded counts from older files.
+The knock test stays in the background (owner, 2026-10-08). Ended tests: `high` (1.22.0–1.22.3,
+High without the breath rule) and `auto` (automatic sensitivity, 1.8.0–1.23.0; restart log in
+[`archive/auto-sensitivity.md`](archive/auto-sensitivity.md)); `npm run evaluate` still reads
+both from older files.
 
 ## 4. What changed and why
 
-Review phase (details per finding in `REVIEW-RESPONSE.md`): 1.9.2 R2 failed restart ·
-1.9.3 R7 locked sensitivity, R6 card queue · 1.9.4 R4 dev server · 1.9.5 R5 buffers wiped,
-privacy wording · 1.9.6 R8 intervals, R9 evaluator · 1.10.0 R3 rhythm rule · 1.10.1–1.10.2
-R1 interruptions · 1.10.3 workflows · 1.10.4 "Darken screen" moved · 1.10.5 ESLint +
-Prettier · 1.11.0 data file schema 2 · 1.11.1 frozen night record · 1.11.2 recorder
-controller · 1.11.3 stats/wav split · 1.12.0 storage interface · 1.12.1–1.12.4 second
-review C1, C2, C3, C5.
-
-Real-night phase (this session, owner's nights 4–6, §8):
+Since the public-dataset study. Earlier versions (the review phase 1.9.2–1.12.4 and the
+real-night phase 1.12.5–1.22.3) with their reasons: [`archive/history.md`](archive/history.md).
 
 | Version | PR | Change and reason |
 | --- | --- | --- |
-| 1.12.5 | #34 | Time zone in the data file; evaluator counts per hour in it |
-| 1.12.6 | #35 | Clips turned up before the 16-bit conversion (were grainy) |
-| 1.13.0 | #36 | Background test `breath6` (6 dB breath rule) after night 4's hum swells |
-| 1.13.1 | #38 | Auto: a sound ends only back within the room's usual quiet range (auto missed loud snores) |
-| 1.14.0 | #39 | Auto test clips (up to 60) to check by ear |
-| 1.15.0 | #40 | Room noise per minute in the data file (levels only) |
-| 1.16.0 | #41 | Night 5: `lowRise`; auto needs 8 dB in the snore band (it counted quiet breathing) |
-| — | #42 | Room-noise findings logic (`summarize`/`describe`), in the evaluator |
-| 1.17.0 | #43 | **Counting change:** Normal needs 6 dB of breath noise (night 4 961 → 661, night 5 76 → 73); breath background tests removed (re-computable offline) |
-| 1.18.0 | #44 | Background test `knock` (`onsetJump`); ESC-50 clips faded in and out |
-| 1.19.0 | #45 | Room-noise panel and heatmap in the report and shared HTML |
-| 1.19.1 | #46 | Night 6: ignored sounds keep `lowRise`/`onsetJump`; mains hum recognised |
-| 1.20.0 | #47 | Auto: 6 dB rise over the moment before (`preRise25/50/100`); tests hand over `setAside` |
-| 1.21.0 | #48 | **Counting change:** Low needs 6 dB of breath noise |
-| — | #49 | Handover notes (late sounds, High question) |
-| 1.22.0 | #50 | Background test `high` with test clips; clip sampling per test |
-| — | #51 | Review checkpoint 1.22.0: handover, review response, verification |
-| 1.22.1 | #52 | Third review N2/N3: background tests store all features and choppy set-asides; the evaluator re-runs their rules with the rhythm rescue; "not evaluable" without breath values |
-| 1.22.2 | #53 | Third review N1: room-noise findings follow clock minutes, never across a gap |
-| 1.22.3 | #54 | Third review N4: the share image's coverage line wraps inside the margins |
-| — | #55 | Third review saved, review response, verification 1.22.3, this handover |
-| — | #56 | Verification 1.22.3: branch pushes, not merges, cancelled two deploys |
 | — | #57 | Public-dataset study, rerunnable in `research/` (APSAA, PSG-Audio, Khan, YAMNet, the owner's nights); results in `research/RESULTS.md` |
 | 1.23.0 | #58 | **Counting change:** High needs 6 dB of breath noise (the datasets put High's 3–6 dB sounds at or below chance); the `high` background test and its clips removed |
 | — | #59 | Two-phone night: own sound or room without listening (`research/two-phone/`, `research/RESULTS.md` §10) |
 | 1.24.0 | #60 | Automatic sensitivity removed with its snore-band and moment-before rules, `lowRiseDb`/`preRise*Db` and the test-clip download (did not beat Normal; less to port to Swift); restart log in `docs/archive/auto-sensitivity.md`; counts unchanged |
 | 1.24.1 | #61 | Code review for the Swift port: unused measurements (zero-crossing rate, mean level), embed mode and single-file build, the committed demo WAV and `js/night-store.js` removed; one `percentile`; one breath-rule constant; room noise gets the power spectrum; live-pill clock after an interruption fixed; counts unchanged |
 | 1.25.0 | #62 | For the Swift port: the specification `docs/DETECTOR.md`; the night's analysis moved out of the recorder into `js/analysis.js`; `npm run analyze` (a WAV file through it: data file and snores WAV); reference outputs of four synthetic nights (`npm run reference`, `tests/fixtures/reference/`) that a port compares itself with; counts unchanged |
+| — | #63 | Owner decisions after the code review: the knock test stays in the background, `npm run evaluate` keeps reading old files; older history of the handover, verification record and review response moved to `docs/archive/`; the review response now gives each finding's status at 1.25.0; smoke test brought up to date |
 
 ## 5. Architecture
 
@@ -248,7 +204,7 @@ js/app.js (page) ◄── onState / onFrame / onEvent / onWakeLock
 | `tests/fixtures/` | Synthetic reports only; `reference/` holds the reference outputs (`docs/DETECTOR.md` §12) |
 | `research/` | Dataset studies outside the app (APSAA, PSG-Audio, Khan, YAMNet, the owner's nights): rerunnable scripts, data under `~/.cache/snorewatch`, results in `research/RESULTS.md` |
 | `docs/review-probes/` | Adapted probes from the first review, the second review's controller/store probe, the full demo run (1.22.0) and the third review's N1/N2 probe (C6 and N2 apply up to 1.23.0, C4 up to 1.24.0) |
-| `docs/archive/` | Logs of removed features, enough to restart them: automatic sensitivity (1.24.0) |
+| `docs/archive/` | Logs of removed features, enough to restart them (automatic sensitivity, 1.24.0), and the older history: decisions and versions before the dataset study (`history.md`), verification checkpoints up to 1.23.0 (`verification-history.md`), the full review record (`review-response.md`) |
 | `docs/DETECTOR.md` | The detector's specification for a port, with tolerances for comparing a port's data files with the reference outputs |
 | `.github/workflows/` | `ci.yml` (`CI tests`: unit, lint, e2e), `pages.yml` (`Tests before deploy` → deploy, `main` only), `release.yml` (`Tests before release` → tag `vX.Y.Z`) |
 
@@ -292,9 +248,9 @@ js/app.js (page) ◄── onState / onFrame / onEvent / onWakeLock
 ## 7. Known issues, unfinished work, missing tests, open questions
 
 - **No persistence** (§5); saved nights are 2.x.
-- **Second review leftovers:** C4 went with the night store (1.24.1); C6 went with automatic
-  sensitivity (1.24.0) and its live-pill part was fixed in 1.24.1; the gap edge (partial
-  frame and raw ring survive `resumeAfterGap`; `elapsed` read after `release()`).
+- **Second review leftovers:** the night record is only shallowly frozen (C4); the gap edge
+  (the partial frame and the rolling buffer carry over an interruption, `DETECTOR.md` §7;
+  `elapsed` read after `release()`).
 - **[owner] decision needed:** should episodes split at an interruption?
 - **[suspected] Phone load:** two detectors on the same audio (since 1.24.0; no background
   test keeps clips any more); CPU, battery and memory on an iPhone are not measured. Clips are capped by count (1500), not bytes; event metadata of all detectors
@@ -311,7 +267,8 @@ js/app.js (page) ◄── onState / onFrame / onEvent / onWakeLock
 - **Detection evidence is thin [assumption]:** 7 real nights of one person (home and a
   hotel), synthetic rooms, ESC-50; since 2026-10-05 also the public datasets in
   `research/RESULTS.md` (High's breath rule settled there: 6 dB). Open: the knock test has
-  not yet met a real knock night after 1.18.0. Night 6's tonal late sounds.
+  not yet met a real knock night after 1.18.0; it stays a background test until it has
+  (owner, 2026-10-08). Night 6's tonal late sounds.
 - **Room noise:** findings not very informative yet (owner); the shared report's heatmap
   is 720 units wide, so its labels are small on a phone; the e2e run is too short for a
   heatmap (checked in unit tests and a one-off 3.5 min browser run).
@@ -389,20 +346,6 @@ is green; bump `package.json` and `js/version.js` together (a test checks); `rel
 tags. Rules: `CLAUDE.md` (= `AGENTS.md`) and `docs/WORKING-RULES.md`.
 
 ## 10. Next task
-
-**Done (2026-10-05):** the public-dataset study (APSAA 32 nights, PSG-Audio 6 nights, Khan, ESC-50
-baseline, YAMNet, the owner's nights 4–6), rerunnable from [`research/`](../research/README.md);
-results and limits in [`research/RESULTS.md`](../research/RESULTS.md). In short: High → 6 dB
-(decided); Normal is precise where someone clearly snores; the 500 Hz pitch limit misses
-higher-pitched snorers; labels without listening work with a second sensor (throat mic / snore
-sensor; for the owner: two phones, near and far); YAMNet works best as a second opinion.
-Then **High with the 6 dB breath rule** (1.23.0), which ended the High background trial; the
-first two-phone night (#59, `research/RESULTS.md` §10).
-
-**Done (2026-10-06):** 1.24.0 slims the app for the move to a native iPhone app: automatic
-sensitivity, its two rules, the per-sound `lowRiseDb`/`preRise*Db` and the test-clip download
-are gone; the counting detector and the room-noise check are unchanged (verified event by event
-against 1.23.0). Restart log: [`docs/archive/auto-sensitivity.md`](archive/auto-sensitivity.md).
 
 **Done (2026-10-08):** after a code review for the Swift port, 1.24.1 removed leftovers of
 earlier detours and fixed the live pill after an interruption; 1.25.0 adds what the port needs:
