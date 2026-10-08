@@ -1,17 +1,16 @@
 {
   "name": "snorewatch",
-  "version": "1.24.0",
+  "version": "1.24.1",
   "private": true,
   "description": "Record and analyze snoring in the browser. Only snore clips are kept.",
   "license": "MIT",
   "scripts": {
     "start": "node scripts/serve.js",
-    "test": "node --test tests/detector.test.js tests/share.test.js tests/serve.test.js tests/evaluate.test.js tests/report-format.test.js tests/recorder.test.js tests/night-store.test.js tests/noise.test.js",
+    "test": "node --test tests/detector.test.js tests/share.test.js tests/serve.test.js tests/evaluate.test.js tests/report-format.test.js tests/recorder.test.js tests/noise.test.js",
     "test:e2e": "node tests/e2e.js",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
     "sample": "node scripts/make-sample.js",
-    "build": "node scripts/build-standalone.js && node scripts/build-standalone.js --embed",
     "evaluate": "node scripts/evaluate.js",
     "eval:public": "node scripts/eval-public.js"
   },

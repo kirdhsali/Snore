@@ -1,5 +1,37 @@
 # Verification record
 
+## Checkpoint 1.24.1 (cleanup for the Swift port, 2026-10-08)
+
+**Tested code revision:** the PR branch of 1.24.1 on top of `main` (`b5d0bd6`). **No counting
+change.** After a code review for the port to a native iPhone app (owner, 2026-10-08):
+- Removed:
+  - the detector's unused zero-crossing rate, mean level, `floorDb`, event `id`, `calibrating`
+    getter and `setSensitivity`;
+  - the embed mode and the single-file build (`scripts/build-standalone.js`, `npm run build`);
+  - the committed demo WAV (no longer deployed; `npm run sample` writes it locally);
+  - `js/night-store.js` and its test.
+- Changed:
+  - one `percentile` (in `js/stats.js`);
+  - one breath-rule constant (`BREATH_RULE_DB`) instead of one per sensitivity;
+  - the room-noise profile is fed the frame's power spectrum instead of the FFT arrays;
+  - frames carry the night's clock like events, which fixes the live pill after an interruption.
+
+**Environment:** as for 1.24.0.
+
+| Command | Result |
+| --- | --- |
+| `npm test` | **passed**, 84/84 (89 at 1.24.0 minus the 5 night-store tests). The breath-rule test also checks the single constant; the interruption test also checks that frames and events share one clock. Both fail on 1.24.0's code |
+| `npm run lint` | **passed** |
+| `node --check` over `js/ scripts/ tests/ docs/review-probes/ research/` (`*.js`, `*.cjs`) | **passed**, 38 files |
+| `CHROMIUM_PATH=… npm run test:e2e` | **passed** |
+| `CHROMIUM_PATH=… node docs/review-probes/full-demo-run.cjs "$PWD" <out>` | **passed**: "1.24.1 (dev)", 16 confirmed, 0 possible, 5 ignored (too bright 3, choppy 1, too long 1); knock 16; no page errors |
+| Counting detector of v1.24.0 against this checkout (scratch script): 2 demo nights (48 and 16 kHz) and 8 synthetic rooms × Low / Normal / High, and × the knock rule, the breath rule off, 3 dB and High's own | **identical**: 998 and 1,590 sounds, every feature, verdict, confirmation and room-noise minute |
+| `npm run evaluate` on the owner's nights 4–7, the far phone of night 7 and the v1.8 and v1.9 fixtures, old against new evaluator | **identical** (0 differing lines) |
+| Review probes | C1, C3, C5 and N1 as before; C4 now prints "not applicable from 1.24.1" (night store removed), C6 and N2 as at 1.24.0 |
+| `npm run eval:public` | EVAL_PUBLIC_RESULT |
+
+**Not run / not available:** physical iPhone, Safari/WebKit, Firefox; a real night on 1.24.1.
+
 ## Checkpoint 1.24.0 (automatic sensitivity removed, 2026-10-06)
 
 **Tested code revision:** the PR branch of 1.24.0 on top of `main` (`2421fd5`). **No counting

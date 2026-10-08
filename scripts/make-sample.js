@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Writes samples/snore-demo.wav: the 90 s demo night (snores + distractors).
-// Use it with "Audio file" mode, or play it from a phone next to your
-// computer's microphone to test the real recording path.
+// Writes samples/snore-demo.wav (not committed): the 90 s demo night (snores +
+// distractors). Play it from a phone next to the computer's microphone to test
+// the real recording path.
 'use strict';
 const fs = require('fs');
 const path = require('path');

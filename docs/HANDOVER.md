@@ -1,13 +1,14 @@
 # Snorewatch handover
 
-State at version **1.24.0** (2026-10-06, deployed to GitHub Pages from `main`).
+State at version **1.24.1** (2026-10-08, deployed to GitHub Pages from `main`).
 1.22.0 was prepared for an independent review and a fresh session; that third review
 (of `8e05d2b`, N1–N4) was answered with 1.22.1–1.22.3. The public-dataset study followed
 ([`research/RESULTS.md`](../research/RESULTS.md)); on its evidence High counts with the
 breath rule since 1.23.0. 1.24.0 removed the automatic-sensitivity test to slim the app before
 the move to a native iPhone app ([`docs/archive/auto-sensitivity.md`](archive/auto-sensitivity.md);
-§10). The checks are recorded in [`docs/VERIFICATION.md`](VERIFICATION.md) ("Checkpoint
-1.24.0", "1.23.0", "1.22.3" and "1.22.0");
+§10); 1.24.1 tidied leftovers of earlier detours after a code review for the Swift port. The
+checks are recorded in [`docs/VERIFICATION.md`](VERIFICATION.md) ("Checkpoint 1.24.1",
+"1.24.0", "1.23.0", "1.22.3" and "1.22.0");
 the answers to all three reviews (v1.9.1, `a87c1f3`, `8e05d2b`) are in
 [`docs/REVIEW-RESPONSE.md`](REVIEW-RESPONSE.md). Version history with reasons: §4.
 Marks: **[verified]** checked against this repository or by running it;
@@ -61,6 +62,11 @@ Requirements:
 - Static site, plain HTML/CSS/JS, no build step, no runtime dependencies; GitHub Pages.
 
 Owner decisions (**[owner]**), most recent first:
+- **2026-10-08, porting to a Swift iPhone app:** the owner is setting up the native app; the web
+  app stays the place to make the detector more reliable and test its core. After a code
+  review: first a cleanup PR (leftovers of detours, the live-pill bug, the breath rule as one
+  constant, room noise fed a power spectrum; 1.24.1), then a detector specification and a
+  command to run the detector over a WAV file.
 - **2026-10-06, preparing the move to an iPhone app:** remove unnecessary code. The
   automatic-sensitivity test goes (it "did not work yet"), with its snore-band and
   moment-before rules, the per-sound measurements `lowRiseDb`/`preRise*Db` (less to port to
@@ -96,8 +102,8 @@ Owner decisions (**[owner]**), most recent first:
   very informative yet, to be revisited.
 - **2026-10-03, night 4:** time zone in the data file, clips at full 16-bit detail, the
   6 dB breath rule as a background test only (then).
-- **Saving nights, history, accounts:** version 2.x in a new session after the owner's
-  instructions; only the interface `js/night-store.js` exists (not loaded by the page).
+- **Saving nights, history, accounts:** in the native iPhone app (the web app's unused
+  storage interface `js/night-store.js` was removed in 1.24.1).
 - **Repository:** public; ruleset on `main` (PR required, 0 approvals, required check
   `CI tests`, no deletions, no force pushes, no bypass). Claude merges its own PRs when CI
   is green; the release workflow creates tags.
@@ -112,9 +118,7 @@ Owner decisions (**[owner]**), most recent first:
   removed in 1.24.0.)
 
 Claude's recommendations (**[recommendation]**, not decided):
-- Keep plain UMD files rather than ES modules (the `file://` build and Node `require`).
-- Saved nights: IndexedDB behind `js/night-store.js`, written during recording, with
-  recovery of an unfinished night; fix C4 first (§7).
+- Keep plain UMD files rather than ES modules (Node `require` for tests and scripts).
 - Before a native app, prototype locked-screen overnight recording on a real iPhone; the
   browser side of `js/recorder.js` is the part to replace.
 - (Superseded on 2026-10-05: "High: 4.5 dB as the middle ground". The datasets put High's
@@ -127,7 +131,7 @@ when a frame is `trigger` dB above the adaptive floor and above the absolute gat
 ends when the level stays within `release` dB for 0.2 s. The floor follows the quiet
 (falls with τ 0.5 s, rises with 8 s; 60 s during a sound).
 
-| Sensitivity | Trigger / release | Gate | Breath rule |
+| Sensitivity | Trigger / release | Gate | Breath rule (`BREATH_RULE_DB`, one value since 1.24.1) |
 | --- | --- | --- | --- |
 | Low | 12 / 6 dB | −65 dBFS | 6 dB (since 1.21.0) |
 | Normal (default) | 8 / 4 dB | −75 dBFS | 6 dB (since 1.17.0) |
@@ -198,6 +202,7 @@ Real-night phase (this session, owner's nights 4–6, §8):
 | 1.23.0 | #58 | **Counting change:** High needs 6 dB of breath noise (the datasets put High's 3–6 dB sounds at or below chance); the `high` background test and its clips removed |
 | — | #59 | Two-phone night: own sound or room without listening (`research/two-phone/`, `research/RESULTS.md` §10) |
 | 1.24.0 | #60 | Automatic sensitivity removed with its snore-band and moment-before rules, `lowRiseDb`/`preRise*Db` and the test-clip download (did not beat Normal; less to port to Swift); restart log in `docs/archive/auto-sensitivity.md`; counts unchanged |
+| 1.24.1 | #61 | Code review for the Swift port: unused measurements (zero-crossing rate, mean level), embed mode and single-file build, the committed demo WAV and `js/night-store.js` removed; one `percentile`; one breath-rule constant; room noise gets the power spectrum; live-pill clock after an interruption fixed; counts unchanged |
 
 ## 5. Architecture
 
@@ -223,17 +228,16 @@ js/app.js (page) ◄── onState / onFrame / onEvent / onWakeLock
 | `js/share.js` | Star-map image, script-free HTML report, room-noise heatmap SVG (`noiseSvg`, also used by the app); runs in Node |
 | `js/report-format.js` | Data file: `toReport` (schema 2), `fromReport` (reads schema 1 and 2) |
 | `js/recorder.js` | Recording controller: audio graph, the two detectors, interruptions, wake lock, states, `finishNight`; browser APIs injected via `env` |
-| `js/night-store.js` | Storage interface + in-memory implementation. **Not loaded by the page** |
 | `js/app.js` | The page only; test hooks on `window.__snorewatch` |
 | `scripts/serve.js` | Local static server (`npm start`, 127.0.0.1 unless `HOST`) |
 | `scripts/evaluate.js` | Re-counts a downloaded night (current rules for its sensitivity, without the breath rule, background tests with stricter rules via `recount`, exact from 1.22.1 files (removed tests: recorded counts only), per hour with room noise, room findings) |
 | `scripts/eval-public.js` | ESC-50 benchmark (downloads ~600 MB outside the repo; clips faded in/out) |
-| `scripts/make-sample.js`, `scripts/build-standalone.js` | Synthetic sample WAV; single-file builds in `dist/` (not deployed, not maintained) |
-| `tests/*.test.js` | `node:test`: detector, share, serve, evaluate, report-format, recorder, night-store, noise |
+| `scripts/make-sample.js` | Writes the demo night as a WAV (`samples/`, not committed) to play next to a microphone |
+| `tests/*.test.js` | `node:test`: detector, share, serve, evaluate, report-format, recorder, noise |
 | `tests/e2e.js` | Playwright/Chromium at 390 × 844 with a fake microphone playing the synthetic night |
 | `tests/fixtures/` | Synthetic reports only |
 | `research/` | Dataset studies outside the app (APSAA, PSG-Audio, Khan, YAMNet, the owner's nights): rerunnable scripts, data under `~/.cache/snorewatch`, results in `research/RESULTS.md` |
-| `docs/review-probes/` | Adapted probes from the first review, the second review's controller/store probe, the full demo run (1.22.0) and the third review's N1/N2 probe (C6 and N2 apply up to 1.23.0) |
+| `docs/review-probes/` | Adapted probes from the first review, the second review's controller/store probe, the full demo run (1.22.0) and the third review's N1/N2 probe (C6 and N2 apply up to 1.23.0, C4 up to 1.24.0) |
 | `docs/archive/` | Logs of removed features, enough to restart them: automatic sensitivity (1.24.0) |
 | `.github/workflows/` | `ci.yml` (`CI tests`: unit, lint, e2e), `pages.yml` (`Tests before deploy` → deploy, `main` only), `release.yml` (`Tests before release` → tag `vX.Y.Z`) |
 
@@ -276,9 +280,8 @@ js/app.js (page) ◄── onState / onFrame / onEvent / onWakeLock
 ## 7. Known issues, unfinished work, missing tests, open questions
 
 - **No persistence** (§5); saved nights are 2.x.
-- **Second review leftovers:** C4 (night store hands out shared data; a clip survives its
-  event turning rejected; record only shallowly frozen — fix before wiring storage in);
-  C6 went with automatic sensitivity (1.24.0); the gap edge (partial
+- **Second review leftovers:** C4 went with the night store (1.24.1); C6 went with automatic
+  sensitivity (1.24.0) and its live-pill part was fixed in 1.24.1; the gap edge (partial
   frame and raw ring survive `resumeAfterGap`; `elapsed` read after `release()`).
 - **[owner] decision needed:** should episodes split at an interruption?
 - **[suspected] Phone load:** two detectors on the same audio (since 1.24.0; no background
@@ -305,7 +308,7 @@ js/app.js (page) ◄── onState / onFrame / onEvent / onWakeLock
   background-test re-counts are exact only for files from 1.22.1; nights 4–6 (older files)
   get the labelled estimate, which can keep a rattle after the snore that rescued it is
   dropped (third review N2). No Content-Security-Policy; Google Fonts reveals the visitor's
-  IP. No type checker. `dist/` builds not maintained. `eval:public` not in CI. Event times
+  IP. No type checker. `eval:public` not in CI. Event times
   are analysed audio plus interruptions, not raw wall clock.
 - **Third review leftovers (owner or later):** Pages publishes before the full CI suite
   finishes on `main` (12:27:40Z vs 12:28:40Z on `687b1f7`), workflow-wide write permissions,
@@ -352,7 +355,6 @@ npm run lint                               # ESLint + Prettier check; `npm run f
 npx playwright install chromium            # once; or CHROMIUM_PATH=<path to chrome>
 npm run test:e2e                           # browser test (~90 s)
 for f in js/*.js scripts/*.js tests/*.js; do node --check "$f"; done
-npm run build                              # optional dist/ single-file builds
 npm start                                  # http://localhost:8080
 npm run eval:public                        # ESC-50 benchmark, before detection changes
 npm run evaluate -- <report>.json          # re-count a downloaded night
@@ -414,8 +416,7 @@ sounds"); for older files they are labelled approximate.
 **Later / owner's decisions pending:** room-noise wording; episodes at interruptions; the
 on-phone interruption check (a call or Siri with the screen dark).
 
-**Future, separate from what is implemented:** saved nights with recovery and a history
-(2.x, IndexedDB behind `js/night-store.js`; prerequisites C4, in-night checkpoints, a
-persisted schema, a clip byte budget); room noise across nights (needs saved nights);
-native iPhone recording prototype (locked screen), then possibly a native app; accounts or
-sync only after that and with an explicit privacy decision.
+**Future, separate from what is implemented:** the native iPhone app (owner, from
+2026-10-08), with saved nights and recovery, a history and room noise across nights
+(in-night checkpoints, a persisted schema, a clip byte budget); accounts or sync only after
+that and with an explicit privacy decision.

@@ -6,24 +6,22 @@
  * Only numbers are kept, never sound: per minute the usual background level,
  * how quiet and how loud the minute got, the level in octave bands and the
  * strongest low tone (a mains hum or a fan). No browser dependencies
- * (window.SnoreNoise / require); js/detector.js feeds it its analysed frames.
+ * (window.SnoreNoise / require; loads after js/stats.js); js/detector.js feeds
+ * it its analysed frames.
  */
 (function (root, factory) {
-  const api = factory();
-  if (typeof module === 'object' && module.exports) module.exports = api;
+  const node = typeof module === 'object' && module.exports;
+  const api = factory(node ? require('./stats.js') : root.SnoreStats);
+  if (node) module.exports = api;
   else root.SnoreNoise = api;
-})(typeof self !== 'undefined' ? self : this, function () {
+})(typeof self !== 'undefined' ? self : this, function (Stats) {
   'use strict';
+
+  const { percentile } = Stats;
 
   const OCTAVES = [31.5, 63, 125, 250, 500, 1000, 2000, 4000, 8000]; // band centre frequencies (Hz)
   const HUM_RANGE = [30, 400]; // where mains hum, fans and pumps put their tone (Hz)
   const HUM_MIN_DB = 10; // a tone counts when it stands this far above its neighbourhood
-
-  function percentile(values, q) {
-    if (!values.length) return null;
-    const s = Float64Array.from(values).sort();
-    return s[Math.min(s.length - 1, Math.floor(q * s.length))];
-  }
 
   const dB = (p) => 10 * Math.log10(p + 1e-24);
 
@@ -53,10 +51,10 @@
 
     /**
      * One analysed frame at `t` seconds on the night's clock. `quiet` frames
-     * (no sound going on or just ended) count as background; `re`/`im` hold
-     * the frame's spectrum.
+     * (no sound going on or just ended) count as background; `power` holds the
+     * frame's power per FFT bin (0 to frameSize / 2).
      */
-    add(t, db, quiet, re, im) {
+    add(t, db, quiet, power) {
       const m = Math.floor(t / this.minuteSec);
       if (!this.cur || this.cur.m !== m) {
         this._close();
@@ -75,10 +73,10 @@
       for (let b = 0; b < this.bands.length; b++) {
         const [lo, hi] = this.bands[b];
         let p = 0;
-        for (let k = lo; k < hi; k++) p += re[k] * re[k] + im[k] * im[k];
+        for (let k = lo; k < hi; k++) p += power[k];
         c.bands[b] += p;
       }
-      for (let k = this.hum[0]; k < this.hum[1]; k++) c.low[k - this.hum[0]] += re[k] * re[k] + im[k] * im[k];
+      for (let k = this.hum[0]; k < this.hum[1]; k++) c.low[k - this.hum[0]] += power[k];
     }
 
     _close() {

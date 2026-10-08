@@ -10,7 +10,7 @@
  * How detection works
  *   1. Audio is cut into ~40 ms frames. Each frame gets a loudness (dBFS) and
  *      spectral features from an FFT: share of energy below 800 Hz, share of
- *      energy between 1 and 4 kHz, spectral centroid and zero-crossing rate.
+ *      energy between 1 and 4 kHz, spectral centroid and the breath-band level.
  *   2. An adaptive noise floor tracks the room's background level. A sound
  *      event starts when a frame is `triggerDb` above the floor and ends when
  *      the level stays within `releaseDb` of the floor for `hangoverSec`.
@@ -25,9 +25,9 @@
  *   3b'. Breath noise: a snore is air rushing through a narrowed throat, so the
  *      150-1500 Hz band rises above the room noise. `breathRise` measures that
  *      rise; sounds without it (hum, rumble, a lift) are ignored as 'no-breath'.
- *      Every sensitivity requires 6 dB (Normal since 1.17.0 after background tests on
- *      real nights, Low since 1.21.0, High since 1.23.0 after its background trial and the
- *      public-dataset study, research/RESULTS.md).
+ *      Every sensitivity requires 6 dB (`BREATH_RULE_DB`: Normal since 1.17.0 after
+ *      background tests on real nights, Low since 1.21.0, High since 1.23.0 after its
+ *      background trial and the public-dataset study, research/RESULTS.md).
  *   3b''. Sudden start: a knock or bump reaches its full level at once and
  *      dies away; a snore swells with the breath. `onsetJump` measures the
  *      largest rise over 20 ms at the start; with `maxOnsetJumpDb` set, sounds
@@ -58,11 +58,13 @@
   // minAbsDb: absolute level (dBFS) a sound must reach at all. Phones record
   // quiet bedrooms at around -80 dBFS, so this gate matters in practice.
   const SENSITIVITY = {
-    low: { triggerDb: 12, releaseDb: 6, minAbsDb: -65, minBreathRiseDb: 6 },
-    // minBreathRiseDb: the breath-noise rule of this sensitivity (see 3b' above), unless the options set one.
-    normal: { triggerDb: 8, releaseDb: 4, minAbsDb: -75, minBreathRiseDb: 6 },
-    high: { triggerDb: 5, releaseDb: 3, minAbsDb: -85, minBreathRiseDb: 6 },
+    low: { triggerDb: 12, releaseDb: 6, minAbsDb: -65 },
+    normal: { triggerDb: 8, releaseDb: 4, minAbsDb: -75 },
+    high: { triggerDb: 5, releaseDb: 3, minAbsDb: -85 },
   };
+
+  // The breath-noise rule (see 3b' above), the same for every sensitivity.
+  const BREATH_RULE_DB = 6;
 
   const DEFAULTS = {
     sensitivity: 'normal',
@@ -74,7 +76,7 @@
     maxPeaks: 2, // loudness bursts inside one event (syllables, knocks)
     peakDropDb: 6,
     maxSubBass: 0.85, // share of energy 20-60 Hz (of 20-4000 Hz); above = deep rumble
-    minBreathRiseDb: undefined, // rise of 150-1500 Hz above the room noise a snore needs; undefined = the sensitivity's, null = not checked
+    minBreathRiseDb: BREATH_RULE_DB, // rise of 150-1500 Hz above the room noise a snore needs; null = not checked
     maxOnsetJumpDb: null, // largest 20 ms rise at a snore's start (knocks jump more); null = not checked
     // Rhythm rescue of choppy but snore-like sounds
     rhythmMinSec: Stats.RHYTHM_MIN_SEC, // start-to-start distance to an accepted snore (js/stats.js)
@@ -196,14 +198,9 @@
       const re = this.re;
       const im = this.im;
       let sumSq = 0;
-      let crossings = 0;
-      let wasUp = frame[0] >= 0;
       for (let i = 0; i < n; i++) {
         const x = frame[i];
         sumSq += x * x;
-        const up = x >= 0;
-        if (up !== wasUp) crossings++;
-        wasUp = up;
         re[i] = x * this.window[i];
         im[i] = 0;
       }
@@ -226,15 +223,19 @@
       }
       const safe = total > 0 ? total : 1;
       return {
-        rms,
         db,
         power: rms * rms,
         lowRatio: low / safe,
         highRatio: high / safe,
         centroid: total > 0 ? weighted / total : 0,
-        zcr: crossings / n,
         midDb: 10 * Math.log10(mid / n + 1e-24),
       };
+    }
+
+    /** The last analysed frame's power per FFT bin, 0 to frameSize / 2 (for the room noise profile). */
+    powerSpectrum(out) {
+      for (let k = 0; k < out.length; k++) out[k] = this.re[k] * this.re[k] + this.im[k] * this.im[k];
+      return out;
     }
   }
 
@@ -337,13 +338,19 @@
     constructor(sampleRate, options = {}) {
       this.sampleRate = sampleRate;
       this.opts = Object.assign({}, DEFAULTS, options);
-      this.setSensitivity(this.opts.sensitivity);
       this.opts.minBreathRiseDb = breathRuleDb(this.opts);
+      // The sensitivity is fixed for the detector's life (one night).
+      this.sensitivity = SENSITIVITY[this.opts.sensitivity] ? this.opts.sensitivity : 'normal';
+      const s = SENSITIVITY[this.sensitivity];
+      this.triggerDb = s.triggerDb;
+      this.releaseDb = s.releaseDb;
+      this.minAbsDb = this.opts.minAbsDb != null ? this.opts.minAbsDb : s.minAbsDb;
 
       this.frameSize = nextPow2(Math.round(sampleRate * 0.04));
       this.hopSec = this.frameSize / sampleRate;
       this.analyzer = new FrameAnalyzer(sampleRate, this.frameSize);
       this.noise = this.opts.noiseProfile ? new Noise.NoiseProfile(sampleRate, this.frameSize) : null;
+      this.spectrum = this.noise ? new Float64Array(this.frameSize / 2 + 1) : null;
       this.pending = new Float32Array(this.frameSize);
       this.pendingLen = 0;
       this.frameIndex = 0;
@@ -362,21 +369,12 @@
       this.floor = null;
       this.calib = [];
       this.event = null;
-      this.eventCount = 0;
       this.emitted = [];
       this.gate = new RhythmGate(this.opts, (ev) => this._emit(ev));
 
       this.bgMid = null; // room noise level in the breath band (dB), tracked like the floor
       this.calibMid = [];
       this.lastEventEndFrame = -Infinity;
-    }
-
-    setSensitivity(level) {
-      const s = SENSITIVITY[level] || SENSITIVITY.normal;
-      this.sensitivity = SENSITIVITY[level] ? level : 'normal';
-      this.triggerDb = s.triggerDb;
-      this.releaseDb = s.releaseDb;
-      this.minAbsDb = this.opts.minAbsDb != null ? this.opts.minAbsDb : s.minAbsDb;
     }
 
     get elapsed() {
@@ -399,10 +397,6 @@
       this.gate.breakRhythm();
       this.timeOffset += Math.max(0, gapSec);
       return this._takeEmitted();
-    }
-
-    get calibrating() {
-      return this.floor === null;
     }
 
     /** Feed mono samples (Float32Array, -1..1). Returns events decided in this chunk. */
@@ -451,6 +445,7 @@
       this.decimCount = 0;
       this.analyzer.re.fill(0);
       this.analyzer.im.fill(0);
+      if (this.spectrum) this.spectrum.fill(0);
     }
 
     _takeEmitted() {
@@ -491,8 +486,6 @@
             low: 0,
             high: 0,
             centroid: 0,
-            zcr: 0,
-            energy: 0,
             loudFrames: 0,
             peakDb: -Infinity,
             track: [],
@@ -523,14 +516,14 @@
       if (this.noise) {
         // Background: no sound going on and none just ended.
         const quiet = !this.event && (index - this.lastEventEndFrame) * this.hopSec > o.quietGuardSec;
-        this.noise.add(index * this.hopSec + this.timeOffset, f.db, quiet, this.analyzer.re, this.analyzer.im);
+        this.noise.add(index * this.hopSec + this.timeOffset, f.db, quiet, this.analyzer.powerSpectrum(this.spectrum));
       }
 
       this.frameIndex++;
       if (o.onFrame) {
         o.onFrame({
           index,
-          t: index * this.hopSec,
+          t: index * this.hopSec + this.timeOffset, // the night's clock, as the events' start and end
           db: f.db,
           floor: this.floor,
           trigger: this.floor === null ? null : this.floor + this.triggerDb,
@@ -554,8 +547,6 @@
       ev.low += w * f.lowRatio;
       ev.high += w * f.highRatio;
       ev.centroid += w * f.centroid;
-      ev.zcr += f.zcr;
-      ev.energy += f.power;
       ev.mid += Math.pow(10, f.midDb / 10);
       ev.loudFrames++;
       if (f.db > ev.peakDb) ev.peakDb = f.db;
@@ -579,7 +570,6 @@
         lowRatio: ev.low / w,
         highRatio: ev.high / w,
         centroid: ev.centroid / w,
-        zcr: ev.zcr / Math.max(1, ev.loudFrames),
         peaks: countPeaks(ev.track, o.peakDropDb),
         subBass: audio ? subBassShare(audio, this.clipRate) : null,
         fill: bodyShare(ev.track.slice(0, ev.lastLoud - ev.startFrame + 1), ev.peakDb),
@@ -588,13 +578,10 @@
       };
       const verdict = classify(Object.assign({ duration, tooLong: ev.tooLong }, features), o);
       const result = {
-        id: ++this.eventCount,
         start,
         end,
         duration,
         peakDb: ev.peakDb,
-        meanDb: 10 * Math.log10(ev.energy / Math.max(1, ev.loudFrames) + 1e-24),
-        floorDb: ev.floor,
         relDb: ev.peakDb - ev.floor,
         ...features,
         isSnore: verdict.isSnore,
@@ -624,11 +611,9 @@
     }
   }
 
-  /** The breath-noise rule in force (dB, or null when not checked): the options' own, else the sensitivity's. */
+  /** The breath-noise rule in force (dB, or null when not checked): the options' own, else BREATH_RULE_DB. */
   function breathRuleDb(o) {
-    if (o.minBreathRiseDb !== undefined) return o.minBreathRiseDb;
-    const s = SENSITIVITY[o.sensitivity || DEFAULTS.sensitivity];
-    return s && s.minBreathRiseDb != null ? s.minBreathRiseDb : null;
+    return o.minBreathRiseDb === undefined ? BREATH_RULE_DB : o.minBreathRiseDb;
   }
 
   function classify(f, o) {
@@ -742,6 +727,7 @@
     SessionStats,
     classify,
     breathRuleDb,
+    BREATH_RULE_DB,
     isRhythmCandidate,
     subBassShare,
     onsetJump,

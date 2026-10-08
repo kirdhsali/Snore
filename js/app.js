@@ -8,7 +8,6 @@
   const Report = window.SnoreReport;
   const Recorder = window.SnoreRecorder;
   const Noise = window.SnoreNoise;
-  const EMBED = !!window.SNOREWATCH_EMBED;
   const LIVE_SECONDS = 30;
   let liveClipLimit = 6; // snore cards shown while recording
   const V = window.SNOREWATCH_VERSION || { version: '?', build: 'dev' };
@@ -114,7 +113,7 @@
   // The app records from the microphone. Adding #demo to the address plays a
   // simulated night instead, to show the app or check it during the day.
   function currentSource() {
-    return EMBED || location.hash === '#demo' ? 'demo' : 'mic';
+    return location.hash === '#demo' ? 'demo' : 'mic';
   }
   function updateSourceUI() {
     const src = currentSource();
@@ -123,14 +122,6 @@
     if (!running) setStatus('Tap Start to begin.');
   }
   window.addEventListener('hashchange', () => !running && updateSourceUI());
-
-  if (EMBED) {
-    HINTS.demo += ' The microphone is not available in this preview; open the app from its own address to record yourself.';
-    el.dlWav.hidden = true;
-    el.dlJson.hidden = true;
-    el.shareImage.hidden = true;
-    el.shareReport.hidden = true;
-  }
 
   function setStatus(text, isError) {
     el.status.textContent = text;
@@ -726,10 +717,6 @@
       el.shareImage.disabled = false;
       el.shareReport.disabled = false;
       const playable = data.samples.loud.length + data.samples.random.length;
-      if (EMBED) {
-        el.shareHint.textContent = 'Open the app from its own address to share the image or the full report.';
-        return;
-      }
       el.shareHint.textContent = `The report is one file (${Math.max(1, Math.round(shareFiles.report.size / 1024))} KB)${
         playable ? ` with ${playable} snores to play` : ''
       }. It opens in any browser; on iPhone choose “Open in Safari” to play the sounds.`;
