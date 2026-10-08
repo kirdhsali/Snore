@@ -4,5 +4,4 @@
 *.html
 *.md
 *.json
-dist/
 samples/

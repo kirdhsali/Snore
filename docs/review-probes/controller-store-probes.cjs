@@ -10,7 +10,8 @@ const { createRequire } = require('node:module');
 const repo = process.argv[2];
 const get = (name) => require(path.join(repo, name));
 const { createRecorder } = get('js/recorder.js');
-const { createMemoryStore } = get('js/night-store.js');
+// js/night-store.js was removed in 1.24.1 (saved nights move to the native app): C4 runs up to 1.24.0.
+const store = fs.existsSync(path.join(repo, 'js/night-store.js')) ? get('js/night-store.js').createMemoryStore() : null;
 const Core = get('js/detector.js');
 const Synth = get('js/synth.js');
 const Share = get('js/share.js');
@@ -83,16 +84,18 @@ const fake = box.module.exports;
   });
   console.log('C3', Report.toReport(night).interruptions, html.match(/<p class="verdict">([^<]*)/)[1]);
 
-  const store = createMemoryStore();
-  const id = await store.create({ startWall: 0 });
-  await store.appendEvents(id, [{ id: 1, start: 2, isSnore: true }]);
-  await store.appendClip(id, 1, new Int16Array([9, -9]), 8000);
-  await store.appendEvents(id, [{ id: 1, start: 2, isSnore: false }]);
-  await store.finalize(id, { summary: { snoreCount: 0 } });
-  const loaded = await store.load(id);
-  loaded.record.summary.snoreCount = 999;
-  const again = await store.load(id);
-  console.log('C4', again.events[0].isSnore, again.clips.size, again.record.summary.snoreCount);
+  if (!store) console.log('C4: not applicable from 1.24.1 (js/night-store.js removed)');
+  else {
+    const id = await store.create({ startWall: 0 });
+    await store.appendEvents(id, [{ id: 1, start: 2, isSnore: true }]);
+    await store.appendClip(id, 1, new Int16Array([9, -9]), 8000);
+    await store.appendEvents(id, [{ id: 1, start: 2, isSnore: false }]);
+    await store.finalize(id, { summary: { snoreCount: 0 } });
+    const loaded = await store.load(id);
+    loaded.record.summary.snoreCount = 999;
+    const again = await store.load(id);
+    console.log('C4', again.events[0].isSnore, again.clips.size, again.record.summary.snoreCount);
+  }
 
   // C6 concerned the automatic-sensitivity test's margin history, removed in 1.24.0.
   if (!Core.SENSITIVITY.auto) console.log('C6: not applicable from 1.24.0 (automatic sensitivity removed)');

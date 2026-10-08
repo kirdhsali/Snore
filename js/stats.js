@@ -16,20 +16,22 @@
   const RHYTHM_MIN_SEC = 2;
   const RHYTHM_MAX_SEC = 12;
 
+  /** The value at quantile `q` (0..1) of `values`, without interpolation; null for none. */
   function percentile(values, q) {
-    const s = values.slice().sort((a, b) => a - b);
+    if (!values.length) return null;
+    const s = Float64Array.from(values).sort();
     return s[Math.min(s.length - 1, Math.floor(q * s.length))];
   }
+
+  // How much later than its start an event can reach the statistics: a rhythm
+  // candidate waits up to rhythmMaxSec for a snore, which then has to end.
+  const LATE_ARRIVAL_SEC = 30;
 
   /**
    * Aggregates classified events into the live statistics and the report.
    * `snores` holds every detected snore; the figures count only confirmed
    * ones (another snore 2-12 s before or after), isolated ones are "possible".
    */
-  // How much later than its start an event can reach the statistics: a rhythm
-  // candidate waits up to rhythmMaxSec for a snore, which then has to end.
-  const LATE_ARRIVAL_SEC = 30;
-
   class SessionStats {
     constructor(options = {}) {
       this.maxClips = options.maxClips || 1500;
@@ -80,7 +82,6 @@
       } else {
         // Only the verdict and sound features are kept for ignored sounds, never audio.
         this.ignored.push({
-          id: ev.id,
           start: ev.start,
           duration: ev.duration,
           reason: ev.reason,

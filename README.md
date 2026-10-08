@@ -82,9 +82,9 @@ The site is then served at `https://<owner>.github.io/<repository>/`.
   “Demo” label marks this mode; it is meant for showing the app or checking it
   during the day.
 
-To test the real microphone path without snoring, play
-`samples/snore-demo.wav` from another device next to the microphone, or just
-fake a few snores.
+To test the real microphone path without snoring, write the demo night as a WAV file
+(`npm run sample`, to `samples/snore-demo.wav`) and play it from another device next to
+the microphone, or just fake a few snores.
 
 ### Before you sleep (iPhone)
 
@@ -252,8 +252,7 @@ npm ci              # dev tools for the browser test and linting (pinned in pack
 npm run lint        # ESLint + Prettier check (Node ≥ 20.19); npm run format fixes formatting
 npx playwright install chromium
 npm run test:e2e    # real page in Chromium with a fake microphone playing the demo night
-npm run sample      # regenerate samples/snore-demo.wav
-npm run build       # dist/snorewatch.html: everything inlined into one file
+npm run sample      # write samples/snore-demo.wav (the demo night, not committed)
 npm run evaluate -- snore-report.json   # re-evaluate a downloaded night with the current rules
 npm run eval:public # check against ESC-50, a public set of 2,000 labelled sounds (downloads ~600 MB once)
 npm start           # local server on http://localhost:8080 (PORT to change)
@@ -277,9 +276,8 @@ type checker. Agent instructions: `CLAUDE.md` / `AGENTS.md`; general working rul
 | `js/version.js` | version shown in the footer |
 | `js/recorder.js` | recording: microphone or `#demo`, detectors and background tests, interruptions, wake lock, the finished night |
 | `js/report-format.js` | the downloaded data file (JSON), writing and reading every version |
-| `js/night-store.js` | interface for saving nights on the device (not used by the page yet) |
 | `js/app.js` | the page: live view, night screen, report, sharing, downloads |
-| `scripts/` | dev server, evaluation scripts, sample generator, single-file build |
+| `scripts/` | dev server, evaluation scripts, sample generator |
 | `tests/` | unit tests (`node --test`) and the browser test |
 | `docs/HANDOVER.md` | state of the project, decisions, known issues, next task |
 | `docs/VERIFICATION.md` | verification commands, results and a manual smoke test |

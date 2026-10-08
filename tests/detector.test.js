@@ -461,6 +461,12 @@ test('sudden-start rule: bumps that pass every other rule are set aside, snores 
 });
 
 test('the breath-noise rule in force: the options set it, else the sensitivity (Normal 6 dB)', () => {
+  assert.equal(Core.BREATH_RULE_DB, 6, 'one breath-noise rule for every sensitivity (1.24.1)');
+  assert.equal(Core.DEFAULTS.minBreathRiseDb, Core.BREATH_RULE_DB);
+  assert.ok(
+    Object.values(Core.SENSITIVITY).every((s) => !('minBreathRiseDb' in s)),
+    'sensitivities set only margins and the gate',
+  );
   assert.equal(Core.breathRuleDb({}), 6, 'default sensitivity is Normal');
   assert.equal(Core.breathRuleDb({ sensitivity: 'normal' }), 6);
   assert.equal(Core.breathRuleDb({ sensitivity: 'low' }), 6, 'Low too since 1.21.0');
@@ -593,7 +599,8 @@ test('an interruption: later events keep wall time and nothing is decided or con
   const after = Synth.compose(sr, 6, [{ type: 'rattle', at: 1 }], 3);
   const events = [];
   const stats = new SessionStats();
-  const det = new SnoreDetector(sr, { onEvent: (e) => (events.push(e), stats.add(e)) });
+  let lastFrameT = null;
+  const det = new SnoreDetector(sr, { onEvent: (e) => (events.push(e), stats.add(e)), onFrame: (f) => (lastFrameT = f.t) });
   for (let i = 0; i < before.samples.length; i += 1024) det.process(before.samples.subarray(i, i + 1024));
   // 1 s without audio (e.g. a call), then the room again.
   const gapStart = det.clock;
@@ -605,6 +612,8 @@ test('an interruption: later events keep wall time and nothing is decided or con
   const rattle = events.find((e) => e.start > gapStart);
   assert.ok(rattle, 'rattle heard after the gap');
   assert.ok(Math.abs(rattle.start - (12 + 1 + 1)) < 0.3, `timed after the gap: ${rattle.start}`);
+  // Frames are on the same clock as events (the live pill compares them; before 1.24.1 frames left the gap out).
+  assert.ok(lastFrameT > rattle.end && det.clock - lastFrameT <= 2 * det.hopSec, `last frame at ${lastFrameT}, clock ${det.clock}`);
   // 8 s after the snore at 6 s, which would rescue it without the gap.
   assert.equal(rattle.isSnore, false, 'not rescued by a snore from before the gap');
   assert.equal(rattle.clip, null);

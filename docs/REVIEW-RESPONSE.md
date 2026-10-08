@@ -173,9 +173,9 @@ threshold or default changed. Results: [`VERIFICATION.md`](VERIFICATION.md), che
 | C1 | High: an audio context in the iOS state `interrupted` was never resumed | **Fixed** in 1.12.1 (#29); simulated, device untested |
 | C2 | Medium: the dark night screen kept saying "Recording" after the microphone ended | **Fixed** in 1.12.2 (#30) |
 | C3 | Medium: share image and HTML report showed an interrupted night as continuous | **Fixed** in 1.12.3 (#31); rates unchanged (recorded time) |
-| C4 | Medium: night store hands out shared nested data; a clip survives its event turning rejected; night record only shallowly frozen | **Deliberately deferred** to the 2.x storage work (module not loaded by the page) |
+| C4 | Medium: night store hands out shared nested data; a clip survives its event turning rejected; night record only shallowly frozen | **Deliberately deferred** to the 2.x storage work (module not loaded by the page); the night-store parts are **moot since 1.24.1** (`js/night-store.js` removed; saved nights move to the native app); the shallow freeze of the night record remains |
 | C5 | Low: a slow wake-lock request could hold the screen on after Stop | **Fixed** in 1.12.4 (#32) |
-| C6 | Low: auto-sensitivity history after a gap uses sample time, events use the gap-aware clock (also the live pill) | **Deliberately deferred** to 2.x (no effect on counts); **moot since 1.24.0**: automatic sensitivity and its history were removed |
+| C6 | Low: auto-sensitivity history after a gap uses sample time, events use the gap-aware clock (also the live pill) | **Deliberately deferred** to 2.x (no effect on counts); the auto-sensitivity part is moot since 1.24.0 (removed). The live pill was still affected (1.24.0's "moot" note was wrong): after an interruption it kept the last verdict for the rest of the night. **Fixed in 1.24.1**: frames carry the night's clock like events (unit test) |
 | — | Episodes still join across a gap | **Owner decision needed**; unchanged |
 | — | Gap edge keeps the partial frame and raw ring; Stop reads `elapsed` after `release()` (sub-frame) | Deferred to 2.x; define "captured time" first |
 | — | Workflow hardening: job-scoped permissions, Pages trigger and concurrency only on `main`, full suite before publish, action pinning | Deferred; repository settings need the owner |
