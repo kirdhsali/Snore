@@ -1,5 +1,35 @@
 # Verification record
 
+## Checkpoint 1.25.0 (detector specification for the Swift port, 2026-10-08)
+
+**Tested code revision:** the PR branch of 1.25.0 on top of `main` (`4b2aa8e`, 1.24.1). **No
+counting change.** What the port to a native iPhone app needs (owner, 2026-10-08):
+- `docs/DETECTOR.md`: the detector's specification, with how a port checks itself.
+- `js/analysis.js`: the night's analysis (counting detector with room noise, the knock test, their
+  statistics), moved out of `js/recorder.js`. `wavPositions` moved to `js/wav.js`.
+- `npm run analyze`: a WAV file through it, writing the data file and the snores WAV.
+- `npm run reference` with `tests/fixtures/reference/`: the data files of four seeded synthetic
+  nights, which `tests/reference.test.js` checks and a port compares itself with.
+
+**Environment:** as for 1.24.0.
+
+| Command | Result |
+| --- | --- |
+| `npm test` | **passed**, 96/96: 84 + 5 `analyze` (WAV reading, demo night, clip positions, block sizes, CLI) + 5 `reference` (four nights, coverage of every reason) + 1 recorder test (the recorder's night equals `npm run analyze` on the same audio) + 1 detector test (the counting constants as `docs/DETECTOR.md` gives them) |
+| `npm run lint` | **passed** |
+| `node --check` over `js/ scripts/ tests/ docs/review-probes/ research/` (`*.js`, `*.cjs`) | **passed**, 43 files |
+| `CHROMIUM_PATH=… npm run test:e2e` | **passed** |
+| `CHROMIUM_PATH=… node docs/review-probes/full-demo-run.cjs "$PWD" <out>` | **passed**: "1.25.0 (dev)", 16 confirmed, 0 possible, 5 ignored (too bright 3, choppy 1, too long 1); knock 16; no page errors (the two console errors, an external font and a 404, as at 1.24.1) |
+| Recorder of v1.24.1 against this checkout, fake browser (scratch script): 10 synthetic nights (demo and 4 rooms, at 16 and 48 kHz) × Low / Normal / High × without and with two interruptions (suspended 3 s, stalled 2.5 s) | **identical**: 60 night records, 1,797 sounds, every field of the night record and the data file, every live frame and event callback. A changed knock rule in a copy is caught at once |
+| Reference outputs against threshold changes (scratch script, each on its own) | Caught: centroid limit 450/550, low share 0.5/0.6, high share 0.15/0.25, rumble 0.8/0.9, breath rule 5/7 dB, choppy 3 bursts, too short 0.3 s, too long 3.5 s, rhythm fill 0.7, hangover 0.25 s, pre-roll 0.3 s, burst drop 6.5 dB. Not caught: centroid 498 Hz, low share 0.545: no sound lies that close to the limit. So a new detector test pins every counting constant |
+| Independent review of `docs/DETECTOR.md` against the code (subagent, every claim and number) | no formula or constant wrong. One false statement: clip samples can be negative, so `Math.round` and Swift's `rounded()` differ (§13). It also found 16 places that were imprecise or missing (FFT scale, exclusive clip end, `rms·rms`, the gap clock, ms truncation, …). All corrected |
+| `npm run reference` on Node 20.20, 21.7 and 22.22 | **same** files on all three (the stored outputs do not depend on the Node version) |
+| `npm run evaluate` on `tests/fixtures/reference/busy-hum-48000.json` | reads it (`source: "file"`), recorded = current rules |
+| `npm run eval:public` | **identical to 1.24.1** |
+
+**Not run / not available:** physical iPhone, Safari/WebKit, Firefox; a real night on 1.25.0; a
+port (none exists yet).
+
 ## Checkpoint 1.24.1 (cleanup for the Swift port, 2026-10-08)
 
 **Tested code revision:** the PR branch of 1.24.1 on top of `main` (`b5d0bd6`). **No counting

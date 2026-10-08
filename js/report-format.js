@@ -22,6 +22,7 @@
  *      per-test `levels`, `minLowRiseDb`, `minPreRiseDb`, `preRiseSec` and the snores'
  *      `wavStartSec` (the test-clip WAV), and the per-sound `lowRiseDb` and
  *      `preRise25Db`/`preRise50Db`/`preRise100Db`. Older files keep them; readers ignore them.
+ *      1.25.0: `source` can be "file" (`npm run analyze` on a WAV file); fields as before.
  */
 (function (root, factory) {
   const api = factory();

@@ -7,6 +7,7 @@ const Synth = require('../js/synth.js');
 const { createRecorder } = require('../js/recorder.js');
 const { toReport } = require('../js/report-format.js');
 const { recount } = require('../scripts/evaluate.js');
+const { analyzeSamples } = require('../scripts/analyze.js');
 
 /** Minimal stand-ins for AudioContext, a microphone stream and the page. */
 function fakeBrowser({ denyMic = false } = {}) {
@@ -128,6 +129,20 @@ test('a night goes idle → requesting → recording → stopping → completed 
     'only the counting detector keeps the profile',
   );
   assert.equal(night.gaps.length, 0);
+});
+
+test("the recorder's night is the analysis of the audio it was fed, as npm run analyze gives it from a file", async () => {
+  const b = fakeBrowser();
+  const rec = createRecorder({ version: 'test', env: b.env });
+  await rec.start({ source: 'mic', sensitivity: 'high' });
+  const { samples } = Synth.demoScenario(16000);
+  b.feed(samples);
+  const night = rec.stop();
+  const fromFile = analyzeSamples(samples, 16000, { sensitivity: 'high', startWall: night.startWall }).night;
+  const file = (n) => JSON.parse(JSON.stringify(toReport(n)));
+  for (const key of ['sensitivity', 'minBreathRiseDb', 'summary', 'noise', 'snores', 'ignored', 'shadows']) {
+    assert.deepEqual(file(night)[key], file(fromFile)[key], key);
+  }
 });
 
 test('a failed start leaves the state and the last night as they were', async () => {

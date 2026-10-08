@@ -1,8 +1,9 @@
 /*
  * Snorewatch recording controller: owns the microphone (or the demo night),
- * the audio graph, the detectors (main + background tests), interruption
- * handling and the screen wake lock. The page subscribes through callbacks
- * and only reads `recorder.session`; it never touches the audio objects.
+ * the audio graph, interruption handling and the screen wake lock, and feeds
+ * the audio to the night's analysis (js/analysis.js: the detectors and their
+ * statistics). The page subscribes through callbacks and only reads
+ * `recorder.session`; it never touches the audio objects.
  *
  * States:  idle → requesting → recording ⇄ interrupted → stopping → completed
  *          (a failed start goes back to the previous state; Start again from
@@ -13,22 +14,13 @@
  */
 (function (root, factory) {
   const node = typeof module === 'object' && module.exports;
-  const api = factory(node ? require('./detector.js') : root.SnoreCore, node ? require('./synth.js') : root.SnoreSynth);
+  const api = factory(node ? require('./analysis.js') : root.SnoreAnalysis, node ? require('./synth.js') : root.SnoreSynth);
   if (node) module.exports = api;
   else root.SnoreRecorder = api;
-})(typeof self !== 'undefined' ? self : this, function (Core, Synth) {
+})(typeof self !== 'undefined' ? self : this, function (Analysis, Synth) {
   'use strict';
 
-  const { SnoreDetector, SessionStats } = Core;
   const STALL_MS = 2000; // no audio for this long while recording counts as an interruption
-  // Knock test: night 5's report counted knocks as snores. A knock reaches its full level at
-  // once (night 5: 21-42 dB within 20 ms), a snore swells (nights 4 and 5: 99 % under 17 dB).
-  const KNOCK_RULE_DB = 20;
-  // Background tests also hand over the sounds their own rules set aside and their choppy
-  // sounds no snore rescued (features only), so other limits can be tried on a night
-  // afterwards with the rhythm rescue redone (choppy ones since 1.22.1). The automatic-
-  // sensitivity test and its test clips were removed in 1.24.0 (docs/archive/auto-sensitivity.md).
-  const SET_ASIDE_REASONS = new Set(['sudden', 'choppy']);
 
   const TAP_CODE = `class Tap extends AudioWorkletProcessor {
     constructor() { super(); this.buf = new Float32Array(2048); this.n = 0; }
@@ -228,10 +220,7 @@
       s.gap = null;
       // Events are timed on the night's clock: after the gap they continue `sec` later,
       // and nothing is decided or confirmed across it.
-      for (const { detector, stats } of [s, ...Object.values(s.shadows)]) {
-        stats.addGap(g.clock, g.clock + sec);
-        if (state !== 'stopping') detector.resumeAfterGap(sec);
-      }
+      s.analysis.addGap(g.clock, sec, state !== 'stopping');
       if (state === 'interrupted') setState('recording');
     }
 
@@ -280,7 +269,9 @@
           stream,
           player,
           tap: null,
-          stats: new SessionStats(),
+          analysis: null,
+          // The analysis's parts the page reads (js/app.js): live statistics and the detectors.
+          stats: null,
           detector: null,
           shadows: null,
           gaps: [], // interruptions: {start, end} in ms since the epoch, the reason, and `clock` (events' time base)
@@ -289,28 +280,14 @@
           wakeLock: 'off',
           watch: null,
         };
-        const det = new SnoreDetector(ctx.sampleRate, {
+        s.analysis = Analysis.createAnalysis(ctx.sampleRate, {
           sensitivity,
-          noiseProfile: true,
           onFrame: (f) => notify(opts.onFrame, f),
-          onEvent: (ev) => {
-            s.stats.add(ev);
-            notify(opts.onEvent, ev);
-          },
+          onEvent: (ev) => notify(opts.onEvent, ev),
         });
-        s.detector = det;
-        // Background tests of candidate rules: extra detectors on the same audio that keep no
-        // audio. They change nothing on screen; their counts go into the data file. The High
-        // trial (1.22.0) ended in 1.23.0, when High took the 6 dB rule; the automatic-sensitivity
-        // test (1.8.0-1.23.0) was removed in 1.24.0.
-        const shadow = (options) => {
-          const stats = new SessionStats();
-          const detector = new SnoreDetector(ctx.sampleRate, { ...options, keepClips: false, onEvent: (e) => stats.add(e) });
-          return { options, stats, detector };
-        };
-        s.shadows = {
-          knock: shadow({ sensitivity, maxOnsetJumpDb: KNOCK_RULE_DB }),
-        };
+        s.stats = s.analysis.stats;
+        s.detector = s.analysis.detector;
+        s.shadows = s.analysis.shadows;
         s.tap = await createTap(env, ctx, input, (samples) => {
           if (!live() || session !== s) return;
           s.lastSampleWall = env.now();
@@ -319,8 +296,7 @@
             if (!audioLive(s)) return;
             endGap(s);
           }
-          det.process(samples);
-          for (const sh of Object.values(s.shadows)) sh.detector.process(samples);
+          s.analysis.process(samples);
         });
         session = s;
         if (player) player.start();
@@ -341,12 +317,9 @@
       if (!live()) return null;
       const s = session;
       setState('stopping');
-      s.detector.flush(); // decides open sounds; they arrive through onEvent
-      for (const sh of Object.values(s.shadows)) sh.detector.flush();
-      // No audio other than the kept snore clips may remain once the night is over.
-      s.detector.release();
-      for (const sh of Object.values(s.shadows)) sh.detector.release();
-      s.elapsed = s.detector.elapsed; // seconds of audio actually analysed
+      // Decides the open sounds (they arrive through onEvent) and wipes the audio the
+      // detectors still hold: no audio other than the kept snore clips remains.
+      s.elapsed = s.analysis.finish(); // seconds of audio actually analysed
       s.endWall = env.now();
       env.clearInterval(s.watch);
       s.ctx.onstatechange = null;
@@ -383,7 +356,6 @@
      * failed start) cannot change it. Field names follow js/report-format.js.
      */
     function finishNight(s) {
-      const config = (det) => Object.fromEntries(Object.entries(det.opts).filter(([, v]) => typeof v !== 'function'));
       return Object.freeze({
         id: `night-${new Date(s.startWall).toISOString()}`,
         version: opts.version,
@@ -391,35 +363,11 @@
         startWall: s.startWall,
         endWall: s.endWall,
         timeZone: env.timeZone(),
-        sampleRate: s.ctx.sampleRate,
         capturedSeconds: s.elapsed, // audio actually analysed
         clockSeconds: s.wallElapsed, // the events' clock: analysed audio plus interruptions
         gaps: s.gaps.slice(),
-        // Room noise per minute (levels only), on the events' clock.
-        noise: s.detector.noise && {
-          minuteSec: s.detector.noise.minuteSec,
-          bandsHz: s.detector.noise.bandsHz,
-          minutes: s.detector.noise.finish(),
-        },
         screenWakeLock: s.wakeLock,
-        sensitivity: s.detector.sensitivity,
-        config: config(s.detector),
-        summary: s.stats.summary(s.elapsed),
-        stats: s.stats, // derived views of the events: confirmed snores, timeline buckets
-        snores: s.stats.snores,
-        ignored: s.stats.ignored,
-        shadows: Object.fromEntries(
-          Object.entries(s.shadows).map(([name, sh]) => [
-            name,
-            Object.freeze({
-              options: { ...sh.options },
-              config: config(sh.detector),
-              summary: sh.stats.summary(s.elapsed),
-              snores: sh.stats.snores,
-              setAside: sh.stats.ignored.filter((e) => SET_ASIDE_REASONS.has(e.reason)),
-            }),
-          ]),
-        ),
+        ...s.analysis.result(s.elapsed),
       });
     }
 

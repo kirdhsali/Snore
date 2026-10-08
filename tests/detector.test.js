@@ -460,6 +460,48 @@ test('sudden-start rule: bumps that pass every other rule are set aside, snores 
   assert.equal(events.filter((e) => e.isSnore).length, 16, 'the demo night keeps its 16 snores');
 });
 
+test('the counting constants are the ones docs/DETECTOR.md specifies (change both together, after asking the owner)', () => {
+  assert.deepEqual(Core.SENSITIVITY, {
+    low: { triggerDb: 12, releaseDb: 6, minAbsDb: -65 },
+    normal: { triggerDb: 8, releaseDb: 4, minAbsDb: -75 },
+    high: { triggerDb: 5, releaseDb: 3, minAbsDb: -85 },
+  });
+  const pick = (o, keys) => Object.fromEntries(keys.map((k) => [k, o[k]]));
+  const rules = {
+    sensitivity: 'normal',
+    minDuration: 0.25,
+    maxDuration: 4.0,
+    minLowRatio: 0.55,
+    maxHighRatio: 0.2,
+    maxCentroid: 500,
+    maxPeaks: 2,
+    peakDropDb: 6,
+    maxSubBass: 0.85,
+    minBreathRiseDb: 6,
+    maxOnsetJumpDb: null,
+    rhythmMinSec: 2,
+    rhythmMaxSec: 12,
+    rhythmMaxHighRatio: 0.05,
+    rhythmMaxCentroid: 400,
+    rhythmMinFill: 0.6,
+    hangoverSec: 0.2,
+    calibrationSec: 1.0,
+    preRollSec: 0.25,
+    postRollSec: 0.15,
+    clipRate: 8000,
+    quietGuardSec: 1,
+  };
+  assert.deepEqual(pick(Core.DEFAULTS, Object.keys(rules)), rules);
+  const stats = new Core.SessionStats();
+  assert.deepEqual(pick(stats, ['maxClips', 'episodeGapSec', 'rhythmMinSec', 'rhythmMaxSec']), {
+    maxClips: 1500,
+    episodeGapSec: 60,
+    rhythmMinSec: 2,
+    rhythmMaxSec: 12,
+  });
+  assert.deepEqual(require('../js/analysis.js').BACKGROUND_TESTS.knock('normal'), { sensitivity: 'normal', maxOnsetJumpDb: 20 });
+});
+
 test('the breath-noise rule in force: the options set it, else the sensitivity (Normal 6 dB)', () => {
   assert.equal(Core.BREATH_RULE_DB, 6, 'one breath-noise rule for every sensitivity (1.24.1)');
   assert.equal(Core.DEFAULTS.minBreathRiseDb, Core.BREATH_RULE_DB);

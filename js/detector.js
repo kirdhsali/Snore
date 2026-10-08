@@ -52,7 +52,7 @@
   'use strict';
 
   const { SessionStats, percentile } = Stats;
-  const { encodeWav, clipFromAudio } = Wav;
+  const { encodeWav, clipFromAudio, wavPositions } = Wav;
 
   // triggerDb/releaseDb: margin above the room's noise floor.
   // minAbsDb: absolute level (dBFS) a sound must reach at all. Phones record
@@ -734,6 +734,7 @@
     countPeaks,
     encodeWav,
     clipFromAudio,
+    wavPositions,
     nextPow2,
     DEFAULTS,
     SENSITIVITY,

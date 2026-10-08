@@ -1,13 +1,15 @@
 # Snorewatch handover
 
-State at version **1.24.1** (2026-10-08, deployed to GitHub Pages from `main`).
+State at version **1.25.0** (2026-10-08, deployed to GitHub Pages from `main`).
 1.22.0 was prepared for an independent review and a fresh session; that third review
 (of `8e05d2b`, N1–N4) was answered with 1.22.1–1.22.3. The public-dataset study followed
 ([`research/RESULTS.md`](../research/RESULTS.md)); on its evidence High counts with the
 breath rule since 1.23.0. 1.24.0 removed the automatic-sensitivity test to slim the app before
 the move to a native iPhone app ([`docs/archive/auto-sensitivity.md`](archive/auto-sensitivity.md);
-§10); 1.24.1 tidied leftovers of earlier detours after a code review for the Swift port. The
-checks are recorded in [`docs/VERIFICATION.md`](VERIFICATION.md) ("Checkpoint 1.24.1",
+§10); 1.24.1 tidied leftovers of earlier detours after a code review for the Swift port; 1.25.0
+adds the detector's specification for the port, [`docs/DETECTOR.md`](DETECTOR.md), with reference
+outputs and `npm run analyze`. The
+checks are recorded in [`docs/VERIFICATION.md`](VERIFICATION.md) ("Checkpoint 1.25.0", "1.24.1",
 "1.24.0", "1.23.0", "1.22.3" and "1.22.0");
 the answers to all three reviews (v1.9.1, `a87c1f3`, `8e05d2b`) are in
 [`docs/REVIEW-RESPONSE.md`](REVIEW-RESPONSE.md). Version history with reasons: §4.
@@ -124,7 +126,9 @@ Claude's recommendations (**[recommendation]**, not decided):
 - (Superseded on 2026-10-05: "High: 4.5 dB as the middle ground". The datasets put High's
   3–6 dB sounds at or below chance level for snoring, and the owner chose 6 dB.)
 
-## 3. Detection rules in force (1.24.0)
+## 3. Detection rules in force (1.25.0)
+
+Every formula, constant and order of operations, for a port: [`docs/DETECTOR.md`](DETECTOR.md).
 
 Frames of ~43 ms (2048 samples at 48 kHz) → loudness and spectral shares → a sound starts
 when a frame is `trigger` dB above the adaptive floor and above the absolute gate, and
@@ -203,13 +207,16 @@ Real-night phase (this session, owner's nights 4–6, §8):
 | — | #59 | Two-phone night: own sound or room without listening (`research/two-phone/`, `research/RESULTS.md` §10) |
 | 1.24.0 | #60 | Automatic sensitivity removed with its snore-band and moment-before rules, `lowRiseDb`/`preRise*Db` and the test-clip download (did not beat Normal; less to port to Swift); restart log in `docs/archive/auto-sensitivity.md`; counts unchanged |
 | 1.24.1 | #61 | Code review for the Swift port: unused measurements (zero-crossing rate, mean level), embed mode and single-file build, the committed demo WAV and `js/night-store.js` removed; one `percentile`; one breath-rule constant; room noise gets the power spectrum; live-pill clock after an interruption fixed; counts unchanged |
+| 1.25.0 | #62 | For the Swift port: the specification `docs/DETECTOR.md`; the night's analysis moved out of the recorder into `js/analysis.js`; `npm run analyze` (a WAV file through it: data file and snores WAV); reference outputs of four synthetic nights (`npm run reference`, `tests/fixtures/reference/`) that a port compares itself with; counts unchanged |
 
 ## 5. Architecture
 
 ```
 mic or demo ─► js/recorder.js: AudioWorklet tap (ScriptProcessor fallback)
-                 ├─► SnoreDetector (chosen sensitivity, noise profile) ─► SessionStats ─┐
-                 └─► SnoreDetector (background "knock", no audio)     ─► SessionStats ─┴─► frozen night record on Stop
+WAV file    ─► scripts/analyze.js
+                 └─► js/analysis.js
+                       ├─► SnoreDetector (chosen sensitivity, noise profile) ─► SessionStats ─┐
+                       └─► SnoreDetector (background "knock", no audio)     ─► SessionStats ─┴─► frozen night record on Stop
                states: idle → requesting → recording ⇄ interrupted → stopping → completed
 js/app.js (page) ◄── onState / onFrame / onEvent / onWakeLock
                live view while recording; report, share, downloads from the night record
@@ -220,30 +227,35 @@ js/app.js (page) ◄── onState / onFrame / onEvent / onWakeLock
 | `index.html`, `css/style.css` | Page, dark-first design, night screen; loads the scripts in order |
 | `js/version.js` | Version + build (`dev`, replaced by the commit hash on deploy) |
 | `js/stats.js` | `SessionStats`: confirmation (2–12 s, both ways, not across gaps), episodes, intervals, timeline buckets; ignored-sound records (features only); clip cap 1500 |
-| `js/wav.js` | `encodeWav`, `clipFromAudio` |
+| `js/wav.js` | `encodeWav`, `clipFromAudio`, `wavPositions` (each clip's start in the snores WAV) |
 | `js/noise.js` | `NoiseProfile` (per minute: median quiet level, p10/p90, octave bands 31.5 Hz–8 kHz, strongest 30–400 Hz tone); `summarize`/`describe` (findings: steady tone and mains hum, on/off cycles, mid/high stretches outside snoring, loud stretches) |
 | `js/detector.js` | FFT, `FrameAnalyzer`, `SnoreDetector` (floor, events, features incl. `breathRise`, `onsetJump`, classification, clips, `release()`, `resumeAfterGap()`), `RhythmGate`, `classify`, `breathRuleDb`, `DEFAULTS`/`SENSITIVITY`/`REASONS`; facade `SnoreCore` |
 | `js/synth.js` | Seeded synthetic sounds and rooms (snore, rattle, breath, swell, bump, knock, …) for the demo and tests |
 | `js/charts.js` | Canvas drawing (live strip, timeline, clip waveform) |
 | `js/share.js` | Star-map image, script-free HTML report, room-noise heatmap SVG (`noiseSvg`, also used by the app); runs in Node |
 | `js/report-format.js` | Data file: `toReport` (schema 2), `fromReport` (reads schema 1 and 2) |
-| `js/recorder.js` | Recording controller: audio graph, the two detectors, interruptions, wake lock, states, `finishNight`; browser APIs injected via `env` |
+| `js/analysis.js` | One night's analysis, no browser: `createAnalysis` builds the counting detector (with the noise profile), the background tests (`BACKGROUND_TESTS`, `knock`) and their `SessionStats`; `process`, `addGap`, `finish`, `result` (the analysis part of the night record) |
+| `js/recorder.js` | Recording controller: audio graph, interruptions, wake lock, states, `finishNight`; feeds `js/analysis.js`; browser APIs injected via `env` |
 | `js/app.js` | The page only; test hooks on `window.__snorewatch` |
 | `scripts/serve.js` | Local static server (`npm start`, 127.0.0.1 unless `HOST`) |
 | `scripts/evaluate.js` | Re-counts a downloaded night (current rules for its sensitivity, without the breath rule, background tests with stricter rules via `recount`, exact from 1.22.1 files (removed tests: recorded counts only), per hour with room noise, room findings) |
 | `scripts/eval-public.js` | ESC-50 benchmark (downloads ~600 MB outside the repo; clips faded in/out) |
+| `scripts/analyze.js` | `npm run analyze`: a WAV file (8/16/24/32-bit or float, any channels) through `js/analysis.js`; writes the data file (`source: "file"`) and the snores WAV |
+| `scripts/reference.js` | `npm run reference`: the reference outputs of four seeded synthetic nights (48 and 44.1 kHz, Normal and High) checked or rewritten (`--update`); `--wav <dir>` writes their input audio for a port |
 | `scripts/make-sample.js` | Writes the demo night as a WAV (`samples/`, not committed) to play next to a microphone |
-| `tests/*.test.js` | `node:test`: detector, share, serve, evaluate, report-format, recorder, noise |
+| `tests/*.test.js` | `node:test`: detector, share, serve, evaluate, report-format, recorder, noise, analyze, reference |
 | `tests/e2e.js` | Playwright/Chromium at 390 × 844 with a fake microphone playing the synthetic night |
-| `tests/fixtures/` | Synthetic reports only |
+| `tests/fixtures/` | Synthetic reports only; `reference/` holds the reference outputs (`docs/DETECTOR.md` §12) |
 | `research/` | Dataset studies outside the app (APSAA, PSG-Audio, Khan, YAMNet, the owner's nights): rerunnable scripts, data under `~/.cache/snorewatch`, results in `research/RESULTS.md` |
 | `docs/review-probes/` | Adapted probes from the first review, the second review's controller/store probe, the full demo run (1.22.0) and the third review's N1/N2 probe (C6 and N2 apply up to 1.23.0, C4 up to 1.24.0) |
 | `docs/archive/` | Logs of removed features, enough to restart them: automatic sensitivity (1.24.0) |
+| `docs/DETECTOR.md` | The detector's specification for a port, with tolerances for comparing a port's data files with the reference outputs |
 | `.github/workflows/` | `ci.yml` (`CI tests`: unit, lint, e2e), `pages.yml` (`Tests before deploy` → deploy, `main` only), `release.yml` (`Tests before release` → tag `vX.Y.Z`) |
 
 **How a night flows:**
 - **Recording:** `recorder.start()` creates the audio context and microphone (or demo
-  buffer), the two detectors and a wake lock (a refused or unsupported lock is shown).
+  buffer), the night's analysis (the two detectors) and a wake lock (a refused or unsupported
+  lock is shown).
 - **Interruptions:** context `suspended`/`interrupted`, track `mute`/`ended`, or 2 s without
   audio open a gap; the status says so; `resume()` is retried every second and on
   visibility; audio during a gap is not analysed. On return each detector
@@ -358,6 +370,8 @@ for f in js/*.js scripts/*.js tests/*.js; do node --check "$f"; done
 npm start                                  # http://localhost:8080
 npm run eval:public                        # ESC-50 benchmark, before detection changes
 npm run evaluate -- <report>.json          # re-count a downloaded night
+npm run analyze -- <recording>.wav         # a WAV file through the app's analysis: data file + snores WAV
+npm run reference                          # reference outputs unchanged? (-- --update after a detection change)
 research/setup.sh                          # research only: Python venv + YAMNet (see research/README.md)
 ```
 
@@ -390,6 +404,11 @@ sensitivity, its two rules, the per-sound `lowRiseDb`/`preRise*Db` and the test-
 are gone; the counting detector and the room-noise check are unchanged (verified event by event
 against 1.23.0). Restart log: [`docs/archive/auto-sensitivity.md`](archive/auto-sensitivity.md).
 
+**Done (2026-10-08):** after a code review for the Swift port, 1.24.1 removed leftovers of
+earlier detours and fixed the live pill after an interruption; 1.25.0 adds what the port needs:
+the specification [`docs/DETECTOR.md`](DETECTOR.md), the reference outputs a port must reproduce
+(§12 there) and `npm run analyze` to run the analysis on any WAV file. Counts unchanged.
+
 **Agreed next (owner):**
 1. **New session: YAMNet as a "second opinion" background test.** A design note first, for the
    owner's approval: where it runs (judging the detector's candidates on full-rate audio, turned
@@ -417,6 +436,7 @@ sounds"); for older files they are labelled approximate.
 on-phone interruption check (a call or Siri with the screen dark).
 
 **Future, separate from what is implemented:** the native iPhone app (owner, from
-2026-10-08), with saved nights and recovery, a history and room noise across nights
+2026-10-08; its detector follows [`docs/DETECTOR.md`](DETECTOR.md) and is checked against the
+reference outputs; the web app stays the test bed for detection changes), with saved nights and recovery, a history and room noise across nights
 (in-night checkpoints, a persisted schema, a clip byte budget); accounts or sync only after
 that and with an explicit privacy decision.

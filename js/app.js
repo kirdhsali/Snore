@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  const { encodeWav, REASONS } = window.SnoreCore;
+  const { encodeWav, wavPositions, REASONS } = window.SnoreCore;
   const Charts = window.SnoreCharts;
   const Share = window.SnoreShare;
   const Report = window.SnoreReport;
@@ -809,22 +809,8 @@
     return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
   }
 
-  const WAV_GAP_SEC = 0.4;
-
-  /** Where each kept snore starts in the downloaded WAV, in seconds. */
   // Snores in time order; they can be decided out of order (rhythm rescue).
   const inTimeOrder = (list) => [...list].sort((a, b) => a.start - b.start);
-
-  function wavPositions(snores) {
-    const pos = new Map();
-    let t = 0;
-    for (const x of snores) {
-      if (!x.clip) continue;
-      pos.set(x, t);
-      t += x.clip.length / x.clipRate + WAV_GAP_SEC;
-    }
-    return pos;
-  }
 
   // Downloads and the summary always describe the last finished night.
   const finished = () => night !== null;
@@ -837,7 +823,6 @@
     const wav = encodeWav(
       snores.map((x) => x.clip),
       snores[0].clipRate,
-      WAV_GAP_SEC,
     );
     download(`snores_${stamp()}.wav`, new Blob([wav], { type: 'audio/wav' }));
   });
