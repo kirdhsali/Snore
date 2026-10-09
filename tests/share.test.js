@@ -186,6 +186,27 @@ test('an interrupted night says so in the report file and the image; an uninterr
   assert.deepEqual(card({ elapsed: s.elapsed, captured: s.elapsed, gaps: [] }), whole);
 });
 
+test('the image and the report end at the time Stop was tapped, and say when their times are approximate', () => {
+  const s = demoSession();
+  const startWall = Date.UTC(2026, 8, 28, 21, 2);
+  const endWall = startWall + (s.elapsed + 120) * 1000; // the night's clock ran 2 min short of the phone's
+  const base = { startWall, elapsed: s.elapsed, snores: s.stats.snores, summary: s.summary, version: 't', sensitivity: 'normal' };
+  const c = textCanvas();
+  Share.drawShareCard(c.canvas, { ...base, endWall, timingNote: 'Note: …' });
+  const fmt = (ms) => new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  assert.ok(
+    c.texts.some((t) => t.startsWith(`${fmt(startWall)} – ${fmt(endWall)}`)),
+    c.texts.join(' | '),
+  );
+  assert.ok(c.texts.some((t) => /times approximate/.test(t)));
+  const plain = textCanvas();
+  Share.drawShareCard(plain.canvas, base);
+  assert.ok(!plain.texts.some((t) => /times approximate/.test(t)));
+  const html = reportFor(s, { endWall, timingNote: 'Note: the clocks differ.' });
+  assert.match(html, /<p class="tip interrupted">Note: the clocks differ\.<\/p>/);
+  assert.ok(html.includes(`<p class="meta">${fmt(startWall)} – ${fmt(endWall)} · `), 'the report ends at Stop too');
+});
+
 /** A room-noise profile as the recorder keeps it: `count` minutes, 9 octave bands, one band louder in `loud` minutes. */
 function noiseProfile(count, loud = new Set(), band = 6) {
   const bandsHz = [31.5, 63, 125, 250, 500, 1000, 2000, 4000, 8000];

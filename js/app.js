@@ -138,14 +138,15 @@
   });
 
   // ---------- session ----------
-  const recorder = Recorder.createRecorder({
+  const recorderOptions = {
     version: VERSION_TEXT,
     onState,
     onFrame: handleFrame,
     onEvent: handleEvent,
     onWakeLock: showRecordingStatus,
     onAudioClock: showRecordingStatus,
-  });
+  };
+  const recorder = Recorder.createRecorder(recorderOptions);
 
   function onState(state, rec) {
     const wasRunning = running;
@@ -218,16 +219,18 @@
     return n.source === 'mic' && Recorder.browserProcessing(n.microphone).length ? `Note: ${processingText(n.microphone)}` : '';
   }
 
-  /** A browser that delivers audio at another rate than it says: every time is off by `off`. */
+  /** A browser that delivers audio at another rate than it says: times are off by `off`. */
   function audioClockText(off) {
-    return `this browser delivers its audio ${fmtNum(Math.abs(off) * 100, 1)}% ${off > 0 ? 'faster' : 'slower'} than real time, so times, durations and counts are off by about that much.`;
+    const pct = `${fmtNum(Math.abs(off) * 100, 1)}% ${off > 0 ? 'faster' : 'slower'}`;
+    return `this browser delivers its audio ${pct} than real time, so times, durations and per-hour figures are off by about that much (and the sound is slightly distorted).`;
   }
 
   /** The report's note on its own timing, or '' when the audio clock and the phone's clock agree. */
   function timingNote(n) {
-    const off = Recorder.audioClockOff(n.audioClock);
-    if (off)
-      return `Note: ${audioClockText(off)} This has been seen on iPhones after Bluetooth headphones or a speaker connected or disconnected.`;
+    const off = Recorder.audioClockOff(n.audioClock); // its worst 5-minute window
+    if (off) {
+      return `Note: during at least part of the recording, ${audioClockText(off)} This has been seen on iPhones after Bluetooth headphones or a speaker connected or disconnected.`;
+    }
     const drift = n.clockSeconds - (n.endWall - n.startWall) / 1000;
     if (Math.abs(drift) > 60) {
       return `Note: the recording's own clock and the phone's clock differ by ${fmtSpan(Math.abs(drift))} (the phone's clock may have been set, or the browser timed the audio slightly off), so the start and end times may not match the recorded time exactly.`;
@@ -256,7 +259,7 @@
       );
     }
     if (s.source === 'mic' && Recorder.browserProcessing(s.microphone).length) issues.push(processingText(s.microphone));
-    const off = Recorder.audioClockOff(recorder.audioClock);
+    const off = Recorder.audioClockOff(recorder.audioClock, 'recent');
     if (off) issues.push(`${audioClockText(off)} Stopping and starting again may fix it.`);
     if (issues.length) setStatus(issues.map((t, i) => (i ? `Also, ${t}` : `Recording, but ${t}`)).join(' '), true);
     else setStatus(RECORDING_TEXT[s.source]);
@@ -353,8 +356,10 @@
     const n = session.stats.summary(session.detector.elapsed).snoreCount;
     const count = `${fmtNum(n)} snore${n === 1 ? '' : 's'}`;
     const g = session.gap;
+    // The audio clock warning comes after a few minutes, when the screen is long dark: say it here too.
+    const timing = Recorder.audioClockOff(recorder.audioClock, 'recent') ? ' · audio timing off, tap' : '';
     el.nightMeta.textContent = !g
-      ? `Recording · ${count}`
+      ? `Recording · ${count}${timing}`
       : g.reason === 'ended'
         ? 'Microphone off · tap, then Stop'
         : `Interrupted · trying to resume · ${count}`;
@@ -934,6 +939,11 @@
     },
     setLiveClipLimit(n) {
       liveClipLimit = n;
+    },
+    /** A shorter audio clock check (seconds before a verdict, window length); null restores it. */
+    setAudioClockCheck(minSec, windowSec) {
+      recorderOptions.clockCheckMinSec = minSec;
+      recorderOptions.clockWindowSec = windowSec;
     },
     get pendingCards() {
       return live ? live.newClips.length : 0;

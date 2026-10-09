@@ -228,7 +228,8 @@
 
     ctx.textAlign = 'left';
     // Times and coverage; a long night with interruptions (AM/PM times) takes a second line.
-    const header = [`${fmtTime(d.startWall)} – ${fmtTime(endOf(d))}`, ...cov.parts];
+    // The image's axis runs on the night's clock; when that clock is off, its times are approximate.
+    const header = [`${fmtTime(d.startWall)} – ${fmtTime(endOf(d))}`, ...cov.parts, ...(d.timingNote ? ['times approximate'] : [])];
     wrapParts(ctx, header, CARD_W - 2 * pad).forEach((text, i) => ctx.fillText(text, pad, 160 + i * 38, CARD_W - 2 * pad));
 
     // Hero number: the short-recording wording depends on the time actually recorded

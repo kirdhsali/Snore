@@ -26,8 +26,9 @@
  *      1.26.0 adds `microphone`: the processing the browser actually applied to the
  *      microphone (echo cancellation, noise suppression, automatic gain; channel count and
  *      sample rate), null for the demo and files. Older files lack it.
- *      1.27.0 adds `audioClock` ({sampleRate, ratio, checkedSeconds}: analysed audio per real
- *      second over continuous recording; null for files) and measures each interruption as the
+ *      1.27.0 adds `audioClock` ({sampleRate, ratio, worstRatio, checkedSeconds}: analysed audio
+ *      per real second over continuous recording, for the night and its worst 5-minute window;
+ *      null for files) and measures each interruption as the
  *      audio actually missing; episodes and the median interval no longer span interruptions.
  */
 (function (root, factory) {
@@ -99,6 +100,7 @@
         ? {
             sampleRate: night.audioClock.sampleRate,
             ratio: round(night.audioClock.ratio, 4),
+            worstRatio: round(night.audioClock.worstRatio, 4), // the window furthest from 1
             checkedSeconds: round(night.audioClock.checkedSeconds, 0),
           }
         : null,
