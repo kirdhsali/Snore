@@ -37,6 +37,7 @@
     reportRange: $('report-range'),
     verdict: $('verdict'),
     micNote: $('mic-note'),
+    timingNote: $('timing-note'),
     shadowNote: $('shadow-note'),
     reportTiles: $('report-tiles'),
     reportTimeline: $('report-timeline'),
@@ -143,6 +144,7 @@
     onFrame: handleFrame,
     onEvent: handleEvent,
     onWakeLock: showRecordingStatus,
+    onAudioClock: showRecordingStatus,
   });
 
   function onState(state, rec) {
@@ -216,6 +218,23 @@
     return n.source === 'mic' && Recorder.browserProcessing(n.microphone).length ? `Note: ${processingText(n.microphone)}` : '';
   }
 
+  /** A browser that delivers audio at another rate than it says: every time is off by `off`. */
+  function audioClockText(off) {
+    return `this browser delivers its audio ${fmtNum(Math.abs(off) * 100, 1)}% ${off > 0 ? 'faster' : 'slower'} than real time, so times, durations and counts are off by about that much.`;
+  }
+
+  /** The report's note on its own timing, or '' when the audio clock and the phone's clock agree. */
+  function timingNote(n) {
+    const off = Recorder.audioClockOff(n.audioClock);
+    if (off)
+      return `Note: ${audioClockText(off)} This has been seen on iPhones after Bluetooth headphones or a speaker connected or disconnected.`;
+    const drift = n.clockSeconds - (n.endWall - n.startWall) / 1000;
+    if (Math.abs(drift) > 60) {
+      return `Note: the recording's own clock and the phone's clock differ by ${fmtSpan(Math.abs(drift))} (the phone's clock may have been set, or the browser timed the audio slightly off), so the start and end times may not match the recorded time exactly.`;
+    }
+    return '';
+  }
+
   function showRecordingStatus() {
     if (!running || !session) return;
     if (dark) nightText();
@@ -223,21 +242,24 @@
     const wakeLockState = recorder.wakeLockState;
     if (s.gap && s.gap.reason === 'ended') {
       setStatus('The system switched the microphone off, so nothing is being recorded. Tap Stop for the report of the night so far.', true);
-    } else if (s.gap) {
-      setStatus('Recording interrupted: the system paused the microphone. Trying to resume…', true);
-    } else if (s.source === 'mic' && (wakeLockState === 'failed' || wakeLockState === 'unsupported')) {
-      // Both warnings when both apply: the processing one is only actionable now (another browser).
-      const processing = Recorder.browserProcessing(s.microphone).length ? ` Also, ${processingText(s.microphone)}` : '';
-      setStatus(
-        'Recording, but this browser did not let the app keep the screen on. If the screen locks, recording stops: set Auto-Lock to Never for tonight.' +
-          processing,
-        true,
-      );
-    } else if (s.source === 'mic' && Recorder.browserProcessing(s.microphone).length) {
-      setStatus(`Recording, but ${processingText(s.microphone)}`, true);
-    } else {
-      setStatus(RECORDING_TEXT[s.source]);
+      return;
     }
+    if (s.gap) {
+      setStatus('Recording interrupted: the system paused the microphone. Trying to resume…', true);
+      return;
+    }
+    // Every warning that applies: the processing one is only actionable now (another browser).
+    const issues = [];
+    if (s.source === 'mic' && (wakeLockState === 'failed' || wakeLockState === 'unsupported')) {
+      issues.push(
+        'this browser did not let the app keep the screen on. If the screen locks, recording stops: set Auto-Lock to Never for tonight.',
+      );
+    }
+    if (s.source === 'mic' && Recorder.browserProcessing(s.microphone).length) issues.push(processingText(s.microphone));
+    const off = Recorder.audioClockOff(recorder.audioClock);
+    if (off) issues.push(`${audioClockText(off)} Stopping and starting again may fix it.`);
+    if (issues.length) setStatus(issues.map((t, i) => (i ? `Also, ${t}` : `Recording, but ${t}`)).join(' '), true);
+    else setStatus(RECORDING_TEXT[s.source]);
   }
 
   // ---------- live ----------
@@ -577,6 +599,8 @@
     el.verdict.textContent = verdictText(sum);
     el.micNote.textContent = processingNote(n);
     el.micNote.hidden = !el.micNote.textContent;
+    el.timingNote.textContent = timingNote(n);
+    el.timingNote.hidden = !el.timingNote.textContent;
     el.shadowNote.hidden = false;
     const noBreath = sum.ignoredByReason['no-breath'] || 0;
     el.shadowNote.textContent =
@@ -721,6 +745,8 @@
         noiseBands: Noise.SHOWN_BANDS,
         noiseLines: (roomNoise(n) || { lines: [] }).lines,
         processingNote: processingNote(n),
+        timingNote: timingNote(n),
+        endWall: n.endWall, // the end the page shows (the image's axis still runs on the night's clock)
       };
       const canvas = Share.drawShareCard(document.createElement('canvas'), data);
       const png = await new Promise((r) => canvas.toBlob(r, 'image/png'));
@@ -811,6 +837,7 @@
       `Episodes: ${sum.episodes.length}${sum.longestEpisode ? `, longest ${fmtSpan(sum.longestEpisode)}` : ''}`,
       `Ignored sounds: ${sum.ignoredCount}`,
       processingNote(night),
+      timingNote(night),
     ]
       .filter(Boolean)
       .join('\n');

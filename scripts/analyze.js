@@ -81,6 +81,7 @@ function analyzeSamples(samples, sampleRate, { sensitivity = 'normal', startWall
     gaps: [],
     screenWakeLock: null,
     microphone: null,
+    audioClock: null,
     ...analysis.result(elapsed),
   });
   const report = toReport({ ...night, wavStarts: wavPositions(inTimeOrder(night.snores)) });

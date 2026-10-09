@@ -108,6 +108,14 @@ test('busiest period is found', () => {
   const snores = [100, 2000, 2010, 2020, 5000].map((start) => ({ start }));
   assert.deepEqual(Share.busiest(snores, 7200), { start: 1800, end: 3600, count: 3 });
   assert.equal(Share.busiest([], 7200), null);
+  // The last window ends with the night, not after it.
+  assert.deepEqual(
+    Share.busiest(
+      [7300, 7310].map((start) => ({ start })),
+      7400,
+    ),
+    { start: 7200, end: 7400, count: 2 },
+  );
 });
 
 test('report states how many isolated snores were not counted', () => {

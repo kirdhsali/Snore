@@ -142,6 +142,9 @@ async function main() {
         report.microphone.echoCancellation === null,
     );
     assert.ok(await page.isHidden('#mic-note'), 'no processing warning when the browser switched it off');
+    // The audio clock check needs a minute of recording; this one is shorter (1.27.0).
+    assert.ok(report.audioClock.sampleRate > 0 && report.audioClock.ratio === null, JSON.stringify(report.audioClock));
+    assert.ok(await page.isHidden('#timing-note'), 'no timing note when the clocks agree');
     const first = await page.evaluate(() => window.__snorewatch.night);
     assert.ok(first.frozen && /^night-/.test(first.id), `finished night is one frozen record: ${JSON.stringify(first)}`);
     assert.equal(first.snores, report.snores.length);

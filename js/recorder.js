@@ -21,6 +21,13 @@
   'use strict';
 
   const STALL_MS = 2000; // no audio for this long while recording counts as an interruption
+  // When audio returns after an interruption it is held this long before the gap's length is
+  // decided, so a backlog the page received late (it was busy) is counted as audio, not as a gap.
+  const SETTLE_MS = 500;
+  const MIN_GAP_SEC = 0.2; // less audio missing than this: it only arrived late, no interruption
+  // The audio clock check: analysed audio against real time over continuous recording.
+  const CLOCK_CHECK_MIN_SEC = 60;
+  const CLOCK_TOLERANCE = 0.02;
 
   const TAP_CODE = `class Tap extends AudioWorkletProcessor {
     constructor() { super(); this.buf = new Float32Array(2048); this.n = 0; }
@@ -127,6 +134,8 @@
       navigator: g.navigator,
       document: g.document,
       now: () => Date.now(),
+      // Monotonic: unaffected when the phone's clock is set (lengths and stall checks use it).
+      mono: () => (g.performance && g.performance.now ? g.performance.now() : Date.now()),
       setInterval: (f, ms) => g.setInterval(f, ms),
       clearInterval: (id) => g.clearInterval(id),
       timeZone: () => Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -140,11 +149,13 @@
    *   onState(state, recorder),      every state change
    *   onFrame(frame), onEvent(ev),   the main detector's frames and decided events (already counted)
    *   onWakeLock(state),             'on' | 'failed' | 'unsupported'
+   *   onAudioClock(recorder),        the audio clock check started or stopped finding a wrong rate
    *   env                            browser APIs (tests pass fakes)
    * }
    */
   function createRecorder(opts = {}) {
     const env = Object.assign(browserEnv(), opts.env);
+    if (opts.env && opts.env.now && !opts.env.mono) env.mono = opts.env.now; // a fake clock drives both
     const notify = (fn, ...args) => fn && fn(...args);
     let state = 'idle';
     let session = null;
@@ -233,17 +244,26 @@
       }
       s.watch = env.setInterval(() => {
         if (!live() || session !== s) return;
-        if (!s.gap && env.now() - s.lastSampleWall > STALL_MS) beginGap(s, 'stalled', s.lastSampleWall);
+        // Audio came back and then stopped again before the gap was decided: decide it now.
+        if (s.gap && s.held.length && env.mono() - s.gap.returned >= SETTLE_MS) resolveGap(s);
+        if (!s.gap && env.mono() - s.lastSampleMono > STALL_MS) beginGap(s, 'stalled');
         if (s.gap) tryResume(s);
+        const off = audioClockOff(audioClockOf(s)) !== 0;
+        if (off !== s.clockOff) {
+          s.clockOff = off;
+          notify(opts.onAudioClock, api);
+        }
       }, 1000);
     }
 
-    function beginGap(s, reason, at = env.now()) {
+    function beginGap(s, reason) {
       if (!live() || session !== s) return;
       if (s.gap) {
         if (reason === 'ended') s.gap.reason = 'ended'; // the worst case decides what the page says
       } else {
-        s.gap = { start: Math.min(at, env.now()), reason, clock: s.detector.clock };
+        closeClockSegment(s);
+        // The gap starts where the analysed audio ends: the last block before it.
+        s.gap = { start: s.lastAnalysedWall, reason, clock: s.detector.clock, returned: null };
       }
       tryResume(s);
       if (state === 'interrupted')
@@ -251,15 +271,68 @@
       else setState('interrupted');
     }
 
-    function endGap(s, at = env.now()) {
+    /**
+     * Decides the open gap: its length is the audio actually missing, i.e. the real time since
+     * the last analysed block minus the audio that came back since (held in `s.held`). Real time
+     * is the longer of the monotonic and the wall clock: the first ignores the phone's clock being
+     * set, the second keeps running while a phone sleeps. Audio that only arrived late leaves no
+     * gap. The held audio is then analysed after the gap. At Stop with nothing held, the gap runs
+     * to the end and the detectors do not resume.
+     */
+    function resolveGap(s) {
       const g = s.gap;
-      const sec = Math.max(0, (at - g.start) / 1000);
-      s.gaps.push({ start: g.start, end: at, reason: g.reason, clock: g.clock });
+      const rate = s.ctx.sampleRate;
+      const held = s.held;
+      const until = held.length ? s.heldLast : { mono: env.mono(), wall: env.now() };
+      const heldSec = held.reduce((sum, b) => sum + b.length, 0) / rate;
+      const realSec = Math.max(until.mono - s.lastAnalysedMono, until.wall - s.lastAnalysedWall) / 1000;
+      const missing = realSec - heldSec;
       s.gap = null;
-      // Events are timed on the night's clock: after the gap they continue `sec` later,
-      // and nothing is decided or confirmed across it.
-      s.analysis.addGap(g.clock, sec, state !== 'stopping');
+      s.held = [];
+      if (missing >= MIN_GAP_SEC || (!held.length && state === 'stopping')) {
+        const sec = Math.max(0, missing);
+        s.gaps.push({ start: g.start, end: g.start + sec * 1000, reason: g.reason, clock: g.clock });
+        // Events are timed on the night's clock: after the gap they continue `sec` later,
+        // and nothing is decided or confirmed across it.
+        s.analysis.addGap(g.clock, sec, held.length > 0 || state !== 'stopping');
+      }
+      for (const b of held) s.analysis.process(b);
+      if (held.length) {
+        s.lastAnalysedMono = until.mono;
+        s.lastAnalysedWall = until.wall;
+      }
       if (state === 'interrupted') setState('recording');
+    }
+
+    // ----- audio clock check -----
+    // Every time in the report comes from counting samples at the context's sample rate. If a
+    // browser delivers samples at another rate (seen on iPhones after Bluetooth route changes),
+    // analysed time runs faster or slower than real time. Measured over continuous recording,
+    // from the arrival of the segment's first block to its last.
+    function clockSample(s, samples, t) {
+      const c = s.clock;
+      if (c.segStart == null) {
+        c.segStart = t;
+        c.segAudio = 0;
+      } else c.segAudio += samples.length / s.ctx.sampleRate;
+      c.segEnd = t;
+    }
+
+    /** The audio clock so far: analysed audio per real second, or null before CLOCK_CHECK_MIN_SEC. */
+    function audioClockOf(s) {
+      const c = s.clock;
+      const open = c.segStart == null ? 0 : (c.segEnd - c.segStart) / 1000;
+      const real = c.real + open;
+      const audio = c.audio + (c.segStart == null ? 0 : c.segAudio);
+      return { sampleRate: s.ctx.sampleRate, ratio: real >= CLOCK_CHECK_MIN_SEC ? audio / real : null, checkedSeconds: real };
+    }
+
+    function closeClockSegment(s) {
+      const c = s.clock;
+      if (c.segStart == null) return;
+      c.audio += c.segAudio;
+      c.real += (c.segEnd - c.segStart) / 1000;
+      c.segStart = null;
     }
 
     // ----- start and stop -----
@@ -317,7 +390,13 @@
           shadows: null,
           gaps: [], // interruptions: {start, end} in ms since the epoch, the reason, and `clock` (events' time base)
           gap: null, // the interruption going on now
-          lastSampleWall: env.now(),
+          held: [], // audio that came back during `gap`, analysed once the gap is decided
+          heldLast: null, // {mono, wall} when the last held block arrived
+          lastSampleMono: env.mono(), // any block's arrival (the stall check)
+          lastAnalysedMono: env.mono(), // the last analysed block's arrival (gap lengths)
+          lastAnalysedWall: env.now(),
+          clock: { audio: 0, real: 0, segStart: null, segEnd: null, segAudio: 0 }, // the audio clock check
+          clockOff: false, // its verdict so far (the page is told when it changes)
           wakeLock: 'off',
           watch: null,
         };
@@ -331,13 +410,21 @@
         s.shadows = s.analysis.shadows;
         s.tap = await createTap(env, ctx, input, (samples) => {
           if (!live() || session !== s) return;
-          s.lastSampleWall = env.now();
+          const t = env.mono();
+          s.lastSampleMono = t;
           if (s.gap) {
             // Audio that arrives while the microphone is muted or the audio is suspended is not the room.
             if (!audioLive(s)) return;
-            endGap(s);
+            s.held.push(samples);
+            s.heldLast = { mono: t, wall: env.now() };
+            if (s.gap.returned == null) s.gap.returned = t;
+            if (t - s.gap.returned >= SETTLE_MS) resolveGap(s);
+            return;
           }
           s.analysis.process(samples);
+          s.lastAnalysedMono = t;
+          s.lastAnalysedWall = env.now();
+          clockSample(s, samples, t);
         });
         session = s;
         if (player) player.start();
@@ -358,13 +445,15 @@
       if (!live()) return null;
       const s = session;
       setState('stopping');
+      env.clearInterval(s.watch);
+      s.ctx.onstatechange = null;
+      // An open gap is decided first, so audio that already came back is analysed.
+      if (s.gap) resolveGap(s);
+      closeClockSegment(s);
       // Decides the open sounds (they arrive through onEvent) and wipes the audio the
       // detectors still hold: no audio other than the kept snore clips remains.
       s.elapsed = s.analysis.finish(); // seconds of audio actually analysed
       s.endWall = env.now();
-      env.clearInterval(s.watch);
-      s.ctx.onstatechange = null;
-      if (s.gap) endGap(s, s.endWall);
       s.wallElapsed = s.elapsed + gapSeconds(s); // the night's clock: analysed audio plus interruptions
       night = finishNight(s);
       try {
@@ -409,6 +498,7 @@
         gaps: s.gaps.slice(),
         screenWakeLock: s.wakeLock,
         microphone: s.microphone,
+        audioClock: audioClockOf(s),
         ...s.analysis.result(s.elapsed),
       });
     }
@@ -439,9 +529,23 @@
       get wakeLockState() {
         return wakeLockState;
       },
+      /** The night in progress's audio clock check (see audioClockOff), or null. */
+      get audioClock() {
+        return session ? audioClockOf(session) : null;
+      },
     };
     return api;
   }
 
-  return { createRecorder, browserProcessing, STALL_MS };
+  /**
+   * How far the audio clock is off, as a signed share (0.088 = audio ran 8.8 % fast), when it is
+   * off by more than CLOCK_TOLERANCE; otherwise (or before it could be checked) 0.
+   */
+  function audioClockOff(audioClock) {
+    if (!audioClock || audioClock.ratio == null) return 0;
+    const off = audioClock.ratio - 1;
+    return Math.abs(off) > CLOCK_TOLERANCE ? off : 0;
+  }
+
+  return { createRecorder, browserProcessing, audioClockOff, STALL_MS, SETTLE_MS, MIN_GAP_SEC, CLOCK_CHECK_MIN_SEC };
 });
