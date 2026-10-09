@@ -26,6 +26,10 @@
  *      1.26.0 adds `microphone`: the processing the browser actually applied to the
  *      microphone (echo cancellation, noise suppression, automatic gain; channel count and
  *      sample rate), null for the demo and files. Older files lack it.
+ *      1.27.0 adds `audioClock` ({sampleRate, ratio, worstRatio, checkedSeconds}: analysed audio
+ *      per real second over continuous recording, for the night and its worst 5-minute window;
+ *      null for files) and measures each interruption as the
+ *      audio actually missing; episodes and the median interval no longer span interruptions.
  */
 (function (root, factory) {
   const api = factory();
@@ -57,7 +61,7 @@
    * night: {
    *   version, source, startWall, endWall (ms), timeZone, capturedSeconds,
    *   gaps: [{start, end (ms), clock (s on the events' clock), reason}],
-   *   screenWakeLock, microphone (see js/recorder.js, or null), sensitivity, summary,
+   *   screenWakeLock, microphone (see js/recorder.js, or null), audioClock (or null), sensitivity, summary,
    *   snores: [events], ignored: [ignored-sound records],
    *   wavStarts: Map(event -> seconds in the WAV download) (optional),
    *   noise: {minuteSec, bandsHz, minutes: [{t, quietSec, backgroundDb, p10Db, p90Db, bandsDb, humHz, humDb}]} (optional),
@@ -90,6 +94,16 @@
       screenWakeLock: night.screenWakeLock,
       // What the browser applied to the microphone; the app asks for all processing off.
       microphone: night.microphone || null,
+      // Analysed audio per real second over continuous recording; far from 1 means the browser
+      // delivered audio at another rate than it said, so every time and duration is off.
+      audioClock: night.audioClock
+        ? {
+            sampleRate: night.audioClock.sampleRate,
+            ratio: round(night.audioClock.ratio, 4),
+            worstRatio: round(night.audioClock.worstRatio, 4), // the window furthest from 1
+            checkedSeconds: round(night.audioClock.checkedSeconds, 0),
+          }
+        : null,
       sensitivity: night.sensitivity,
       // Breath-noise rule the counts used (Normal 6 dB since 1.17.0; null = not checked).
       minBreathRiseDb: night.config && night.config.minBreathRiseDb != null ? night.config.minBreathRiseDb : null,

@@ -108,6 +108,14 @@ test('busiest period is found', () => {
   const snores = [100, 2000, 2010, 2020, 5000].map((start) => ({ start }));
   assert.deepEqual(Share.busiest(snores, 7200), { start: 1800, end: 3600, count: 3 });
   assert.equal(Share.busiest([], 7200), null);
+  // The last window ends with the night, not after it.
+  assert.deepEqual(
+    Share.busiest(
+      [7300, 7310].map((start) => ({ start })),
+      7400,
+    ),
+    { start: 7200, end: 7400, count: 2 },
+  );
 });
 
 test('report states how many isolated snores were not counted', () => {
@@ -176,6 +184,27 @@ test('an interrupted night says so in the report file and the image; an uninterr
   const whole = card({ elapsed: s.elapsed });
   assert.ok(!whole.some((t) => /interrupted|not recorded/.test(t)));
   assert.deepEqual(card({ elapsed: s.elapsed, captured: s.elapsed, gaps: [] }), whole);
+});
+
+test('the image and the report end at the time Stop was tapped, and say when their times are approximate', () => {
+  const s = demoSession();
+  const startWall = Date.UTC(2026, 8, 28, 21, 2);
+  const endWall = startWall + (s.elapsed + 120) * 1000; // the night's clock ran 2 min short of the phone's
+  const base = { startWall, elapsed: s.elapsed, snores: s.stats.snores, summary: s.summary, version: 't', sensitivity: 'normal' };
+  const c = textCanvas();
+  Share.drawShareCard(c.canvas, { ...base, endWall, timingNote: 'Note: …' });
+  const fmt = (ms) => new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  assert.ok(
+    c.texts.some((t) => t.startsWith(`${fmt(startWall)} – ${fmt(endWall)}`)),
+    c.texts.join(' | '),
+  );
+  assert.ok(c.texts.some((t) => /times approximate/.test(t)));
+  const plain = textCanvas();
+  Share.drawShareCard(plain.canvas, base);
+  assert.ok(!plain.texts.some((t) => /times approximate/.test(t)));
+  const html = reportFor(s, { endWall, timingNote: 'Note: the clocks differ.' });
+  assert.match(html, /<p class="tip interrupted">Note: the clocks differ\.<\/p>/);
+  assert.ok(html.includes(`<p class="meta">${fmt(startWall)} – ${fmt(endWall)} · `), 'the report ends at Stop too');
 });
 
 /** A room-noise profile as the recorder keeps it: `count` minutes, 9 octave bands, one band louder in `loud` minutes. */

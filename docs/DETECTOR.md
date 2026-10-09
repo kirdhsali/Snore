@@ -1,7 +1,7 @@
 # Snorewatch detector specification
 
 What a port (the native iPhone app) has to do to count snores exactly as the web app does,
-and how to check that it does. State: version 1.26.0. The code is the authority: when this
+and how to check that it does. State: version 1.27.0. The code is the authority: when this
 document and the code disagree, the code counts and this document gets fixed. Rules and their
 history: [`HANDOVER.md`](HANDOVER.md) §3–4.
 
@@ -274,14 +274,27 @@ When audio stops (the system suspends it, the microphone is muted or ends, or 2 
 without samples):
 - An interruption begins at the night's clock at that moment: `clock = elapsed + offset`,
   where `elapsed` includes the samples of the partial frame (§2).
-- Its wall-clock start is the moment audio stopped. For the 2 s watchdog, that is when the
-  last samples arrived.
-- When audio returns, its wall-clock length `sec` is known.
+- Its wall-clock start is where the analysed audio ended: the arrival of the last analysed
+  block before it (web app since 1.27.0, for every reason).
+- When audio returns, its length `sec` is the audio actually missing (web app since 1.27.0):
+  the real time from the last analysed block's arrival to the last returning block's arrival,
+  minus the returning audio. The returning audio is held for 0.5 s before this is decided; a new
+  interruption event during the hold, or a held block after a pause longer than one block plus
+  0.2 s, decides the gap so far and starts a new one. A
+  backlog that only arrived late (the page was busy) leaves less than 0.2 s missing: no
+  interruption, and the audio is analysed as if nothing happened. Real time is the longer of
+  the monotonic clock (unaffected when the phone's clock is set) and the wall clock (keeps
+  running while a phone sleeps), so a clock set back changes nothing, while a clock set forward
+  during an interruption lengthens that gap (it looks like a sleeping phone). Before 1.27.0 `sec` was the wall-clock time until the first
+  returning block arrived, which counted that block twice and a late backlog as both gap and
+  audio. A port measures `sec` from its own audio timestamps; what matters is that
+  `elapsed + Σ sec` equals the real length of the night.
 - The statistics record a gap `[clock, clock + sec)`.
 - The detector closes the open sound, rejects the waiting candidates, forgets the anchors and
   adds `sec` to `offset`.
-- If the night ends during the interruption, the gap is still recorded, but the detector does
-  not resume.
+- If the night ends during the interruption with no audio back, the gap runs to the end and is
+  recorded, but the detector does not resume. Audio that had come back and is held is decided
+  as above first (the detector resumes and the held audio is analysed).
 
 The audio stream itself continues: the partial frame, the floor and the rolling buffer carry
 over the gap. So a clip's 0.25 s before the sound can hold audio from before the gap.
@@ -315,8 +328,8 @@ clock):
 | `snoreSeconds`, `snorePercent` | sum of their durations; `100 · sum / max(elapsed, 1e−9)`, 0 when `elapsed ≤ 0` |
 | `meanRelDb`, `maxRelDb` | over confirmed snores (0 when none) |
 | `intensity` | `relDb < 15` light, `< 25` moderate, else loud |
-| `medianInterval` | `P50` of the start-to-start steps ≤ 60 s between consecutive confirmed snores, or null |
-| `episodes` | confirmed snores in start order joined while `start − episodeEnd ≤ 60 s`; kept with ≥ 3 snores. Each has `start`, `end`, `duration`, `count`, `meanRelDb` and `interval` (`(lastStart − start)/(count − 1)`) |
+| `medianInterval` | `P50` of the start-to-start steps ≤ 60 s between consecutive confirmed snores with no interruption between their starts (as for confirmation), or null |
+| `episodes` | confirmed snores in start order joined while `start − episodeEnd ≤ 60 s` and no interruption starts between the episode's last start and this start (`lastStart ≤ gap.start < start`; since 1.27.0, before which episodes spanned interruptions); kept with ≥ 3 snores. Each has `start`, `end`, `duration`, `count`, `meanRelDb` and `interval` (`(lastStart − start)/(count − 1)`) |
 | `longestEpisode` | longest episode duration (0 when none) |
 | `possibleCount` | snores − confirmed |
 | `rhythmCount` | confirmed snores rescued by the rhythm |
@@ -396,8 +409,9 @@ order). This only matters when comparing files as text.
 | `version`, `source` | app version; `mic`, `demo` or `file` (`npm run analyze`) |
 | `startedAt`, `endedAt`, `timeZone` | ISO times, IANA zone |
 | `wallSeconds`, `capturedSeconds` | 1 decimal |
-| `interruptions` | `start`, `end`, `seconds` (1 decimal), `offsetSec` (night's clock, 2 decimals), `reason` |
+| `interruptions` | `start` (where the analysed audio ended), `end` (`start` plus the missing audio, §7; since 1.27.0), `seconds` (1 decimal), `offsetSec` (night's clock, 2 decimals), `reason` |
 | `screenWakeLock` | web only |
+| `audioClock` | web only (since 1.27.0): `sampleRate` (the context's), `ratio` (analysed audio per real second over all continuous recording, 4 decimals), `worstRatio` (the 5-minute window furthest from 1, 4 decimals; a rate change partway through shows here), each null before 150 s of continuous recording, `checkedSeconds` (0 decimals). Far from 1 means the browser delivered audio at another rate than it said; every time and duration is then off by that factor. null for `file` |
 | `microphone` | web only (since 1.26.0): what the browser applied to the microphone, read back with `getSettings()`: `echoCancellation`, `noiseSuppression`, `autoGainControl` (true/false, a mode string such as `"all"`, or null when not reported), `channelCount`, `sampleRate` (null when not reported); null for `demo` and `file` |
 | `sensitivity`, `minBreathRiseDb` | the night's settings |
 | `summary` | as §8, **not rounded** |

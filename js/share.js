@@ -93,6 +93,11 @@
     return { gaps, captured, span: parts.join(' · '), parts };
   }
 
+  /** The night's end as the page shows it: when Stop was tapped (older callers: start plus the night's clock). */
+  function endOf(d) {
+    return d.endWall != null ? d.endWall : d.startWall + d.elapsed * 1000;
+  }
+
   /** The busiest half hour (or tenth of a short session): {start, end, count}. */
   function busiest(snores, elapsed) {
     if (!snores.length) return null;
@@ -103,7 +108,9 @@
       counts.set(b, (counts.get(b) || 0) + 1);
     }
     let best = null;
-    for (const [b, n] of counts) if (!best || n > best.count) best = { start: b * size, end: (b + 1) * size, count: n };
+    // The last window ends with the night, not after it.
+    for (const [b, n] of counts)
+      if (!best || n > best.count) best = { start: b * size, end: Math.min((b + 1) * size, Math.max(elapsed, b * size)), count: n };
     return best;
   }
 
@@ -221,7 +228,8 @@
 
     ctx.textAlign = 'left';
     // Times and coverage; a long night with interruptions (AM/PM times) takes a second line.
-    const header = [`${fmtTime(d.startWall)} – ${fmtTime(d.startWall + d.elapsed * 1000)}`, ...cov.parts];
+    // The image's axis runs on the night's clock; when that clock is off, its times are approximate.
+    const header = [`${fmtTime(d.startWall)} – ${fmtTime(endOf(d))}`, ...cov.parts, ...(d.timingNote ? ['times approximate'] : [])];
     wrapParts(ctx, header, CARD_W - 2 * pad).forEach((text, i) => ctx.fillText(text, pad, 160 + i * 38, CARD_W - 2 * pad));
 
     // Hero number: the short-recording wording depends on the time actually recorded
@@ -651,7 +659,7 @@ tr:last-child td{border-bottom:0}
   function buildReportHtml(d) {
     const sum = d.summary;
     const cov = coverage(d);
-    const end = d.startWall + d.elapsed * 1000;
+    const end = endOf(d);
     const long = d.elapsed >= 3600;
     const at = (t) => fmtTime(d.startWall + t * 1000, !long);
     const tl = timelineSvg(d);
@@ -708,6 +716,7 @@ ${nClips ? '<p class="tip">This file contains ' + nClips + ' snore recordings yo
 <p class="verdict">${esc(verdict)}</p>
 ${interrupted ? `<p class="tip interrupted">${esc(interrupted)}</p>` : ''}
 ${d.processingNote ? `<p class="tip interrupted">${esc(d.processingNote)}</p>` : ''}
+${d.timingNote ? `<p class="tip interrupted">${esc(d.timingNote)}</p>` : ''}
 ${possible ? `<p class="note">${esc(possible)}</p>` : ''}
 ${d.heroImage ? `<img class="hero" src="${d.heroImage}" alt="The night as a star map: each snore is a dot, placed by time and loudness">` : ''}
 <div class="tiles">

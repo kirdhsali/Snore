@@ -1,6 +1,6 @@
 # Snorewatch handover
 
-State at version **1.26.0** (2026-10-09, deployed to GitHub Pages from `main`). The owner is
+State at version **1.27.0** (2026-10-09, deployed to GitHub Pages from `main`). The owner is
 porting the app to a native iPhone app; the web app stays the test bed for making the detector
 more reliable. The detector is specified in [`docs/DETECTOR.md`](DETECTOR.md), with reference
 outputs a port must reproduce.
@@ -165,6 +165,7 @@ real-night phase 1.12.5–1.22.3) with their reasons: [`archive/history.md`](arc
 | 1.25.0 | #62 | For the Swift port: the specification `docs/DETECTOR.md`; the night's analysis moved out of the recorder into `js/analysis.js`; `npm run analyze` (a WAV file through it: data file and snores WAV); reference outputs of four synthetic nights (`npm run reference`, `tests/fixtures/reference/`) that a port compares itself with; counts unchanged |
 | — | #63 | Owner decisions after the code review: the knock test stays in the background, `npm run evaluate` keeps reading old files; older history of the handover, verification record and review response moved to `docs/archive/`; the review response now gives each finding's status at 1.25.0; smoke test brought up to date |
 | 1.26.0 | #64 | The browser's actual microphone processing: the app asks for echo cancellation, noise suppression and automatic gain off but never checked; it now reads back what the browser applied (`getSettings()`), stores it in the data file (`microphone`), warns while recording, in the report, the shared report and the copied summary when any of it stayed on, and `npm run evaluate` prints it. Prompted by a friend's test night with much background counted (owner, 2026-10-09); counts unchanged |
+| 1.27.0 | #65 | The night's timekeeping, after a tester saw times longer than the night (owner, 2026-10-09). An interruption is now the audio actually missing (real time minus the audio that came back, decided 0.5 s after audio returns): a backlog the page received late is analysed and leaves no gap, a second busy pause is measured on its own, an interruption right after audio returned opens its own gap, and the first returning block is no longer counted twice. Lengths use the monotonic clock or, when longer (a sleeping phone), the wall clock: a clock set back changes nothing and no gap is negative; a clock set forward during an interruption cannot be told from a sleeping phone and lengthens that gap. An audio clock check compares analysed audio with real time over continuous recording, per 5-minute window (verdict after 150 s; `audioClock` with `ratio` and `worstRatio` in the data file); off by more than 2 % it warns while recording, also on the dark screen, and in the report (the iPhone Bluetooth sample-rate bugs). A report note when the recording's clock and the phone's clock differ by more than a minute. **Owner decision:** episodes and the typical interval no longer span an interruption (confirmation already did not). The share image and report end at the time Stop was tapped, like the page (the image says "times approximate" when the timing note applies), and the busiest window ends with the night. Counts unchanged for nights without interruptions (reference outputs identical); where the page was only busy, the backlog is now analysed and counts can differ |
 
 ## 5. Architecture
 
@@ -214,16 +215,21 @@ js/app.js (page) ◄── onState / onFrame / onEvent / onWakeLock
   buffer), the night's analysis (the two detectors) and a wake lock (a refused or unsupported
   lock is shown).
 - **Interruptions:** context `suspended`/`interrupted`, track `mute`/`ended`, or 2 s without
-  audio open a gap; the status says so; `resume()` is retried every second and on
-  visibility; audio during a gap is not analysed. On return each detector
+  audio open a gap at the last analysed block; the status says so; `resume()` is retried every
+  second and on visibility; audio that arrives while the context or track is not live is
+  dropped. Returning audio is held for 0.5 s, then the gap is the real time since the last
+  analysed block minus that audio (none below 0.2 s: it only arrived late); an event during
+  the hold decides the gap first and opens a new one (1.27.0). Then each detector
   `resumeAfterGap()` (closes the open sound, rejects waiting candidates, drops anchors,
-  shifts later events) and each `SessionStats.addGap()`.
+  shifts later events), each `SessionStats.addGap()`, and the held audio is analysed. At
+  Stop an open gap is decided the same way; with nothing held it runs to Stop.
 - **Stop:** flush, wipe buffers (`release()`), build one
   frozen night record (wall times, time zone, gaps, configuration, summary, events, noise
   profile, background tests with their snores and set-aside sounds). The report, sharing
   and downloads read only this record; a new or failed Start cannot change it.
 - **Exports:** JSON via `toReport` (schema 2; top level incl. `timeZone`, `interruptions`,
-  `microphone` (the browser's applied processing, since 1.26.0), `minBreathRiseDb`, `noise`; per sound the features incl. `breathRiseDb`, `onsetJumpDb`,
+  `microphone` (the browser's applied processing, since 1.26.0), `audioClock` (since 1.27.0),
+  `minBreathRiseDb`, `noise`; per sound the features incl. `breathRiseDb`, `onsetJumpDb`,
   `wavStartSec`; `shadows.<test>` with its rules, summary, snores and `setAside`, each sound
   with every feature and, for snores, `rhythmRescued` since 1.22.1; older files may also hold
   `lowRiseDb`, `preRise*Db`, `shadows.auto` with `levels` and test-clip positions); snores
@@ -252,7 +258,7 @@ js/app.js (page) ◄── onState / onFrame / onEvent / onWakeLock
 - **Second review leftovers:** the night record is only shallowly frozen (C4); the gap edge
   (the partial frame and the rolling buffer carry over an interruption, `DETECTOR.md` §7;
   `elapsed` read after `release()`).
-- **[owner] decision needed:** should episodes split at an interruption?
+- Episodes split at an interruption since 1.27.0 **[owner, 2026-10-09]**.
 - **[suspected] Phone load:** two detectors on the same audio (since 1.24.0; no background
   test keeps clips any more); CPU, battery and memory on an iPhone are not measured. Clips are capped by count (1500), not bytes; event metadata of all detectors
   is unbounded (R6). The third review measured a worst case in Node: 1,500 four-second
@@ -353,7 +359,8 @@ earlier detours and fixed the live pill after an interruption; 1.25.0 adds what 
 the specification [`docs/DETECTOR.md`](DETECTOR.md), the reference outputs a port must reproduce
 (§12 there) and `npm run analyze` to run the analysis on any WAV file. Counts unchanged.
 
-**Done (2026-10-09):** 1.26.0 records the browser's actual microphone processing (a friend's test
+**Done (2026-10-09):** 1.27.0 fixes the night's timekeeping (interruptions as missing audio,
+the audio clock check, episodes split at interruptions; §4). 1.26.0 records the browser's actual microphone processing (a friend's test
 night kept much background; whether his browser left noise suppression on was unknown). A
 strategy review of the detector is under way (advisor session and an independent ChatGPT
 review); the next detector task follows from it and may replace item 1 below.
@@ -381,7 +388,7 @@ files: also the High re-count 3 / 4.5 / 6 dB and its clips). These
 re-counts are exact for nights recorded with 1.22.1 or later ("re-counted from its stored
 sounds"); for older files they are labelled approximate.
 
-**Later / owner's decisions pending:** room-noise wording; episodes at interruptions; the
+**Later / owner's decisions pending:** room-noise wording; the
 on-phone interruption check (a call or Siri with the screen dark).
 
 **Future, separate from what is implemented:** the native iPhone app (owner, from

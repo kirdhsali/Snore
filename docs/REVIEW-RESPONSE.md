@@ -43,7 +43,7 @@ Status values: fixed · partly fixed · moot (the code it concerned is gone) · 
 
 | Point | Status at 1.25.0 |
 | --- | --- |
-| Episodes join across an interruption | **Open:** owner decision needed |
+| Episodes join across an interruption | **Fixed in 1.27.0** (owner decision 2026-10-09): episodes and the median interval stop at interruptions |
 | Gap edge: the partial frame and the rolling buffer carry over an interruption; Stop reads `elapsed` after `release()` | **Deferred.** The behaviour is now specified ([`DETECTOR.md`](DETECTOR.md) §7), so the native app can match or change it deliberately |
 | Saved-night recovery, history | **Moved to the native iPhone app** (owner, 2026-10-08) |
 | Architecture for expansion | **Done** for the port: recorder controller, frozen night record, one data format, the night's analysis in `js/analysis.js` (1.25.0), the detector specification. Kept: plain UMD files, no ES modules |

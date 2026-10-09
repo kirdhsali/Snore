@@ -11,6 +11,7 @@
  "interruptions": [],
  "screenWakeLock": null,
  "microphone": null,
+ "audioClock": null,
  "sensitivity": "high",
  "minBreathRiseDb": 6,
  "summary": {

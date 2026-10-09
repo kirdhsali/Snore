@@ -4,14 +4,21 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Synth = require('../js/synth.js');
-const { createRecorder, browserProcessing } = require('../js/recorder.js');
+const { createRecorder, browserProcessing, audioClockOff } = require('../js/recorder.js');
+const { SessionStats } = require('../js/stats.js');
 const { toReport } = require('../js/report-format.js');
 const { recount } = require('../scripts/evaluate.js');
 const { analyzeSamples } = require('../scripts/analyze.js');
 
-/** Minimal stand-ins for AudioContext, a microphone stream and the page. */
-function fakeBrowser({ denyMic = false } = {}) {
+/**
+ * Minimal stand-ins for AudioContext, a microphone stream and the page. The context says
+ * 16 kHz; `realRate` is the rate the fake microphone really delivers per second of the clock
+ * (another value models a browser that reports the wrong rate). `env.mono` is the monotonic
+ * clock, `env.now` the phone's clock, which `shiftWall` can set forward or back.
+ */
+function fakeBrowser({ denyMic = false, realRate = 16000 } = {}) {
   let now = Date.parse('2026-10-01T22:00:00Z');
+  let wallShift = 0;
   let tick = null;
   let processor = null;
   const listeners = (obj) => {
@@ -57,7 +64,8 @@ function fakeBrowser({ denyMic = false } = {}) {
       },
     },
     document: listeners({ visibilityState: 'visible' }),
-    now: () => now,
+    now: () => now + wallShift,
+    mono: () => now,
     setInterval: (fn) => ((tick = fn), 1),
     clearInterval: () => (tick = null),
     timeZone: () => 'Europe/Berlin',
@@ -66,12 +74,22 @@ function fakeBrowser({ denyMic = false } = {}) {
     env,
     track,
     advance: (ms) => (now += ms),
+    /** The microphone starts delivering at another rate (a Bluetooth route change). */
+    setRealRate: (r) => (realRate = r),
+    /** The phone's clock is set (or the phone slept): only `env.now` moves. */
+    shiftWall: (ms) => (wallShift += ms),
     tick: () => tick && tick(),
-    /** Plays samples into the recorder, as the audio graph would, in 4096-sample blocks. */
+    /** Plays samples into the recorder, as the audio graph would, in 4096-sample blocks; a block arrives once its audio has been captured. */
     feed(samples) {
       for (let i = 0; i < samples.length; i += 4096) {
+        now += (Math.min(4096, samples.length - i) / realRate) * 1000;
         processor.onaudioprocess({ inputBuffer: { getChannelData: () => samples.subarray(i, i + 4096) } });
-        now += (4096 / 16000) * 1000;
+      }
+    },
+    /** Delivers samples all at once, as a page that was busy receives its backlog. */
+    burst(samples) {
+      for (let i = 0; i < samples.length; i += 4096) {
+        processor.onaudioprocess({ inputBuffer: { getChannelData: () => samples.subarray(i, i + 4096) } });
       }
     },
   };
@@ -337,4 +355,210 @@ test('a screen lock that arrives after Stop, or for an earlier night, is release
   assert.equal(rec.wakeLockState, 'on');
   rec.stop();
   assert.deepEqual(released, ['late', 'old night', 'this night']);
+});
+
+const wallSec = (n) => (n.endWall - n.startWall) / 1000;
+const lostSec = (n) => n.gaps.reduce((t, g) => t + (g.end - g.start) / 1000, 0);
+
+test('audio that only arrived late is analysed and leaves no interruption: the night is not longer than it was', async () => {
+  const b = fakeBrowser();
+  const rec = createRecorder({ env: b.env });
+  await rec.start();
+  const audio = Synth.demoScenario(16000).samples;
+  b.feed(audio.subarray(0, 16000 * 20));
+  // The page is busy for 3 s: no blocks arrive, the watchdog notices a stall …
+  b.advance(3000);
+  b.tick();
+  assert.equal(rec.gapReason, 'stalled');
+  // … then the 3 s of audio the browser kept arrive at once, and audio flows on.
+  b.burst(audio.subarray(16000 * 20, 16000 * 23));
+  b.feed(audio.subarray(16000 * 23, 16000 * 40));
+  assert.equal(rec.state, 'recording');
+  const night = rec.stop();
+  assert.equal(night.gaps.length, 0, 'nothing was missing');
+  assert.ok(Math.abs(night.capturedSeconds - 40) < 0.3, `analysed ${night.capturedSeconds} s`);
+  assert.ok(Math.abs(night.clockSeconds - wallSec(night)) < 0.3, `clock ${night.clockSeconds} s, wall ${wallSec(night)} s`);
+});
+
+test('an interruption is the audio actually missing: recorded plus not recorded equals the night', async () => {
+  const b = fakeBrowser();
+  const rec = createRecorder({ env: b.env });
+  await rec.start();
+  const audio = Synth.demoScenario(16000).samples;
+  b.feed(audio.subarray(0, 16000 * 10));
+  for (let k = 0; k < 20; k++) {
+    // 5 s without audio (lost, not late), noticed by the watchdog, then 10 s of audio.
+    b.advance(5000);
+    b.tick();
+    b.feed(audio.subarray(0, 16000 * 10));
+  }
+  const night = rec.stop();
+  assert.equal(night.gaps.length, 20);
+  for (const g of night.gaps) assert.ok(Math.abs((g.end - g.start) / 1000 - 5) < 0.01, `gap ${(g.end - g.start) / 1000} s`);
+  // Before 1.27.0 each gap also counted its first returning block (here 0.256 s) twice: 5.1 s in all.
+  // What is left is the analysis's last partial frame at Stop (16 ms here).
+  const sum = night.capturedSeconds + lostSec(night);
+  assert.ok(Math.abs(sum - wallSec(night)) < 0.05, `captured ${night.capturedSeconds} + lost ${lostSec(night)} vs wall ${wallSec(night)}`);
+  assert.ok(Math.abs(night.clockSeconds - wallSec(night)) < 0.05);
+});
+
+test("the phone's clock being set does not change any length; a phone asleep during a gap still counts the gap", async () => {
+  const b = fakeBrowser();
+  const rec = createRecorder({ env: b.env });
+  await rec.start();
+  const audio = Synth.demoScenario(16000).samples;
+  b.feed(audio.subarray(0, 16000 * 10));
+  // The clock is set back an hour during an interruption of 4 s.
+  b.advance(4000);
+  b.tick();
+  b.shiftWall(-3600 * 1000);
+  b.feed(audio.subarray(0, 16000 * 10));
+  // The phone sleeps during an interruption: its monotonic clock pauses, the wall clock runs 60 s.
+  b.tick();
+  b.advance(2500);
+  b.tick();
+  assert.equal(rec.gapReason, 'stalled');
+  b.shiftWall(60 * 1000);
+  b.feed(audio.subarray(0, 16000 * 10));
+  const night = rec.stop();
+  const secs = night.gaps.map((g) => (g.end - g.start) / 1000);
+  assert.equal(secs.length, 2);
+  assert.ok(Math.abs(secs[0] - 4) < 0.01, `first gap ${secs[0]} s, not negative`);
+  assert.ok(Math.abs(secs[1] - 62.5) < 0.01, `second gap ${secs[1]} s: the wall clock's 60 s of sleep count`);
+  assert.ok(night.gaps.every((g) => g.end >= g.start));
+  assert.ok(Math.abs(night.clockSeconds - (30 + 4 + 62.5)) < 0.05, `clock ${night.clockSeconds}`);
+  // Known limit: a clock set forward during an interruption looks like a sleeping phone, so the
+  // gap gets longer by the shift (here the 60 s above would be the same if the clock had been set).
+});
+
+test('a browser that delivers audio at another rate than it says is caught by the audio clock check', async () => {
+  // The context says 16 kHz, the microphone delivers 17,440 samples per second: audio runs 9 % fast.
+  const b = fakeBrowser({ realRate: 17440 });
+  const seen = [];
+  const rec = createRecorder({ env: b.env, onAudioClock: (r) => seen.push(audioClockOff(r.audioClock, 'recent')) });
+  await rec.start();
+  const audio = Synth.demoScenario(16000).samples;
+  for (let k = 0; k < 4; k++) b.feed(audio.subarray(0, 16000 * 30));
+  b.tick();
+  assert.equal(rec.audioClock.ratio, null, 'not judged before 150 s of real time (110 s so far)');
+  assert.equal(seen.length, 0);
+  for (let k = 0; k < 6; k++) b.feed(audio.subarray(0, 16000 * 30));
+  b.tick();
+  assert.ok(Math.abs(rec.audioClock.recentRatio - 1.09) < 0.002, `ratio ${rec.audioClock.recentRatio}`);
+  assert.equal(seen.length, 1, 'the page is told once');
+  assert.ok(Math.abs(seen[0] - 0.09) < 0.002);
+  const night = rec.stop();
+  const file = JSON.parse(JSON.stringify(toReport(night)));
+  assert.equal(file.audioClock.sampleRate, 16000);
+  assert.ok(Math.abs(file.audioClock.ratio - 1.09) < 0.002);
+  assert.ok(Math.abs(file.audioClock.worstRatio - 1.09) < 0.002);
+  assert.ok(file.audioClock.checkedSeconds >= 270);
+  assert.ok(Math.abs(audioClockOff(night.audioClock) - 0.09) < 0.002);
+  assert.equal(audioClockOff(null), 0);
+  assert.equal(audioClockOff({ ratio: null, worstRatio: null }), 0);
+});
+
+test('a rate change partway through the night is caught by its window, not averaged away', async () => {
+  const b = fakeBrowser();
+  const seen = [];
+  const rec = createRecorder({ env: b.env, onAudioClock: (r) => seen.push(audioClockOff(r.audioClock, 'recent')) });
+  await rec.start();
+  const audio = Synth.demoScenario(16000).samples;
+  for (let k = 0; k < 40; k++) b.feed(audio.subarray(0, 16000 * 30)); // 20 min as it should be
+  b.tick();
+  assert.equal(seen.length, 0);
+  b.setRealRate(17440); // Bluetooth headphones connect: audio now runs 9 % fast
+  for (let k = 0; k < 20; k++) b.feed(audio.subarray(0, 16000 * 30));
+  b.tick();
+  assert.equal(seen.length, 1, 'warned while recording');
+  const night = rec.stop();
+  assert.ok(night.audioClock.ratio < 1.04, `the whole night averages to ${night.audioClock.ratio}`);
+  assert.ok(Math.abs(night.audioClock.worstRatio - 1.09) < 0.005, `worst window ${night.audioClock.worstRatio}`);
+  assert.ok(Math.abs(audioClockOff(night.audioClock) - 0.09) < 0.005, 'the report names the audio clock');
+});
+
+test('a correct audio clock with interruptions raises no warning', async () => {
+  const b = fakeBrowser();
+  const seen = [];
+  const rec = createRecorder({ env: b.env, onAudioClock: () => seen.push(1) });
+  await rec.start();
+  const audio = Synth.demoScenario(16000).samples;
+  for (let k = 0; k < 12; k++) {
+    b.feed(audio.subarray(0, 16000 * 30));
+    b.advance(5000); // 5 s lost
+    b.tick();
+  }
+  b.feed(audio.subarray(0, 16000 * 30));
+  const night = rec.stop();
+  assert.equal(night.gaps.length, 12);
+  assert.ok(Math.abs(night.audioClock.ratio - 1) < 0.005, `ratio ${night.audioClock.ratio}`);
+  assert.equal(audioClockOff(night.audioClock), 0);
+  assert.deepEqual(seen, [], 'the gaps are not taken for slow audio');
+});
+
+test('an interruption right after audio came back opens its own gap; the silence of a muted microphone is not analysed', async () => {
+  for (const event of ['mute', 'ended']) {
+    const b = fakeBrowser();
+    const rec = createRecorder({ env: b.env });
+    await rec.start();
+    const audio = Synth.demoScenario(16000).samples;
+    b.feed(audio.subarray(0, 16000 * 20));
+    b.advance(3000);
+    b.tick(); // stalled
+    b.feed(audio.subarray(0, 4096)); // one block comes back and is held …
+    if (event === 'mute')
+      b.track.muted = true; // … and the microphone goes quiet before the gap is decided
+    else b.track.readyState = 'ended';
+    b.track.dispatch(event);
+    assert.equal(rec.state, 'interrupted');
+    for (let k = 0; k < 60; k++) {
+      b.feed(new Float32Array(16000)); // the silence a muted or ended track renders
+      b.tick();
+    }
+    assert.equal(rec.state, 'interrupted', `still interrupted after '${event}'`);
+    const night = rec.stop();
+    assert.deepEqual(
+      night.gaps.map((g) => g.reason),
+      ['stalled', event === 'mute' ? 'muted' : 'ended'],
+    );
+    assert.ok(Math.abs(night.capturedSeconds - 20.256) < 0.05, `${event}: analysed ${night.capturedSeconds} s`);
+    assert.ok(Math.abs(night.clockSeconds - wallSec(night)) < 0.05);
+  }
+});
+
+test('a page that is busy twice after an interruption leaves no false gap', async () => {
+  const b = fakeBrowser();
+  const rec = createRecorder({ env: b.env });
+  await rec.start();
+  const audio = Synth.demoScenario(16000).samples;
+  b.feed(audio.subarray(0, 16000 * 20));
+  b.advance(3000);
+  b.tick(); // stalled: the page was busy for 3 s
+  b.burst(audio.subarray(0, 16000 * 3)); // its backlog arrives and is held
+  b.advance(3000); // busy again for 3 s before the gap was decided
+  b.burst(audio.subarray(0, 16000 * 3)); // the second backlog
+  b.feed(audio.subarray(0, 16000 * 20));
+  const night = rec.stop();
+  assert.equal(night.gaps.length, 0, `gaps ${JSON.stringify(night.gaps.map((g) => (g.end - g.start) / 1000))}`);
+  assert.ok(Math.abs(night.clockSeconds - wallSec(night)) < 0.3, `clock ${night.clockSeconds} s, wall ${wallSec(night)} s`);
+});
+
+test('episodes and the typical interval do not span an interruption', () => {
+  const stats = new SessionStats();
+  const snore = (start) => ({ isSnore: true, start, end: start + 1, duration: 1, relDb: 20 });
+  for (const t of [0, 4, 8]) stats.add(snore(t));
+  stats.addGap(10, 30);
+  for (const t of [31, 35, 39]) stats.add(snore(t));
+  const sum = stats.summary(40);
+  assert.equal(sum.snoreCount, 6);
+  assert.deepEqual(
+    sum.episodes.map((e) => [e.start, e.end, e.count]),
+    [
+      [0, 9, 3],
+      [31, 40, 3],
+    ],
+    'two episodes, split at the interruption (one of 40 s before 1.27.0)',
+  );
+  assert.equal(sum.longestEpisode, 9);
+  assert.equal(sum.medianInterval, 4, 'the 23 s across the gap is not an interval');
 });

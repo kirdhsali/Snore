@@ -112,7 +112,8 @@
       const eps = [];
       let cur = null;
       for (const s of this.confirmed) {
-        if (cur && s.start - cur.end <= this.episodeGapSec) {
+        // An episode ends at an interruption: its length is then audio that was heard (1.27.0).
+        if (cur && s.start - cur.end <= this.episodeGapSec && !this._acrossGap(cur.lastStart, s.start)) {
           cur.end = Math.max(cur.end, s.end);
           cur.lastStart = s.start;
           cur.count++;
@@ -154,7 +155,7 @@
       const intervals = [];
       for (let i = 1; i < n; i++) {
         const gap = snores[i].start - snores[i - 1].start;
-        if (gap <= this.episodeGapSec) intervals.push(gap);
+        if (gap <= this.episodeGapSec && !this._acrossGap(snores[i - 1].start, snores[i].start)) intervals.push(gap);
       }
       const ignoredByReason = {};
       for (const e of this.ignored) ignoredByReason[e.reason] = (ignoredByReason[e.reason] || 0) + 1;

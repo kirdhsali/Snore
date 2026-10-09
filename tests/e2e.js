@@ -142,6 +142,9 @@ async function main() {
         report.microphone.echoCancellation === null,
     );
     assert.ok(await page.isHidden('#mic-note'), 'no processing warning when the browser switched it off');
+    // The audio clock check needs a minute of recording; this one is shorter (1.27.0).
+    assert.ok(report.audioClock.sampleRate > 0 && report.audioClock.ratio === null, JSON.stringify(report.audioClock));
+    assert.ok(await page.isHidden('#timing-note'), 'no timing note when the clocks agree');
     const first = await page.evaluate(() => window.__snorewatch.night);
     assert.ok(first.frozen && /^night-/.test(first.id), `finished night is one frozen record: ${JSON.stringify(first)}`);
     assert.equal(first.snores, report.snores.length);
@@ -354,6 +357,46 @@ async function main() {
     assert.equal(proc.microphone.noiseSuppression, true);
     assert.equal(proc.microphone.autoGainControl, true);
     await page.evaluate(() => (MediaStreamTrack.prototype.getSettings = window.__getSettings));
+
+    console.log('Audio clock: a browser that delivers audio 9 % faster than it says is warned about, also on the dark screen…');
+    await page.evaluate(() => {
+      window.__snorewatch.setAudioClockCheck(3, 5); // a verdict after 3 s instead of 150 s
+      const real = Object.getOwnPropertyDescriptor(BaseAudioContext.prototype, 'sampleRate');
+      window.__sampleRate = real;
+      Object.defineProperty(BaseAudioContext.prototype, 'sampleRate', {
+        configurable: true,
+        get() {
+          return Math.round(real.get.call(this) / 1.09);
+        },
+      });
+    });
+    await page.click('#rec');
+    await page.waitForFunction(
+      () => /delivers its audio (8|9|10)[.,]\d% faster than real time/.test(document.querySelector('#status').textContent),
+      null,
+      {
+        timeout: 15000,
+      },
+    );
+    await page.evaluate(() => window.__snorewatch.setDarkDelay(300));
+    await page.waitForFunction(() => window.__snorewatch.dark, null, { timeout: 5000 });
+    assert.match(await page.textContent('#night-meta'), /^Recording · .* · audio timing off, tap$/);
+    await page.evaluate(() => window.__snorewatch.setDarkDelay(600000));
+    await page.click('#night');
+    await sleep(500);
+    await page.click('#rec');
+    await page.waitForSelector('#report:not([hidden])');
+    assert.match(
+      await page.textContent('#timing-note'),
+      /^Note: during at least part of the recording, this browser delivers its audio (8|9|10)[.,]\d% faster/,
+    );
+    const [clockDl] = await Promise.all([page.waitForEvent('download'), page.click('#dl-json')]);
+    const clockJson = JSON.parse(fs.readFileSync(await clockDl.path(), 'utf8'));
+    assert.ok(Math.abs(clockJson.audioClock.worstRatio - 1.09) < 0.02, JSON.stringify(clockJson.audioClock));
+    await page.evaluate(() => {
+      Object.defineProperty(BaseAudioContext.prototype, 'sampleRate', window.__sampleRate);
+      window.__snorewatch.setAudioClockCheck(null, null);
+    });
 
     console.log('Demo mode (#demo in the address): playing about 20 s of the simulated night…');
     assert.ok(await page.isHidden('#demo-badge'), 'no demo label while recording from the microphone');

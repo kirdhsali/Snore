@@ -3,6 +3,44 @@
 The latest checkpoints, newest first, and a manual smoke test. Older checkpoints (1.23.0 back to
 1.9.1) are in [`archive/verification-history.md`](archive/verification-history.md).
 
+## Checkpoint 1.27.0 (the night's timekeeping, 2026-10-09)
+
+**Tested code revision:** the PR branch of 1.27.0 on top of `main` (`7dfbc4d`, 1.26.0). **Counts
+unchanged for nights without interruptions** (the reference nights have none; their files gain
+`"audioClock": null` and nothing else). Where the page was only busy, its late audio is now
+analysed instead of becoming a gap, so such nights can count differently. A tester saw times
+longer than the night. An investigation (scratch scripts driving the real recorder with a fake
+browser, each finding re-checked independently) found:
+- a backlog the page received late was counted as gap and as audio (night clock too long by the
+  stall), and every interruption counted its first returning block twice;
+- a browser delivering audio at another rate than `ctx.sampleRate` stretches every time, unseen;
+- a phone clock set during the night shifted the end time and could make a gap negative;
+- episodes spanned interruptions; the share image ended at start + clock, the page at Stop.
+
+Fixed in `js/recorder.js` (gap = missing audio, decided 0.5 s after audio returns; monotonic or,
+when longer, wall clock; the audio clock check per 5-minute window), `js/stats.js` (episodes and
+the median interval stop at interruptions; owner decision), `js/app.js`/`js/share.js` (warnings,
+also on the dark screen, and notes; one end time; busiest window clipped), `js/report-format.js`
+(`audioClock`). A review of the first version (three reviewers, each finding re-checked) confirmed
+12 findings, all fixed here: an interruption event during the 0.5 s hold was ignored (a muted
+microphone's silence was then analysed); a second busy pause made a false gap; the whole-night
+clock ratio averaged a mid-night rate change away; the live warning was hidden by the dark
+screen; wording ("counts" are not scaled, per-hour figures are); the image's missing note; docs.
+
+**Environment:** as for 1.26.0.
+
+| Command | Result |
+| --- | --- |
+| `npm test` | **passed**, 110/110: 100 + 9 recorder + 1 share. Recorder: late backlog leaves no gap; 20 lost 5 s gaps measure 5.00 s each and recorded + not recorded = the night within 0.05 s (was 5.1 s over); clock set back an hour changes no length, a sleeping phone's 60 s count; 9 % fast audio caught after 150 s, told to the page once, stored as `ratio`/`worstRatio` 1.09; 20 min correct then 10 min fast: whole night 1.03 but `worstRatio` 1.09 and a live warning; correct audio with 12 interruptions: ratio 1.000, no warning; a mute or end right after audio returned opens its own gap (20.26 s analysed, not 79 s); two busy pauses leave no gap. Stats: episodes and interval split at a gap. Share: image and report end at Stop, "times approximate" and the note |
+| New tests against the code they fix | the 5 first-round recorder/stats tests **fail** on 1.26.0's `js/recorder.js` and `js/stats.js`; the two gap edge-case tests **fail** with their two fixes removed; the share test **fails** with `endOf` reverted |
+| `npm run reference -- --update`, then `git diff tests/fixtures/reference` | 4 files, one added line each: `"audioClock": null`; counts unchanged |
+| `npm run lint` | **passed** |
+| `node --check` over `js/ scripts/ tests/ docs/review-probes/ research/` (`*.js`, `*.cjs`) | **passed**, 43 files |
+| `CHROMIUM_PATH=… npm run test:e2e`, headless shell (as CI) and full Chromium 1194 | **passed** on both; new checks: a short night's `audioClock` has the sample rate and no ratio yet, no timing note; a page whose context reports a sample rate 9 % low (test hook shortens the check to 3 s) warns while recording ("8.9 % faster"), shows "audio timing off" on the dark screen, the report note, and stores `worstRatio` ≈ 1.09 |
+
+**Not run / not available:** physical iPhone or Android (real interruptions, Bluetooth route
+changes, a real sample-rate mismatch); `npm run eval:public` (no detection change).
+
 ## Checkpoint 1.26.0 (the browser's actual microphone processing, 2026-10-09)
 
 **Tested code revision:** the PR branch of 1.26.0 on top of `main` (`87e17dd`, 1.25.0). **No
