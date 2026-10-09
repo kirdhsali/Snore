@@ -384,3 +384,23 @@ test('evaluator states the browser processing a night was recorded with', () => 
     'off (not reported: echoCancellation)',
   );
 });
+
+test('evaluator prints the browser processing of a microphone night', () => {
+  const night = (extra) => ({
+    app: 'Snorewatch',
+    startedAt: '2026-10-01T23:00:00.000Z',
+    timeZone: 'UTC',
+    sensitivity: 'normal',
+    summary: { elapsed: 600 },
+    snores: [feature(2, 12), feature(6, 10), feature(10, 11)],
+    ignored: [],
+    ...extra,
+  });
+  const on = { echoCancellation: false, noiseSuppression: true, autoGainControl: true, channelCount: 1, sampleRate: 48000 };
+  assert.match(
+    evaluateOutput(night({ source: 'mic', microphone: on }), 'UTC'),
+    /browser processing: noise suppression, automatic volume on/,
+  );
+  assert.match(evaluateOutput(night({ source: 'mic' }), 'UTC'), /browser processing: not recorded \(data files before 1\.26\.0\)/);
+  assert.doesNotMatch(evaluateOutput(night({ source: 'file', microphone: null }), 'UTC'), /browser processing/, 'files have no microphone');
+});

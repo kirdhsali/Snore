@@ -342,6 +342,13 @@ async function main() {
     await page.click('#rec');
     await page.waitForSelector('#report:not([hidden])');
     assert.match(await page.textContent('#mic-note'), /^Note: this browser kept its own noise suppression and automatic volume on/);
+    await page.waitForSelector('#share-report:not([disabled])', { timeout: 10000 });
+    const [procRep] = await Promise.all([page.waitForEvent('download'), page.click('#share-report')]);
+    assert.match(
+      fs.readFileSync(await procRep.path(), 'utf8'),
+      /kept its own noise suppression and automatic volume on/,
+      'the shared report says so',
+    );
     const [procDl] = await Promise.all([page.waitForEvent('download'), page.click('#dl-json')]);
     const proc = JSON.parse(fs.readFileSync(await procDl.path(), 'utf8'));
     assert.equal(proc.microphone.noiseSuppression, true);

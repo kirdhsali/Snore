@@ -12,18 +12,19 @@ automatic gain off but never checked what it applied. Now:
   count and the sample rate; null where the browser does not report) into the night record;
 - the data file has a top-level `microphone` (null for the demo and `npm run analyze`), so the
   four reference outputs gained one line each (`"microphone": null`) and nothing else;
-- the page warns while recording and in the report when any processing stayed on;
+- the page warns while recording (also next to the screen-lock warning) and in the report, the
+  shared HTML report and the copied summary when any processing stayed on;
 - `npm run evaluate` prints the line `browser processing: …` for microphone nights.
 
-**Environment:** Linux cloud container, Node 22.22, Chromium 1194 (Playwright's).
+**Environment:** Linux cloud container, Node 22.22, Chromium 1194 and its headless shell (Playwright's).
 
 | Command | Result |
 | --- | --- |
-| `npm test` | **passed**, 99/99: 96 + 2 recorder (settings read back, nulls when not reported or `getSettings` throws, no device id kept; names of the processing kept on) + 1 evaluate (the printed line) |
+| `npm test` | **passed**, 100/100: 96 + 2 recorder (settings read back, nulls when not reported or `getSettings` throws, no device id kept; names of the processing kept on) + 2 evaluate (the line's wording; the CLI prints it for microphone nights only) |
 | `npm run reference -- --update`, then `git diff tests/fixtures/reference` | 4 files, one added line each: `"microphone": null`; counts unchanged |
 | `npm run lint` | **passed** |
 | `node --check` over `js/ scripts/ tests/ docs/review-probes/ research/` (`*.js`, `*.cjs`) | **passed**, 43 files |
-| `CHROMIUM_PATH=… npm run test:e2e` | **passed**, with new checks: Chromium's fake microphone reports noise suppression and automatic gain off and no warning shows; a page whose `getSettings()` reports both on shows the warning while recording and in the report, and the data file holds `true`; the demo's `microphone` is null |
+| `CHROMIUM_PATH=… npm run test:e2e`, with Playwright's headless shell (as CI) and with full Chromium 1194 | **passed** on both, with new checks: Chromium's fake microphone reports noise suppression and automatic gain off and no warning shows; a page whose `getSettings()` reports both on shows the warning while recording and in the report and the shared report, and the data file holds `true`; the demo's `microphone` is null. The first push failed in CI: the headless shell refuses the screen wake lock, whose warning replaced the processing warning. Reproduced locally with the headless shell; fixed by showing both warnings |
 | `npm run evaluate` on `tests/fixtures/reference/busy-hum-48000.json` | reads it; no processing line (`source: "file"`) |
 
 **Not run / not available:** physical iPhone (Safari/WebKit), Firefox: what they report from

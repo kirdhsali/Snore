@@ -211,6 +211,11 @@
     return `this browser kept its own ${list} on, although the app asked for it off. It can hide quiet snores or change how sounds look, so the counts may be less reliable.`;
   }
 
+  /** The report's processing note for a finished night, or '' when the browser kept nothing on. */
+  function processingNote(n) {
+    return n.source === 'mic' && Recorder.browserProcessing(n.microphone).length ? `Note: ${processingText(n.microphone)}` : '';
+  }
+
   function showRecordingStatus() {
     if (!running || !session) return;
     if (dark) nightText();
@@ -221,8 +226,11 @@
     } else if (s.gap) {
       setStatus('Recording interrupted: the system paused the microphone. Trying to resume…', true);
     } else if (s.source === 'mic' && (wakeLockState === 'failed' || wakeLockState === 'unsupported')) {
+      // Both warnings when both apply: the processing one is only actionable now (another browser).
+      const processing = Recorder.browserProcessing(s.microphone).length ? ` Also, ${processingText(s.microphone)}` : '';
       setStatus(
-        'Recording, but this browser did not let the app keep the screen on. If the screen locks, recording stops: set Auto-Lock to Never for tonight.',
+        'Recording, but this browser did not let the app keep the screen on. If the screen locks, recording stops: set Auto-Lock to Never for tonight.' +
+          processing,
         true,
       );
     } else if (s.source === 'mic' && Recorder.browserProcessing(s.microphone).length) {
@@ -567,9 +575,8 @@
       `${day}, ${fmtTime(start)} – ${fmtTime(end)} · ${fmtSpan(n.capturedSeconds)}` +
       (n.gaps.length ? ` recorded · interrupted ${n.gaps.length}× (${fmtSpan(lost)} not recorded)` : '');
     el.verdict.textContent = verdictText(sum);
-    const processing = n.source === 'mic' && Recorder.browserProcessing(n.microphone).length;
-    el.micNote.hidden = !processing;
-    el.micNote.textContent = processing ? `Note: ${processingText(n.microphone)}` : '';
+    el.micNote.textContent = processingNote(n);
+    el.micNote.hidden = !el.micNote.textContent;
     el.shadowNote.hidden = false;
     const noBreath = sum.ignoredByReason['no-breath'] || 0;
     el.shadowNote.textContent =
@@ -713,6 +720,7 @@
         noise: n.noise,
         noiseBands: Noise.SHOWN_BANDS,
         noiseLines: (roomNoise(n) || { lines: [] }).lines,
+        processingNote: processingNote(n),
       };
       const canvas = Share.drawShareCard(document.createElement('canvas'), data);
       const png = await new Promise((r) => canvas.toBlob(r, 'image/png'));
@@ -802,7 +810,10 @@
       `Loudest: +${fmtNum(sum.maxRelDb)} dB, average +${fmtNum(sum.meanRelDb)} dB above room noise`,
       `Episodes: ${sum.episodes.length}${sum.longestEpisode ? `, longest ${fmtSpan(sum.longestEpisode)}` : ''}`,
       `Ignored sounds: ${sum.ignoredCount}`,
-    ].join('\n');
+      processingNote(night),
+    ]
+      .filter(Boolean)
+      .join('\n');
   }
 
   function download(name, blob) {
