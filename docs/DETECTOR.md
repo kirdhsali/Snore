@@ -1,7 +1,7 @@
 # Snorewatch detector specification
 
 What a port (the native iPhone app) has to do to count snores exactly as the web app does,
-and how to check that it does. State: version 1.25.0. The code is the authority: when this
+and how to check that it does. State: version 1.26.0. The code is the authority: when this
 document and the code disagree, the code counts and this document gets fixed. Rules and their
 history: [`HANDOVER.md`](HANDOVER.md) §3–4.
 
@@ -398,6 +398,7 @@ order). This only matters when comparing files as text.
 | `wallSeconds`, `capturedSeconds` | 1 decimal |
 | `interruptions` | `start`, `end`, `seconds` (1 decimal), `offsetSec` (night's clock, 2 decimals), `reason` |
 | `screenWakeLock` | web only |
+| `microphone` | web only (since 1.26.0): what the browser applied to the microphone, read back with `getSettings()`: `echoCancellation`, `noiseSuppression`, `autoGainControl` (true/false, a mode string such as `"all"`, or null when not reported), `channelCount`, `sampleRate` (null when not reported); null for `demo` and `file` |
 | `sensitivity`, `minBreathRiseDb` | the night's settings |
 | `summary` | as §8, **not rounded** |
 | `noise` | `minuteSec`, `bandsHz`, `minutes[]`: `offsetSec` (not rounded: a multiple of 60), `quietSec` (0 decimals), then 1 decimal each: `backgroundDbfs`, `p10Dbfs`, `p90Dbfs`, `bandsDbfs[]`, `humHz`, `humDb` |

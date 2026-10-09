@@ -10,6 +10,7 @@
  "capturedSeconds": 270,
  "interruptions": [],
  "screenWakeLock": null,
+ "microphone": null,
  "sensitivity": "normal",
  "minBreathRiseDb": 6,
  "summary": {

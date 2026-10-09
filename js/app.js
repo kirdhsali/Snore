@@ -36,6 +36,7 @@
     reportSource: $('report-source'),
     reportRange: $('report-range'),
     verdict: $('verdict'),
+    micNote: $('mic-note'),
     shadowNote: $('shadow-note'),
     reportTiles: $('report-tiles'),
     reportTimeline: $('report-timeline'),
@@ -203,6 +204,13 @@
     return n.gaps.reduce((sum, g) => sum + (g.end - g.start) / 1000, 0);
   }
 
+  /** The warning when the browser kept its own sound processing on (js/recorder.js reads it back). */
+  function processingText(microphone) {
+    const on = Recorder.browserProcessing(microphone);
+    const list = on.length > 1 ? `${on.slice(0, -1).join(', ')} and ${on[on.length - 1]}` : on[0];
+    return `this browser kept its own ${list} on, although the app asked for it off. It can hide quiet snores or change how sounds look, so the counts may be less reliable.`;
+  }
+
   function showRecordingStatus() {
     if (!running || !session) return;
     if (dark) nightText();
@@ -217,6 +225,8 @@
         'Recording, but this browser did not let the app keep the screen on. If the screen locks, recording stops: set Auto-Lock to Never for tonight.',
         true,
       );
+    } else if (s.source === 'mic' && Recorder.browserProcessing(s.microphone).length) {
+      setStatus(`Recording, but ${processingText(s.microphone)}`, true);
     } else {
       setStatus(RECORDING_TEXT[s.source]);
     }
@@ -557,6 +567,9 @@
       `${day}, ${fmtTime(start)} – ${fmtTime(end)} · ${fmtSpan(n.capturedSeconds)}` +
       (n.gaps.length ? ` recorded · interrupted ${n.gaps.length}× (${fmtSpan(lost)} not recorded)` : '');
     el.verdict.textContent = verdictText(sum);
+    const processing = n.source === 'mic' && Recorder.browserProcessing(n.microphone).length;
+    el.micNote.hidden = !processing;
+    el.micNote.textContent = processing ? `Note: ${processingText(n.microphone)}` : '';
     el.shadowNote.hidden = false;
     const noBreath = sum.ignoredByReason['no-breath'] || 0;
     el.shadowNote.textContent =

@@ -133,6 +133,15 @@ async function main() {
     const [jsonDl] = await Promise.all([page.waitForEvent('download'), page.click('#dl-json')]);
     const report = JSON.parse(fs.readFileSync(await jsonDl.path(), 'utf8'));
     assert.equal(report.schemaVersion, 2, 'data file carries its schema version');
+    // What Chromium applied to its fake microphone: the app asks for all processing off (1.26.0).
+    assert.equal(report.microphone.noiseSuppression, false, JSON.stringify(report.microphone));
+    assert.equal(report.microphone.autoGainControl, false);
+    assert.ok(
+      report.microphone.echoCancellation === false ||
+        report.microphone.echoCancellation === 'none' ||
+        report.microphone.echoCancellation === null,
+    );
+    assert.ok(await page.isHidden('#mic-note'), 'no processing warning when the browser switched it off');
     const first = await page.evaluate(() => window.__snorewatch.night);
     assert.ok(first.frozen && /^night-/.test(first.id), `finished night is one frozen record: ${JSON.stringify(first)}`);
     assert.equal(first.snores, report.snores.length);
@@ -316,6 +325,29 @@ async function main() {
     assert.ok(Math.abs(off.wallSeconds - off.capturedSeconds - off.interruptions[0].seconds) < 0.6, JSON.stringify(off));
     assert.ok(Math.abs(Date.parse(off.endedAt) - Date.parse(off.startedAt) - off.wallSeconds * 1000) < 60, 'end time is the real clock');
 
+    console.log('Browser keeps noise suppression and automatic volume on: warned while recording and in the report…');
+    await page.evaluate(() => {
+      window.__getSettings = MediaStreamTrack.prototype.getSettings;
+      MediaStreamTrack.prototype.getSettings = function () {
+        return { ...window.__getSettings.call(this), noiseSuppression: true, autoGainControl: true };
+      };
+    });
+    await page.click('#rec');
+    await page.waitForFunction(
+      () => /kept its own noise suppression and automatic volume on/.test(document.querySelector('#status').textContent),
+      null,
+      { timeout: 5000 },
+    );
+    await sleep(1500);
+    await page.click('#rec');
+    await page.waitForSelector('#report:not([hidden])');
+    assert.match(await page.textContent('#mic-note'), /^Note: this browser kept its own noise suppression and automatic volume on/);
+    const [procDl] = await Promise.all([page.waitForEvent('download'), page.click('#dl-json')]);
+    const proc = JSON.parse(fs.readFileSync(await procDl.path(), 'utf8'));
+    assert.equal(proc.microphone.noiseSuppression, true);
+    assert.equal(proc.microphone.autoGainControl, true);
+    await page.evaluate(() => (MediaStreamTrack.prototype.getSettings = window.__getSettings));
+
     console.log('Demo mode (#demo in the address): playing about 20 s of the simulated night…');
     assert.ok(await page.isHidden('#demo-badge'), 'no demo label while recording from the microphone');
     await page.evaluate(() => (location.hash = 'demo'));
@@ -351,6 +383,7 @@ async function main() {
     assert.match(await page.textContent('#report-range'), /interrupted 1×/);
     const [demoDl] = await Promise.all([page.waitForEvent('download'), page.click('#dl-json')]);
     const demoJson = JSON.parse(fs.readFileSync(await demoDl.path(), 'utf8'));
+    assert.equal(demoJson.microphone, null, 'the demo has no microphone');
     const gap = demoJson.interruptions[0];
     console.log(`  gap ${gap.seconds} s (${gap.reason}); ${demoJson.capturedSeconds} s analysed of ${demoJson.wallSeconds} s`);
     console.log(

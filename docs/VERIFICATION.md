@@ -3,6 +3,32 @@
 The latest checkpoints, newest first, and a manual smoke test. Older checkpoints (1.23.0 back to
 1.9.1) are in [`archive/verification-history.md`](archive/verification-history.md).
 
+## Checkpoint 1.26.0 (the browser's actual microphone processing, 2026-10-09)
+
+**Tested code revision:** the PR branch of 1.26.0 on top of `main` (`87e17dd`, 1.25.0). **No
+counting change.** The app asks the browser for echo cancellation, noise suppression and
+automatic gain off but never checked what it applied. Now:
+- `js/recorder.js` reads the track's `getSettings()` at Start (only those three, the channel
+  count and the sample rate; null where the browser does not report) into the night record;
+- the data file has a top-level `microphone` (null for the demo and `npm run analyze`), so the
+  four reference outputs gained one line each (`"microphone": null`) and nothing else;
+- the page warns while recording and in the report when any processing stayed on;
+- `npm run evaluate` prints the line `browser processing: …` for microphone nights.
+
+**Environment:** Linux cloud container, Node 22.22, Chromium 1194 (Playwright's).
+
+| Command | Result |
+| --- | --- |
+| `npm test` | **passed**, 99/99: 96 + 2 recorder (settings read back, nulls when not reported or `getSettings` throws, no device id kept; names of the processing kept on) + 1 evaluate (the printed line) |
+| `npm run reference -- --update`, then `git diff tests/fixtures/reference` | 4 files, one added line each: `"microphone": null`; counts unchanged |
+| `npm run lint` | **passed** |
+| `node --check` over `js/ scripts/ tests/ docs/review-probes/ research/` (`*.js`, `*.cjs`) | **passed**, 43 files |
+| `CHROMIUM_PATH=… npm run test:e2e` | **passed**, with new checks: Chromium's fake microphone reports noise suppression and automatic gain off and no warning shows; a page whose `getSettings()` reports both on shows the warning while recording and in the report, and the data file holds `true`; the demo's `microphone` is null |
+| `npm run evaluate` on `tests/fixtures/reference/busy-hum-48000.json` | reads it; no processing line (`source: "file"`) |
+
+**Not run / not available:** physical iPhone (Safari/WebKit), Firefox: what they report from
+`getSettings()` is unverified; `npm run eval:public` (no detection change).
+
 ## Checkpoint 1.25.0 (detector specification for the Swift port, 2026-10-08)
 
 **Tested code revision:** the PR branch of 1.25.0 on top of `main` (`4b2aa8e`, 1.24.1). **No

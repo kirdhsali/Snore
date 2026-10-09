@@ -44,6 +44,44 @@
   }
   registerProcessor('snore-tap', Tap);`;
 
+  /**
+   * What the browser actually applied to the microphone. The app asks for echo cancellation,
+   * noise suppression and automatic gain off, but a browser may keep them on without saying
+   * so (the request is a wish, not a demand). Values: true/false, a mode string where the
+   * browser reports one (echo cancellation), or null when it does not report the setting.
+   */
+  function microphoneSettings(stream) {
+    const track = stream && stream.getAudioTracks()[0];
+    let st = null;
+    try {
+      st = track && typeof track.getSettings === 'function' ? track.getSettings() : null;
+    } catch {}
+    st = st || {};
+    const flag = (v) => (typeof v === 'boolean' || typeof v === 'string' ? v : null);
+    const num = (v) => (typeof v === 'number' && isFinite(v) ? v : null);
+    return {
+      echoCancellation: flag(st.echoCancellation),
+      noiseSuppression: flag(st.noiseSuppression),
+      autoGainControl: flag(st.autoGainControl),
+      channelCount: num(st.channelCount),
+      sampleRate: num(st.sampleRate),
+    };
+  }
+
+  const PROCESSING_NAMES = {
+    noiseSuppression: 'noise suppression',
+    autoGainControl: 'automatic volume',
+    echoCancellation: 'echo cancellation',
+  };
+
+  /** The sound processing the browser kept on, as readable names (empty: all off or not reported). */
+  function browserProcessing(microphone) {
+    if (!microphone) return [];
+    return Object.keys(PROCESSING_NAMES)
+      .filter((k) => microphone[k] === true || microphone[k] === 'all') // 'remote-only' leaves the room's sound alone
+      .map((k) => PROCESSING_NAMES[k]);
+  }
+
   /** Streams raw mono samples from `input` to `onSamples`. */
   async function createTap(env, ctx, input, onSamples) {
     const sink = ctx.createGain();
@@ -236,6 +274,7 @@
       const AC = env.AudioContext;
       let ctx = null;
       let stream = null;
+      let microphone = null;
       let s = null;
       try {
         if (!AC) throw new Error('This browser cannot process audio. Try a current Chrome, Firefox or Safari.');
@@ -251,6 +290,7 @@
           stream = await media.getUserMedia({
             audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 },
           });
+          microphone = microphoneSettings(stream);
           input = ctx.createMediaStreamSource(stream);
         } else {
           player = ctx.createBufferSource();
@@ -267,6 +307,7 @@
           endWall: null,
           ctx,
           stream,
+          microphone, // the processing the browser applied (null for the demo)
           player,
           tap: null,
           analysis: null,
@@ -367,6 +408,7 @@
         clockSeconds: s.wallElapsed, // the events' clock: analysed audio plus interruptions
         gaps: s.gaps.slice(),
         screenWakeLock: s.wakeLock,
+        microphone: s.microphone,
         ...s.analysis.result(s.elapsed),
       });
     }
@@ -401,5 +443,5 @@
     return api;
   }
 
-  return { createRecorder, STALL_MS };
+  return { createRecorder, browserProcessing, STALL_MS };
 });

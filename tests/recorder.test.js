@@ -4,7 +4,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Synth = require('../js/synth.js');
-const { createRecorder } = require('../js/recorder.js');
+const { createRecorder, browserProcessing } = require('../js/recorder.js');
 const { toReport } = require('../js/report-format.js');
 const { recount } = require('../scripts/evaluate.js');
 const { analyzeSamples } = require('../scripts/analyze.js');
@@ -143,6 +143,59 @@ test("the recorder's night is the analysis of the audio it was fed, as npm run a
   for (const key of ['sensitivity', 'minBreathRiseDb', 'summary', 'noise', 'snores', 'ignored', 'shadows']) {
     assert.deepEqual(file(night)[key], file(fromFile)[key], key);
   }
+});
+
+test('the night records the processing the browser actually applied to the microphone', async () => {
+  const b = fakeBrowser();
+  // The app asks for all processing off; this browser keeps noise suppression on. Only the
+  // processing settings are kept, not the device's id or name.
+  b.track.getSettings = () => ({
+    echoCancellation: false,
+    noiseSuppression: true,
+    autoGainControl: false,
+    channelCount: 1,
+    sampleRate: 48000,
+    deviceId: 'abc',
+  });
+  const rec = createRecorder({ version: 'test', env: b.env });
+  await rec.start({ source: 'mic' });
+  b.feed(new Float32Array(16000));
+  const night = rec.stop();
+  const applied = { echoCancellation: false, noiseSuppression: true, autoGainControl: false, channelCount: 1, sampleRate: 48000 };
+  assert.deepEqual(night.microphone, applied);
+  assert.deepEqual(browserProcessing(night.microphone), ['noise suppression']);
+  assert.deepEqual(JSON.parse(JSON.stringify(toReport(night))).microphone, applied, 'the data file holds it');
+
+  // A browser that reports nothing (or throws) gives nulls, not a guess.
+  const silent = fakeBrowser();
+  silent.track.getSettings = () => {
+    throw new Error('not supported');
+  };
+  const rec2 = createRecorder({ version: 'test', env: silent.env });
+  await rec2.start({ source: 'mic' });
+  silent.feed(new Float32Array(16000));
+  const unknown = { echoCancellation: null, noiseSuppression: null, autoGainControl: null, channelCount: null, sampleRate: null };
+  assert.deepEqual(rec2.stop().microphone, unknown);
+  assert.deepEqual(browserProcessing(unknown), []);
+
+  // The demo and WAV files have no microphone: null in the data file.
+  assert.equal(JSON.parse(JSON.stringify(toReport({ ...night, microphone: null }))).microphone, null);
+  assert.equal(analyzeSamples(new Float32Array(16000), 16000).report.microphone, null);
+});
+
+test('browserProcessing names the processing a browser kept on', () => {
+  assert.deepEqual(browserProcessing(null), []);
+  assert.deepEqual(browserProcessing({ echoCancellation: false, noiseSuppression: false, autoGainControl: false }), []);
+  assert.deepEqual(browserProcessing({ echoCancellation: 'all', noiseSuppression: true, autoGainControl: true }), [
+    'noise suppression',
+    'automatic volume',
+    'echo cancellation',
+  ]);
+  assert.deepEqual(
+    browserProcessing({ echoCancellation: 'remote-only', noiseSuppression: null, autoGainControl: null }),
+    [],
+    'only remote audio',
+  );
 });
 
 test('a failed start leaves the state and the last night as they were', async () => {
