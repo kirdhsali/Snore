@@ -2,7 +2,7 @@
 // scripts/evaluate.js re-runs a downloaded night's stored features through the rules.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { eventsOf, reevaluate, recount, canRecount, stricterBreath } = require('../scripts/evaluate.js');
+const { eventsOf, reevaluate, recount, canRecount, stricterBreath, processingLine } = require('../scripts/evaluate.js');
 const { toReport } = require('../js/report-format.js');
 
 const feature = (offsetSec, breathRiseDb, extra = {}) => ({
@@ -369,4 +369,38 @@ test("old files without breath measurements say a background test's breath re-co
   const out2 = evaluateOutput(noBreath, 'UTC');
   assert.match(out2, /with a stricter breath-noise rule: not evaluable \(this file has no breath-noise measurements for it\)/, out2);
   assert.doesNotMatch(out2, /3 dB: 0/, out2);
+});
+
+test('evaluator states the browser processing a night was recorded with', () => {
+  assert.equal(processingLine(undefined), 'not recorded (data files before 1.26.0)');
+  assert.equal(processingLine({ echoCancellation: false, noiseSuppression: false, autoGainControl: false }), 'off');
+  assert.equal(
+    processingLine({ echoCancellation: false, noiseSuppression: true, autoGainControl: true }),
+    'noise suppression, automatic volume on, although the app asked for it off',
+  );
+  assert.equal(processingLine({ echoCancellation: null, noiseSuppression: null, autoGainControl: null }), 'not reported by the browser');
+  assert.equal(
+    processingLine({ echoCancellation: null, noiseSuppression: false, autoGainControl: false }),
+    'off (not reported: echoCancellation)',
+  );
+});
+
+test('evaluator prints the browser processing of a microphone night', () => {
+  const night = (extra) => ({
+    app: 'Snorewatch',
+    startedAt: '2026-10-01T23:00:00.000Z',
+    timeZone: 'UTC',
+    sensitivity: 'normal',
+    summary: { elapsed: 600 },
+    snores: [feature(2, 12), feature(6, 10), feature(10, 11)],
+    ignored: [],
+    ...extra,
+  });
+  const on = { echoCancellation: false, noiseSuppression: true, autoGainControl: true, channelCount: 1, sampleRate: 48000 };
+  assert.match(
+    evaluateOutput(night({ source: 'mic', microphone: on }), 'UTC'),
+    /browser processing: noise suppression, automatic volume on/,
+  );
+  assert.match(evaluateOutput(night({ source: 'mic' }), 'UTC'), /browser processing: not recorded \(data files before 1\.26\.0\)/);
+  assert.doesNotMatch(evaluateOutput(night({ source: 'file', microphone: null }), 'UTC'), /browser processing/, 'files have no microphone');
 });

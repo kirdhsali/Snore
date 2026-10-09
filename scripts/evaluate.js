@@ -25,6 +25,7 @@ const {
 } = require('../js/detector.js');
 const { fromReport, shadowEvents } = require('../js/report-format.js');
 const Noise = require('../js/noise.js');
+const { browserProcessing } = require('../js/recorder.js');
 
 /** The night's events in time order, each with the verdict it got when recorded (was*). */
 function eventsOf(report) {
@@ -79,6 +80,16 @@ function hourClock(timeZone) {
 }
 const count = (list, f) => list.filter(f).length;
 
+/** The browser's sound processing during the night (data files since 1.26.0). */
+function processingLine(mic) {
+  if (!mic) return 'not recorded (data files before 1.26.0)';
+  const on = browserProcessing(mic);
+  if (on.length) return `${on.join(', ')} on, although the app asked for it off`;
+  const unknown = ['echoCancellation', 'noiseSuppression', 'autoGainControl'].filter((k) => mic[k] == null);
+  if (unknown.length === 3) return 'not reported by the browser';
+  return unknown.length ? `off (not reported: ${unknown.join(', ')})` : 'off';
+}
+
 function report(file) {
   const r = JSON.parse(fs.readFileSync(file, 'utf8'));
   const night = fromReport(r);
@@ -102,6 +113,7 @@ function report(file) {
   const rule = (db) => (db == null ? 'none' : `${db} dB`);
   console.log(`  breath-noise rule: recorded ${rule(night.minBreathRiseDb)}, current rules ${rule(breathRuleDb(current))}`);
   if (missing.length) console.log(`  missing: ${missing.join('; ')}`);
+  if (r.source === 'mic') console.log(`  browser processing: ${processingLine(r.microphone)}`);
   const before = count(events, (e) => e.wasSnore);
   const now = count(after, (e) => e.isSnore);
   // Confirmed = another snore 2-12 s before or after (what the app counts since 1.5).
@@ -310,4 +322,4 @@ if (require.main === module) {
   }
   files.forEach(report);
 }
-module.exports = { eventsOf, reevaluate, recount, canRecount, stricterBreath };
+module.exports = { eventsOf, reevaluate, recount, canRecount, stricterBreath, processingLine };

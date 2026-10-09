@@ -1,6 +1,6 @@
 # Snorewatch handover
 
-State at version **1.25.0** (2026-10-08, deployed to GitHub Pages from `main`). The owner is
+State at version **1.26.0** (2026-10-09, deployed to GitHub Pages from `main`). The owner is
 porting the app to a native iPhone app; the web app stays the test bed for making the detector
 more reliable. The detector is specified in [`docs/DETECTOR.md`](DETECTOR.md), with reference
 outputs a port must reproduce.
@@ -164,6 +164,7 @@ real-night phase 1.12.5–1.22.3) with their reasons: [`archive/history.md`](arc
 | 1.24.1 | #61 | Code review for the Swift port: unused measurements (zero-crossing rate, mean level), embed mode and single-file build, the committed demo WAV and `js/night-store.js` removed; one `percentile`; one breath-rule constant; room noise gets the power spectrum; live-pill clock after an interruption fixed; counts unchanged |
 | 1.25.0 | #62 | For the Swift port: the specification `docs/DETECTOR.md`; the night's analysis moved out of the recorder into `js/analysis.js`; `npm run analyze` (a WAV file through it: data file and snores WAV); reference outputs of four synthetic nights (`npm run reference`, `tests/fixtures/reference/`) that a port compares itself with; counts unchanged |
 | — | #63 | Owner decisions after the code review: the knock test stays in the background, `npm run evaluate` keeps reading old files; older history of the handover, verification record and review response moved to `docs/archive/`; the review response now gives each finding's status at 1.25.0; smoke test brought up to date |
+| 1.26.0 | #64 | The browser's actual microphone processing: the app asks for echo cancellation, noise suppression and automatic gain off but never checked; it now reads back what the browser applied (`getSettings()`), stores it in the data file (`microphone`), warns while recording, in the report, the shared report and the copied summary when any of it stayed on, and `npm run evaluate` prints it. Prompted by a friend's test night with much background counted (owner, 2026-10-09); counts unchanged |
 
 ## 5. Architecture
 
@@ -222,7 +223,7 @@ js/app.js (page) ◄── onState / onFrame / onEvent / onWakeLock
   profile, background tests with their snores and set-aside sounds). The report, sharing
   and downloads read only this record; a new or failed Start cannot change it.
 - **Exports:** JSON via `toReport` (schema 2; top level incl. `timeZone`, `interruptions`,
-  `minBreathRiseDb`, `noise`; per sound the features incl. `breathRiseDb`, `onsetJumpDb`,
+  `microphone` (the browser's applied processing, since 1.26.0), `minBreathRiseDb`, `noise`; per sound the features incl. `breathRiseDb`, `onsetJumpDb`,
   `wavStartSec`; `shadows.<test>` with its rules, summary, snores and `setAside`, each sound
   with every feature and, for snores, `rhythmRescued` since 1.22.1; older files may also hold
   `lowRiseDb`, `preRise*Db`, `shadows.auto` with `levels` and test-clip positions); snores
@@ -351,6 +352,11 @@ tags. Rules: `CLAUDE.md` (= `AGENTS.md`) and `docs/WORKING-RULES.md`.
 earlier detours and fixed the live pill after an interruption; 1.25.0 adds what the port needs:
 the specification [`docs/DETECTOR.md`](DETECTOR.md), the reference outputs a port must reproduce
 (§12 there) and `npm run analyze` to run the analysis on any WAV file. Counts unchanged.
+
+**Done (2026-10-09):** 1.26.0 records the browser's actual microphone processing (a friend's test
+night kept much background; whether his browser left noise suppression on was unknown). A
+strategy review of the detector is under way (advisor session and an independent ChatGPT
+review); the next detector task follows from it and may replace item 1 below.
 
 **Agreed next (owner):**
 1. **New session: YAMNet as a "second opinion" background test.** A design note first, for the

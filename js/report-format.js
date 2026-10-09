@@ -23,6 +23,9 @@
  *      `wavStartSec` (the test-clip WAV), and the per-sound `lowRiseDb` and
  *      `preRise25Db`/`preRise50Db`/`preRise100Db`. Older files keep them; readers ignore them.
  *      1.25.0: `source` can be "file" (`npm run analyze` on a WAV file); fields as before.
+ *      1.26.0 adds `microphone`: the processing the browser actually applied to the
+ *      microphone (echo cancellation, noise suppression, automatic gain; channel count and
+ *      sample rate), null for the demo and files. Older files lack it.
  */
 (function (root, factory) {
   const api = factory();
@@ -54,7 +57,7 @@
    * night: {
    *   version, source, startWall, endWall (ms), timeZone, capturedSeconds,
    *   gaps: [{start, end (ms), clock (s on the events' clock), reason}],
-   *   screenWakeLock, sensitivity, summary,
+   *   screenWakeLock, microphone (see js/recorder.js, or null), sensitivity, summary,
    *   snores: [events], ignored: [ignored-sound records],
    *   wavStarts: Map(event -> seconds in the WAV download) (optional),
    *   noise: {minuteSec, bandsHz, minutes: [{t, quietSec, backgroundDb, p10Db, p90Db, bandsDb, humHz, humDb}]} (optional),
@@ -85,6 +88,8 @@
         reason: g.reason,
       })),
       screenWakeLock: night.screenWakeLock,
+      // What the browser applied to the microphone; the app asks for all processing off.
+      microphone: night.microphone || null,
       sensitivity: night.sensitivity,
       // Breath-noise rule the counts used (Normal 6 dB since 1.17.0; null = not checked).
       minBreathRiseDb: night.config && night.config.minBreathRiseDb != null ? night.config.minBreathRiseDb : null,

@@ -707,6 +707,7 @@ tr:last-child td{border-bottom:0}
 ${nClips ? '<p class="tip">This file contains ' + nClips + ' snore recordings you can play. If they do not play, open the file in a web browser (on iPhone: “Open in Safari”).</p>' : ''}
 <p class="verdict">${esc(verdict)}</p>
 ${interrupted ? `<p class="tip interrupted">${esc(interrupted)}</p>` : ''}
+${d.processingNote ? `<p class="tip interrupted">${esc(d.processingNote)}</p>` : ''}
 ${possible ? `<p class="note">${esc(possible)}</p>` : ''}
 ${d.heroImage ? `<img class="hero" src="${d.heroImage}" alt="The night as a star map: each snore is a dot, placed by time and loudness">` : ''}
 <div class="tiles">
